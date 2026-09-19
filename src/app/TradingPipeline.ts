@@ -7,6 +7,7 @@ import {
   AccountBalance,
   AssetSymbol,
   CalculatedFeatures,
+  ExecutionMode,
   KillSwitchLevel,
   Order,
   OrderBook,
@@ -17,11 +18,15 @@ import {
   SolverType,
   Tick,
   TradingSignal,
+  getBinanceBaseUrl,
+  normalizeExecutionMode,
 } from '../domain/types';
+import crypto from 'crypto';
 import { OrderGateway } from '../execution/OrderGateway';
 import { UserDataStream } from '../execution/UserDataStream';
 import { FeatureEngine } from '../features/FeatureEngine';
 import { MeanReversionStrategy } from '../strategies/MeanReversionStrategy';
+import { DecisionEngine } from '../strategies/DecisionEngine';
 import { ExchangeMarketData } from '../market-data/ExchangeMarketData';
 import { OrderBookBuilder } from '../market-data/OrderBookBuilder';
 import { HealthMonitor } from '../monitoring/HealthMonitor';
@@ -59,12 +64,20 @@ export class TradingPipeline {
   private correlationRiskManager: CorrelationRiskManager;
   private telegramService: TelegramService;
   private strategy: MeanReversionStrategy;
+  private decisionEngine: DecisionEngine;
   private dynamicRiskManager: DynamicRiskManager;
   private regimeDetector: RegimeDetector;
+  private regimeDetectors: Map<AssetSymbol, RegimeDetector> = new Map();
   private portfolioSizer: PortfolioSizer;
   private partialProfitManager: PartialProfitManager;
   private scaleInManager: ScaleInManager;
   private lastSnapshotTime: number = 0;
+  private inFlightSymbols: Set<string> = new Set();
+  private pendingProtection: Map<string, { ouSigma: number; ouMu: number; side: 'BUY' | 'SELL'; symbol: AssetSymbol }> = new Map();
+  private lastAlertState: Map<string, { value: string; ts: number }> = new Map();
+  private signalHistory: TradingSignal[] = [];
+  private riskInterval: NodeJS.Timeout | null = null;
+  private maintenanceInterval: NodeJS.Timeout | null = null;
 
   private config: RuntimeConfigState;
   private isRunning: boolean = false;
@@ -97,10 +110,18 @@ export class TradingPipeline {
     this.config = { ...INITIAL_RUNTIME_CONFIG };
     
     // Read environment configuration
-    const executionMode = (process.env.EXECUTION_MODE as 'LIVE' | 'TESTNET' | 'PAPER') || 'PAPER';
-    const apiBaseUrl = executionMode === 'TESTNET' 
-      ? 'https://testnet.binancefuture.com' 
-      : 'https://fapi.binance.com';
+    const rawMode = process.env.EXECUTION_MODE;
+    const hasKey = !!process.env.EXCHANGE_API_KEY;
+    const executionMode: ExecutionMode = normalizeExecutionMode(rawMode, hasKey);
+    const apiBaseUrl = getBinanceBaseUrl(executionMode);
+
+    if (executionMode === 'LIVE') {
+      this.config.executionMode = 'LIVE_SIMULATION';
+    } else if (executionMode === 'TESTNET') {
+      this.config.executionMode = 'TESTNET_EXCHANGE';
+    } else {
+      this.config.executionMode = 'PAPER_TRADING';
+    }
 
     this.orderBookBuilder = new OrderBookBuilder(10);
     this.marketData = new ExchangeMarketData(this.orderBookBuilder);
@@ -122,6 +143,7 @@ export class TradingPipeline {
     this.correlationRiskManager = new CorrelationRiskManager();
     this.telegramService = telegramService;
     this.strategy = new MeanReversionStrategy();
+    this.decisionEngine = new DecisionEngine();
 
     // Initialize Asset Screener & Dynamic Risk System
     this.assetScreener = new AssetScreener(
@@ -155,6 +177,9 @@ export class TradingPipeline {
       // 0. Screen qualified assets
       console.log('🔍 Screening qualified assets from exchange...');
       await this.assetScreener.refreshAllAssets();
+      for (const asset of this.assetScreener.getAllAssets()) {
+        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity);
+      }
       this.portfolioSizer.updateBalance(this.userDataStream.getBalance().totalEquity);
       this.config.activeSymbols = this.portfolioSizer.getAllowedSymbols();
 
@@ -200,19 +225,8 @@ export class TradingPipeline {
   }
 
   private setupIntervals() {
-    // Main Trading Loop (1Hz)
-    setInterval(async () => {
-      try {
-        if (this.isRunning) {
-          await this.evaluateAndExecute();
-        }
-      } catch (error) {
-        console.error('Error in trading loop:', error);
-      }
-    }, 1000);
-
     // Risk Evaluation Loop (1m)
-    setInterval(async () => {
+    this.riskInterval = setInterval(async () => {
       try {
         if (this.isRunning) {
           await this.updateRiskMetrics();
@@ -223,7 +237,7 @@ export class TradingPipeline {
     }, 60 * 1000);
 
     // Maintenance Cycle (5m)
-    setInterval(async () => {
+    this.maintenanceInterval = setInterval(async () => {
       try {
         if (this.isRunning) {
           this.correlationRiskManager.calculateCorrelationMatrix();
@@ -243,87 +257,50 @@ export class TradingPipeline {
     }, this.config.rebalanceIntervalMs);
   }
 
-  public async startAutonomousTrading() {
-    await this.start();
+  public async stop(): Promise<void> {
+    if (!this.isRunning) return;
+    this.isRunning = false;
+    console.log('🛑 Stopping TradingPipeline...');
+
+    if (this.rebalanceTimer) {
+      clearInterval(this.rebalanceTimer);
+      this.rebalanceTimer = null;
+    }
+    if (this.riskInterval) {
+      clearInterval(this.riskInterval);
+      this.riskInterval = null;
+    }
+    if (this.maintenanceInterval) {
+      clearInterval(this.maintenanceInterval);
+      this.maintenanceInterval = null;
+    }
+
+    this.marketData.stopStreaming();
+    this.userDataStream.stop();
+    this.eventJournal.record('INFO', 'SYSTEM', 'Basel Quantum Trading Pipeline paused by operator');
+    console.log('✅ TradingPipeline stopped cleanly.');
   }
 
-  private async evaluateAndExecute() {
-    // 1. Safety Check
-    if (!this.killSwitch.isEntryAllowed()) return;
-
-    // 2. Risk Decision Check
-    const lastDecision = this.dynamicRiskManager.getLastDecision();
-    if (lastDecision?.action === 'STOP' || lastDecision?.action === 'PAUSE') return;
-
-    // 3. Evaluate each symbol
-    for (const symbol of this.config.activeSymbols) {
-      const book = this.orderBookBuilder.getBook(symbol);
-      const currentPrice = book?.midPrice || 0;
-
-      if (!book || currentPrice === 0) continue;
-
-      // Get latest features for this symbol
-      const features = this.lastFeatures.get(symbol);
-      if (!features) continue;
-
-      // 4. Strategy Evaluation
-      const signal = this.strategy.evaluate(features, book);
-      
-      if (signal) {
-        // Only trade if signal is strong enough
-        if (signal.strength > 0.7) {
-           const multipliers = this.dynamicRiskManager.getCurrentMultipliers();
-           const baseQty = 0.01;
-           const qty = Number((baseQty * multipliers.positionSize).toFixed(3));
-
-           if (qty < 0.001) continue;
-
-           // 5. Risk Validation
-           const riskCheck = this.riskEngine.validateOrder(
-             { symbol, side: signal.type === 'BUY' ? 'BUY' : 'SELL', quantity: qty, price: currentPrice },
-             this.userDataStream.getBalance(),
-             this.userDataStream.getPositions()
-           );
-           
-           if (riskCheck.allowed) {
-              // Rate limiting - 1 order per symbol per 10 seconds for safety in trial
-              const lastTime = this.lastOrderTime.get(symbol) || 0;
-              if (Date.now() - lastTime > 10000) {
-                 console.log(`🎯 Executing real-time signal for ${symbol}: ${signal.type} @ ${currentPrice} (Size Adj: ${multipliers.positionSize.toFixed(2)}x)`);
-                 
-                 // Execute order
-                 const order = this.orderGateway.submitOrder({
-                   symbol,
-                   side: signal.type === 'BUY' ? 'BUY' : 'SELL',
-                   type: 'MARKET',
-                   quantity: qty,
-                   strategyId: 'MeanReversion'
-                 });
-                 
-                 // Update tracking
-                 this.lastOrderTime.set(symbol, Date.now());
-                 this.lastSignals.set(symbol, signal);
-                 
-                 // Notify UI
-                 this.eventJournal.record(
-                   'ORDER',
-                   'STRATEGY',
-                   `Order executed for ${symbol}: ${signal.type}`,
-                   { signal, orderId: order.id }
-                 );
-
-                 await this.telegramService.sendMessage(`🎯 <b>Signal Executed</b>\n\nSymbol: ${symbol}\nType: ${signal.type}\nPrice: ${currentPrice}\nReason: ${signal.reason}`);
-              }
-           }
-        }
-      }
-    }
+  public async startAutonomousTrading() {
+    await this.start();
   }
 
   private setupEventForwarding() {
     // Forward market ticks into feature engine and strategy
     this.marketData.subscribeTicks((tick) => {
       this.handleIncomingTick(tick);
+    });
+
+    // 1. Forward real-time order updates to OrderGateway (البند 1 و 9)
+    this.userDataStream.onOrderTradeUpdate((binanceOrder) => {
+      this.orderGateway.applyExchangeUpdate(binanceOrder);
+    });
+
+    // 2. Position closed listener to clean up zombie positions (البند 4)
+    this.userDataStream.onPositionClosed((closedSymbol) => {
+      console.log(`🧹 TradingPipeline: Position for ${closedSymbol} closed on Binance. Cleaning up local tracking.`);
+      this.partialProfitManager.removeBySymbol(closedSymbol);
+      this.scaleInManager.removeBySymbol(closedSymbol);
     });
 
     // Forward KillSwitch events to journal
@@ -342,55 +319,62 @@ export class TradingPipeline {
       }
     });
 
-    // Forward order executions to journal
-    this.orderGateway.subscribeOrders((ord) => {
+    // Forward order executions to journal & trigger protective orders from actual fill price (البند 23)
+    this.orderGateway.subscribeOrders(async (ord) => {
       this.healthMonitor.recordOrder();
       if (ord.status === 'FILLED' || ord.status === 'PARTIALLY_FILLED') {
         this.eventJournal.record('FILL', 'ORDER_GATEWAY', `Order ${ord.id} ${ord.status}: ${ord.side} ${ord.filledQuantity} ${ord.symbol} @ $${ord.avgFillPrice}`);
+        
+        // Item 23: Send protection from fill handler using actual fill price
+        if (ord.status === 'FILLED' && !ord.strategyId?.startsWith('PROTECT')) {
+          const pending = this.pendingProtection.get(ord.id);
+          if (pending) {
+            const fill = ord.avgFillPrice || ord.price;
+            const sl = pending.side === 'BUY' ? fill - 2 * pending.ouSigma : fill + 2 * pending.ouSigma;
+            await this.orderGateway.sendProtectiveOrders(
+              ord.symbol,
+              pending.side,
+              ord.filledQuantity,
+              fill,
+              sl,
+              pending.ouMu
+            );
+            this.pendingProtection.delete(ord.id);
+          }
+        }
       } else if (ord.status === 'REJECTED' || ord.status === 'CANCELLED') {
         this.eventJournal.record('WARN', 'ORDER_GATEWAY', `Order ${ord.id} ${ord.status}: ${ord.errorMessage || 'No reason provided'}`);
+        this.pendingProtection.delete(ord.id);
       }
     });
-
-    // Setup Auto-Trading Event Engine
-    this.setupAutoTradingEngine();
   }
 
-  /**
-   * Autonomous Trading Processor: evaluated when any market update comes in
-   */
-  private async processMarketUpdate(symbol: AssetSymbol) {
-    if (!this.isRunning) return;
-
-    // 1. Check Kill Switch
-    if (!this.killSwitch.isEntryAllowed()) {
-      return;
+  public getRegimeDetector(symbol?: AssetSymbol): RegimeDetector {
+    if (symbol) {
+      let rd = this.regimeDetectors.get(symbol);
+      if (!rd) {
+        rd = new RegimeDetector();
+        this.regimeDetectors.set(symbol, rd);
+      }
+      return rd;
     }
-
-    // 2. Fetch current features and orderbook builder state
-    const features = this.lastFeatures.get(symbol);
-    const book = this.orderBookBuilder.getBook(symbol);
-
-    if (!features || !book) {
-      return;
-    }
-
-    // 3. Evaluate signals & execute if auto trading is enabled
-    if (this.config.autoTradingEnabled) {
-      await this.evaluateSignalAndExecute(symbol, features, book);
-    }
+    return this.regimeDetector;
   }
 
-  /**
-   * Subscribes the auto-trading decision maker to the unified event emitter
-   */
-  private setupAutoTradingEngine() {
-    console.log('🤖 Autonomous Auto-Trading Engine activated...');
-    
-    // Listen to real-time market updates emitted by ExchangeMarketData
-    this.marketData.on('market_update', async (symbol: string) => {
-      await this.processMarketUpdate(symbol as AssetSymbol);
-    });
+  public alertOnChange(key: string, value: string, msg: string, minGapMs = 30 * 60_000) {
+    const prev = this.lastAlertState.get(key);
+    if (prev?.value === value && Date.now() - prev.ts < minGapMs) return;
+    this.lastAlertState.set(key, { value, ts: Date.now() });
+    this.telegramService.sendMessage(msg);
+  }
+
+  public pushSignal(s: TradingSignal) {
+    this.signalHistory.push(s);
+    if (this.signalHistory.length > 100) this.signalHistory.shift();
+  }
+
+  public getSignalHistory(): TradingSignal[] {
+    return [...this.signalHistory];
   }
 
   private handleIncomingTick(tick: Tick) {
@@ -405,6 +389,11 @@ export class TradingPipeline {
     const book = this.orderBookBuilder.getBook(tick.symbol);
     const features = this.featureEngine.extractFeatures(tick.symbol, tick.price, candles, book);
     this.lastFeatures.set(tick.symbol, features);
+
+    // Per-symbol Regime Detection (البند 39)
+    const regimeDetector = this.getRegimeDetector(tick.symbol);
+    regimeDetector.update(candles);
+    const regime = regimeDetector.analyze();
 
     const tFeatures = performance.now() - t0;
 
@@ -428,7 +417,7 @@ export class TradingPipeline {
     this.partialProfitManager.updatePosition(tick.symbol, tick.price);
 
     if (this.config.autoTradingEnabled && this.killSwitch.isEntryAllowed()) {
-      this.evaluateSignalAndExecute(tick.symbol, features, book);
+      this.evaluateSignalAndExecute(tick.symbol, features, book, regime);
     }
 
     // Update telemetry latencies
@@ -440,7 +429,7 @@ export class TradingPipeline {
     });
   }
 
-  private async evaluateSignalAndExecute(symbol: AssetSymbol, features: any, book?: OrderBook) {
+  private async evaluateSignalAndExecute(symbol: AssetSymbol, features: any, book?: OrderBook, regime?: any) {
     // 0. Dynamic Risk Check
     const lastDecision = this.dynamicRiskManager.getLastDecision();
     if (lastDecision?.action === 'STOP' || lastDecision?.action === 'PAUSE') {
@@ -460,29 +449,36 @@ export class TradingPipeline {
       return;
     }
 
-    const { zScore, ouMu, ouSigma, halfLifePeriods, hurstExponent, rsi14, orderFlowImbalance } = features;
-
-    // Check if mean-reversion signal condition is met
-    if (hurstExponent > 0.52 || halfLifePeriods > 30 || halfLifePeriods <= 0) return;
-
-    let signalType: 'BUY' | 'SELL' | null = null;
-    let strength = 0;
-    let reason = '';
-
-    const adjustedMinZScore = this.portfolioSizer.getAdjustedZScoreThreshold(-1.6);
-
-    if (zScore <= adjustedMinZScore && rsi14 < 45) {
-      signalType = 'BUY';
-      strength = Math.min(1.0, Math.abs(zScore) / 3.0);
-      reason = `Oversold Reversion: Z-Score ${zScore.toFixed(2)} (Threshold: ${adjustedMinZScore.toFixed(1)}), RSI ${rsi14}`;
-    } else if (zScore >= -adjustedMinZScore && rsi14 > 55) {
-      signalType = 'SELL';
-      strength = Math.min(1.0, zScore / 3.0);
-      reason = `Overbought Reversion: Z-Score +${zScore.toFixed(2)}, RSI ${rsi14}`;
+    // Check concurrency lock IMMEDIATELY (البند 2: منع التسابق وحظر الرمز أثناء العمليات غير المتزامنة)
+    if (this.inFlightSymbols.has(symbol)) {
+      return;
     }
 
-    if (signalType && strength >= 0.6) {
-      // 1. Check if we can Scale-In to an existing position on this symbol
+    // 15-second cooldown per symbol to prevent order spamming
+    const now = Date.now();
+    const lastTime = this.lastOrderTime.get(symbol) || 0;
+    if (now - lastTime < 15000) {
+      return;
+    }
+
+    // 1. Unified Strategy Decision via DecisionEngine (البنود 15 و 16 و 39)
+    const tier = this.portfolioSizer.getPortfolioTier();
+    const decision = this.decisionEngine.decide(symbol, features, tier, regime);
+
+    if (!decision.signal || decision.signal.type === 'NEUTRAL' || decision.signal.strength < 0.5) {
+      return;
+    }
+
+    const sig = decision.signal;
+    const signalType = sig.type as 'BUY' | 'SELL';
+    const strength = sig.strength;
+
+    // ACQUIRE LOCK BEFORE ANY ASYNC OPERATIONS (البند 2)
+    this.inFlightSymbols.add(symbol);
+    this.lastOrderTime.set(symbol, now);
+
+    try {
+      // 2. Check if we can Scale-In to an existing position on this symbol
       const scaled = await this.checkScaleInOpportunity(
         symbol,
         signalType,
@@ -494,35 +490,16 @@ export class TradingPipeline {
         return;
       }
 
-      // 30-second cooldown per symbol to prevent order spamming
-      const now = Date.now();
-      const lastTime = this.lastOrderTime.get(symbol) || 0;
-      if (now - lastTime < 30000) {
-        return;
-      }
-
-      const sig: TradingSignal = {
-        id: `SIG-${Date.now().toString(36)}`,
-        symbol,
-        timestamp: Date.now(),
-        type: signalType === 'BUY' ? 'BUY' : 'SELL',
-        strength,
-        zScore,
-        halfLife: halfLifePeriods,
-        targetPrice: ouMu,
-        stopLoss: signalType === 'BUY' ? features.currentPrice - 3 * ouSigma : features.currentPrice + 3 * ouSigma,
-        takeProfit: ouMu,
-        reason,
-        strategy: 'Ornstein-Uhlenbeck Mean Reversion',
-      };
       this.lastSignals.set(symbol, sig);
+      this.pushSignal(sig);
 
-      // Portfolio Sizer calculation with Compounding
+      // 3. Portfolio Sizer calculation with 1% Risk-Based Sizing (البند 6 و 8)
       const balance = this.userDataStream.getBalance();
       const positionSizing = this.portfolioSizer.calculatePositionSize(
         strength,
         features.currentPrice,
-        balance.totalEquity
+        balance.totalEquity,
+        sig.stopLoss
       );
 
       let qty = positionSizing.quantity;
@@ -535,9 +512,11 @@ export class TradingPipeline {
       }
       qty = Number((qty * correlationFactor).toFixed(4));
 
-      // Apply Dynamic Position Size Multiplier
+      // Apply Dynamic Position Size Multiplier & Warm-up Multiplier (البند 43)
       const multipliers = this.dynamicRiskManager.getCurrentMultipliers();
-      qty = Number((qty * multipliers.positionSize).toFixed(4));
+      const warmupMul = this.dynamicRiskManager.getWarmupMultiplier(this.eventJournal.getEvents().length);
+      const regimeMul = regime?.sizeMultiplier ?? 1;
+      qty = Number((qty * multipliers.positionSize * warmupMul * regimeMul).toFixed(4));
 
       if (qty > 0.0001) {
         // Pre-trade risk validation
@@ -555,19 +534,29 @@ export class TradingPipeline {
           symbol,
           type: signalType,
           strength,
-          zScore,
-          executed: val.allowed
+          zScore: sig.zScore,
+          executed: val.allowed,
         });
 
         if (val.allowed) {
-          this.lastOrderTime.set(symbol, now);
+          // Set leverage and isolated margin on Binance Futures
+          await this.orderGateway.ensureLeverage(symbol, this.config.maxLeverage || 10, 'ISOLATED');
+
+          // Register pending protection to be sent upon actual order fill (البند 23)
           const ord = this.orderGateway.submitOrder({
             symbol,
             side: signalType,
             type: 'MARKET',
             quantity: qty,
             price: features.currentPrice,
-            strategyId: 'OU-QUBO-COMPOUND',
+            strategyId: 'OU-DECISION-ENGINE',
+          });
+
+          this.pendingProtection.set(ord.id, {
+            ouSigma: features.ouSigma || (features.currentPrice * 0.005),
+            ouMu: sig.takeProfit,
+            side: signalType,
+            symbol,
           });
 
           // 💾 Save Trade to database
@@ -575,20 +564,21 @@ export class TradingPipeline {
             id: ord.id,
             timestamp: Date.now(),
             symbol,
-            side: signalType === 'BUY' ? 'BUY' : 'SELL',
+            side: signalType,
             quantity: qty,
             price: features.currentPrice,
-            strategy: 'OU-QUBO-COMPOUND',
-            status: 'OPEN'
+            strategy: 'OU-DECISION-ENGINE',
+            status: 'OPEN',
           });
 
-          // 📝 Register with Partial Profit Manager
+          // 📝 Register with Partial Profit Manager (including maxHoldMs for Point 11 time exit)
           this.partialProfitManager.registerPosition(
             ord.id,
             symbol,
             signalType,
             features.currentPrice,
-            qty
+            qty,
+            sig.maxHoldMs
           );
 
           // 📈 Register with Scale-In Manager
@@ -600,24 +590,18 @@ export class TradingPipeline {
             qty
           );
 
-          // 🔥 Add protective orders
-          this.orderGateway.sendProtectiveOrders(
-              ord.symbol,
-              ord.side,
-              qty,
-              features.currentPrice,
-              sig.stopLoss,
-              sig.takeProfit
-          );
-
           this.eventJournal.record(
             'ORDER',
             'STRATEGY',
-            `Auto Strategy Triggered ${signalType} ${qty} ${symbol}: ${reason}`,
+            `Auto Strategy Triggered ${signalType} ${qty} ${symbol}: ${sig.reason}`,
             { signal: sig }
           );
         }
       }
+    } catch (err) {
+      console.error(`❌ Error in evaluateSignalAndExecute for ${symbol}:`, err);
+    } finally {
+      this.inFlightSymbols.delete(symbol);
     }
   }
 
@@ -754,57 +738,72 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
     console.log('🔄 Starting State Reconciliation...');
     
     try {
-        const baseUrl = this.userDataStream.getApiBaseUrl();
-        
-        const accountRes = await fetch(`${baseUrl}/fapi/v2/account`, {
-            headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() || '' }
-        });
+      const apiKey = this.orderGateway.getApiKey();
+      const apiSecret = this.orderGateway.getApiSecret();
+      const baseUrl = this.orderGateway.getApiBaseUrl();
+      const executionMode = this.orderGateway.getExecutionMode();
 
-        const positionsRes = await fetch(`${this.orderGateway.getApiBaseUrl()}/fapi/v2/positionRisk`, {
-            headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() || '' }
-        });
+      if (executionMode === 'PAPER' || !apiKey || !apiSecret) {
+        console.log('ℹ️ State Reconciliation: Running in PAPER mode or credentials not configured. Local state verified.');
+        const currentBal = this.userDataStream.getBalance();
+        await this.db.saveState('last_balance', { equity: currentBal.totalEquity, timestamp: Date.now() });
+        return;
+      }
 
-        if (!accountRes.ok || !positionsRes.ok) {
-            console.warn('⚠️ Reconciliation skipped: Exchange API returned error or was unreachable.');
-            return;
-        }
+      const timestamp = Date.now();
+      const recvWindow = 5000;
+      const query = `recvWindow=${recvWindow}&timestamp=${timestamp}`;
+      const signature = crypto.createHmac('sha256', apiSecret).update(query).digest('hex');
+      const headers = { 'X-MBX-APIKEY': apiKey };
 
-        const accountData = await accountRes.json();
-        const positionsData = await positionsRes.json();
+      const [accountRes, positionsRes] = await Promise.all([
+        fetch(`${baseUrl}/fapi/v2/account?${query}&signature=${signature}`, { headers }),
+        fetch(`${baseUrl}/fapi/v2/positionRisk?${query}&signature=${signature}`, { headers })
+      ]);
 
-        const realEquity = parseFloat(accountData.totalWalletBalance);
-        if (isNaN(realEquity)) {
-            console.warn('⚠️ Reconciliation skipped: Invalid account data received.');
-            return;
-        }
+      if (!accountRes.ok || !positionsRes.ok) {
+        const accErr = !accountRes.ok ? await accountRes.text().catch(() => '') : 'OK';
+        const posErr = !positionsRes.ok ? await positionsRes.text().catch(() => '') : 'OK';
+        console.warn(`⚠️ Reconciliation skipped: Exchange API returned error (Account HTTP ${accountRes.status}: ${accErr} | Positions HTTP ${positionsRes.status}: ${posErr})`);
+        return;
+      }
 
-        const dbState = await this.db.getState<{equity: number, timestamp: number}>('last_balance');
-        
-        if (dbState && Math.abs(realEquity - dbState.equity) > 1) {
-            console.warn(`⚠️ Balance mismatch! Real: ${realEquity}, DB: ${dbState.equity}. Updating DB.`);
-            await this.db.saveState('last_balance', { equity: realEquity, timestamp: Date.now() });
-        }
+      const accountData = await accountRes.json();
+      const positionsData = await positionsRes.json();
 
-        if (!Array.isArray(positionsData)) {
-            console.warn('⚠️ Reconciliation skipped: Invalid positions data received.');
-            return;
-        }
+      const realEquity = parseFloat(accountData.totalWalletBalance);
+      if (isNaN(realEquity)) {
+        console.warn('⚠️ Reconciliation skipped: Invalid account data received.');
+        return;
+      }
 
+      // Keep portfolio sizer synced with real exchange equity
+      this.portfolioSizer.updateBalance(realEquity);
+
+      const dbState = await this.db.getState<{ equity: number; timestamp: number }>('last_balance');
+      if (dbState && Math.abs(realEquity - dbState.equity) > 1) {
+        console.log(`📊 Balance reconciled: Real: $${realEquity.toFixed(2)}, DB: $${dbState.equity.toFixed(2)}. Updating DB.`);
+      }
+      await this.db.saveState('last_balance', { equity: realEquity, timestamp: Date.now() });
+
+      if (Array.isArray(positionsData)) {
         const realOpenPositions = positionsData.filter((p: any) => parseFloat(p.positionAmt) !== 0);
-        const dbOpenTrades = await this.db.getOpenTrades();
+        const realOpenSymbols = new Set(realOpenPositions.map((p: any) => p.symbol));
 
-        if (realOpenPositions.length !== dbOpenTrades.length) {
-            console.error(` CRITICAL: Position mismatch! Real: ${realOpenPositions.length}, DB: ${dbOpenTrades.length}`);
-            if (this.config.executionMode !== 'PAPER_TRADING') {
-                await this.telegramService.sendMessage(`🚨 <b>Reconciliation Failed</b>\nPositions mismatch detected. Bot halted.`);
-                this.killSwitch.trigger('HARD_HALT', 'State mismatch');
-            }
-            return;
+        // Reconcile DB open trades: if a trade in DB is not on exchange, mark it CLOSED
+        const dbOpenTrades = await this.db.getOpenTrades();
+        for (const trade of dbOpenTrades) {
+          const cleanSym = trade.symbol.replace('/', '');
+          if (!realOpenSymbols.has(cleanSym)) {
+            console.log(`🔄 Reconciled: Trade ${trade.id} (${trade.symbol}) is closed on exchange. Syncing DB status to CLOSED.`);
+            await this.db.closeTrade(trade.id, 0);
+          }
         }
 
-        console.log('✅ State Reconciliation successful. Bot is in sync with Exchange.');
+        console.log(`✅ State Reconciliation complete. In sync with Binance Futures (${executionMode}). Equity: $${realEquity.toFixed(2)}, Open positions: ${realOpenPositions.length}`);
+      }
     } catch (error) {
-        console.error('❌ Reconciliation failed:', error);
+      console.error('❌ Reconciliation failed:', error);
     }
   }
 
@@ -823,17 +822,6 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
 
   public getCorrelationReport(): string {
     return this.correlationRiskManager.getCorrelationReport(this.config.activeSymbols);
-  }
-
-  public stop() {
-    this.isRunning = false;
-    this.marketData.stopStreaming();
-    this.userDataStream.stop();
-    if (this.rebalanceTimer) {
-      clearInterval(this.rebalanceTimer);
-      this.rebalanceTimer = null;
-    }
-    this.eventJournal.record('INFO', 'SYSTEM', 'Basel Quantum Trading Pipeline paused by operator');
   }
 
   public getPortfolioSizer(): PortfolioSizer { return this.portfolioSizer; }
@@ -922,10 +910,6 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
 
   public getDynamicRiskManager(): DynamicRiskManager {
     return this.dynamicRiskManager;
-  }
-
-  public getRegimeDetector(): RegimeDetector {
-    return this.regimeDetector;
   }
 
   public getAssetScreener(): AssetScreener {

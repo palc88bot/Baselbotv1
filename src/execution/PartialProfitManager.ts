@@ -26,6 +26,9 @@ export interface PositionState {
   highestPrice: number;            // أعلى سعر وصلته (للـ BUY)
   lowestPrice: number;             // أدنى سعر وصلته (للـ SELL)
   trailingStopPrice: number;
+  lastTrailingUpdate?: number;
+  registeredAt: number;
+  maxHoldMs?: number;
 }
 
 export class PartialProfitManager {
@@ -50,7 +53,8 @@ export class PartialProfitManager {
     symbol: AssetSymbol,
     side: 'BUY' | 'SELL',
     entryPrice: number,
-    quantity: number
+    quantity: number,
+    maxHoldMs?: number
   ): void {
     if (!this.config.enabled) return;
 
@@ -66,9 +70,11 @@ export class PartialProfitManager {
       highestPrice: entryPrice,
       lowestPrice: entryPrice,
       trailingStopPrice: 0,
+      registeredAt: Date.now(),
+      maxHoldMs,
     });
 
-    console.log(`📝 PartialProfitManager: Position registered [${orderId}] | ${symbol} ${side} @ $${entryPrice} | Qty: ${quantity}`);
+    console.log(`📝 PartialProfitManager: Position registered [${orderId}] | ${symbol} ${side} @ $${entryPrice} | Qty: ${quantity}${maxHoldMs ? ` | MaxHold: ${(maxHoldMs/60000).toFixed(1)}m` : ''}`);
   }
 
   public async updatePosition(orderIdOrSymbol: string, currentPrice: number): Promise<void> {
@@ -85,6 +91,13 @@ export class PartialProfitManager {
     }
 
     for (const position of matchingPositions) {
+      // 0. Time-based Exit Check (البند 11: الخروج الزمني بعد انقضاء ضعف نصف عمر الارتداد)
+      if (position.maxHoldMs && (Date.now() - position.registeredAt > position.maxHoldMs)) {
+        console.log(`⏱️ Time-Based Exit triggered for ${position.symbol} [${position.orderId}] after ${Math.round((Date.now() - position.registeredAt) / 60000)}m`);
+        await this.executeTimeExit(position, currentPrice);
+        continue;
+      }
+
       if (position.side === 'BUY') {
         position.highestPrice = Math.max(position.highestPrice, currentPrice);
       } else {
@@ -106,6 +119,26 @@ export class PartialProfitManager {
       if (position.partialProfitTaken) {
         await this.updateTrailingStop(position, currentPrice);
       }
+    }
+  }
+
+  private async executeTimeExit(position: PositionState, currentPrice: number): Promise<void> {
+    const closeSide = position.side === 'BUY' ? 'SELL' : 'BUY';
+    try {
+      this.orderGateway.submitOrder({
+        symbol: position.symbol,
+        side: closeSide,
+        type: 'MARKET',
+        quantity: position.remainingQuantity,
+        price: currentPrice,
+        strategyId: 'TIME_EXIT',
+        executionTag: 'TIME_EXIT',
+      });
+      await this.orderGateway.cancelProtectiveOrders(position.orderId);
+      this.activePositions.delete(position.orderId);
+      console.log(`⏱️ Closed remaining ${position.remainingQuantity} ${position.symbol} due to max holding time elapsed.`);
+    } catch (err) {
+      console.error('❌ Error executing time-based exit:', err);
     }
   }
 
@@ -169,7 +202,16 @@ export class PartialProfitManager {
       newStopPrice = Number((position.highestPrice * (1 - this.config.trailingStopPercent)).toFixed(2));
       
       if (newStopPrice > position.trailingStopPrice && newStopPrice > position.entryPrice) {
+        const filter = this.orderGateway.getSymbolFilter(position.symbol);
+        const minMove = 5 * filter.tickSize;
+        const now = Date.now();
+
+        // تجنب إرسال طلبات متكررة قبل مرور 60 ثانية أو تحرك السعر بأكثر من 5 تكات
+        if (position.lastTrailingUpdate && now - position.lastTrailingUpdate < 60_000) return;
+        if (position.trailingStopPrice > 0 && Math.abs(newStopPrice - position.trailingStopPrice) < minMove) return;
+
         position.trailingStopPrice = newStopPrice;
+        position.lastTrailingUpdate = now;
         await this.updateStopLossOrder(position, newStopPrice);
         console.log(`📈 Trailing Stop updated for ${position.symbol}: $${newStopPrice.toFixed(2)} (High: $${position.highestPrice.toFixed(2)})`);
       }
@@ -177,9 +219,17 @@ export class PartialProfitManager {
       newStopPrice = Number((position.lowestPrice * (1 + this.config.trailingStopPercent)).toFixed(2));
       
       if ((newStopPrice < position.trailingStopPrice || position.trailingStopPrice === 0) && newStopPrice < position.entryPrice) {
+        const filter = this.orderGateway.getSymbolFilter(position.symbol);
+        const minMove = 5 * filter.tickSize;
+        const now = Date.now();
+
+        if (position.lastTrailingUpdate && now - position.lastTrailingUpdate < 60_000) return;
+        if (position.trailingStopPrice > 0 && Math.abs(newStopPrice - position.trailingStopPrice) < minMove) return;
+
         position.trailingStopPrice = newStopPrice;
+        position.lastTrailingUpdate = now;
         await this.updateStopLossOrder(position, newStopPrice);
-        console.log(`📉 Trailing Stop updated for ${position.symbol}: $${newStopPrice.toFixed(2)} (Low: $${position.lowestPrice.toFixed(2)})`);
+        console.log(`📈 Trailing Stop updated for ${position.symbol}: $${newStopPrice.toFixed(2)} (Low: $${position.lowestPrice.toFixed(2)})`);
       }
     }
   }
@@ -199,6 +249,15 @@ export class PartialProfitManager {
   public removePosition(orderId: string): void {
     this.activePositions.delete(orderId);
     console.log(`🗑️ Position removed from PartialProfitManager: ${orderId}`);
+  }
+
+  public removeBySymbol(symbol: AssetSymbol): void {
+    for (const [orderId, pos] of this.activePositions.entries()) {
+      if (pos.symbol === symbol) {
+        this.activePositions.delete(orderId);
+        console.log(`🗑️ PartialProfitManager: Cleaned up position for closed symbol ${symbol} (${orderId})`);
+      }
+    }
   }
 
   public getPositionState(orderId: string): PositionState | undefined {

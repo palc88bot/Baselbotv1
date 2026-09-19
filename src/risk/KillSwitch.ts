@@ -13,6 +13,14 @@ export interface KillSwitchEvent {
   triggeredBy: 'AUTO_RISK_ENGINE' | 'MANUAL_OPERATOR' | 'SPREAD_BLOWOUT' | 'HEALTH_HEARTBEAT_LOSS';
 }
 
+const ORDER: Record<KillSwitchLevel, number> = {
+  NORMAL: 0,
+  SOFT_HALT: 1,
+  CIRCUIT_BREAKER: 2,
+  HARD_HALT: 2,
+  EMERGENCY_LIQUIDATE: 3,
+};
+
 export class KillSwitch {
   private level: KillSwitchLevel = 'NORMAL';
   private history: KillSwitchEvent[] = [];
@@ -48,8 +56,8 @@ export class KillSwitch {
     targetLevel: KillSwitchLevel,
     reason: string,
     triggeredBy: KillSwitchEvent['triggeredBy'] = 'AUTO_RISK_ENGINE'
-  ) {
-    if (this.level === targetLevel) return;
+  ): boolean {
+    if ((ORDER[targetLevel] ?? 0) <= (ORDER[this.level] ?? 0)) return false;
 
     const event: KillSwitchEvent = {
       timestamp: Date.now(),
@@ -64,6 +72,7 @@ export class KillSwitch {
     if (this.history.length > 50) this.history.pop();
 
     this.listeners.forEach((fn) => fn(event));
+    return true;
   }
 
   public reset(operatorKey?: string): { success: boolean; message: string } {

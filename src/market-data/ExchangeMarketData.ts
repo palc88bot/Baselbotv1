@@ -5,7 +5,7 @@
 
 import { EventEmitter } from 'events';
 import WebSocket from 'ws';
-import { AssetSymbol, Candle, Tick } from '../domain/types';
+import { AssetSymbol, Candle, ExecutionMode, Tick, getBinanceWsUrl, normalizeExecutionMode } from '../domain/types';
 import { OrderBookBuilder } from './OrderBookBuilder';
 
 export interface SymbolConfig {
@@ -97,8 +97,8 @@ export class ExchangeMarketData extends EventEmitter {
     super();
     this.orderBookBuilder = orderBookBuilder || new OrderBookBuilder(10);
     const hasApiKey = !!process.env.EXCHANGE_API_KEY;
-    this.executionMode = process.env.EXECUTION_MODE || (hasApiKey ? 'TESTNET' : 'PAPER');
-    this.wsUrl = this.executionMode === 'LIVE' ? 'wss://fstream.binance.com/stream?streams=' : 'wss://fstream.binancefuture.com/stream?streams=';
+    this.executionMode = normalizeExecutionMode(process.env.EXECUTION_MODE, hasApiKey);
+    this.wsUrl = `${getBinanceWsUrl(this.executionMode as ExecutionMode)}/stream?streams=`;
     this.initializeState();
   }
 

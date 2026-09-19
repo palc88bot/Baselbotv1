@@ -313,6 +313,15 @@ export class ScaleInManager {
     }
   }
 
+  public removeBySymbol(symbol: AssetSymbol): void {
+    for (const [orderId, pos] of this.activePositions.entries()) {
+      if (pos.symbol === symbol) {
+        this.activePositions.delete(orderId);
+        console.log(`🗑️ ScaleInManager: Removed tracked position for closed symbol ${symbol} (${orderId})`);
+      }
+    }
+  }
+
   public getState(orderId: string): ScaleInState | undefined {
     return this.activePositions.get(orderId);
   }

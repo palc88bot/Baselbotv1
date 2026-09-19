@@ -3,7 +3,7 @@
  * Core Domain Types and Data Contracts
  */
 
-export type AssetSymbol = 'BTC/USDT' | 'ETH/USDT' | 'SOL/USDT' | 'QNT/USDT' | 'NVDA/USD' | 'AAPL/USD';
+export type AssetSymbol = string;
 
 export interface OrderBookLevel {
   price: number;
@@ -57,6 +57,7 @@ export interface TradingSignal {
   takeProfit: number;
   reason: string;
   strategy: string;
+  maxHoldMs?: number;
 }
 
 export type OrderSide = 'BUY' | 'SELL';
@@ -82,6 +83,7 @@ export interface Order {
   strategyId?: string;
   executionTag?: string;
   errorMessage?: string;
+  exchangeOrderId?: number | string;
 }
 
 export interface Fill {
@@ -357,4 +359,36 @@ export interface SystemHealth {
   ordersPerSecond: number;
   pipelineLatency: PipelineLatency;
   lastHeartbeat: number;
+}
+
+export type ExecutionMode = 'LIVE' | 'TESTNET' | 'PAPER';
+
+export function normalizeExecutionMode(mode?: string, hasApiKey: boolean = false): ExecutionMode {
+  const m = (mode || '').trim().toUpperCase();
+  if (m === 'LIVE' || m === 'PRODUCTION') return 'LIVE';
+  if (m === 'TESTNET' || m === 'TEST' || m === 'TESTNET_EXCHANGE') return 'TESTNET';
+  if (m === 'PAPER' || m === 'PAPER_TRADING' || m === 'SIMULATION' || m === 'MOCK') return 'PAPER';
+  if (hasApiKey) return 'TESTNET';
+  return 'PAPER';
+}
+
+export function getBinanceBaseUrl(mode: ExecutionMode): string {
+  return mode === 'LIVE' ? 'https://fapi.binance.com' : 'https://testnet.binancefuture.com';
+}
+
+export function getBinanceWsUrl(mode: ExecutionMode): string {
+  return mode === 'LIVE' ? 'wss://fstream.binance.com' : 'wss://fstream.binancefuture.com';
+}
+
+/**
+ * تقريب الكمية أو السعر لمضاعفات stepSize أو tickSize بدقة مع تجنب أخطاء الفاصلة العائمة
+ */
+export function roundToStep(value: number, step: number): number {
+  if (!step || step <= 0) return value;
+  const precision = Math.max(0, Math.ceil(-Math.log10(step)));
+  return Number((Math.floor(value / step) * step).toFixed(precision));
+}
+
+export function isLiveTradingConfirmed(): boolean {
+  return process.env.CONFIRM_LIVE_TRADING === 'yes' || process.env.CONFIRM_LIVE_TRADING === 'true';
 }

@@ -41,6 +41,13 @@ export interface TierStats {
   startingBalance: number;       // الرصيد عند بداية اليوم
 }
 
+const TIER_BOUNDS: [number, PortfolioTier][] = [
+  [1_000, 'MICRO'],
+  [10_000, 'SMALL'],
+  [50_000, 'MEDIUM'],
+  [Infinity, 'LARGE'],
+];
+
 export class PortfolioSizer {
   private currentTier: PortfolioTier = 'MEDIUM';
   private currentBalance: number = 0;
@@ -53,24 +60,24 @@ export class PortfolioSizer {
     MICRO: {
       tier: 'MICRO',
       maxConcurrentPositions: 1,
-      minLeverage: 5,           // 5x ثابت للحماية
-      maxLeverage: 5,
+      minLeverage: 2,
+      maxLeverage: 2,
       minTradeValue: 5,
-      maxTradePercentage: 0.50, // 50% من المحفظة في صفقة واحدة
-      maxQualifiedAssets: 15,   // 15 عملة صغيرة آمنة
+      maxTradePercentage: 0.50,
+      maxQualifiedAssets: 15,
       allowedSymbols: ['SOL/USDT', 'BTC/USDT', 'ETH/USDT', 'QNT/USDT'],
       quboEnabled: false,
-      minZScore: -2.5, // أكثر صرامة
+      minZScore: -2.5,
       maxDrawdownPercent: 0.15,
     },
     SMALL: {
       tier: 'SMALL',
       maxConcurrentPositions: 2,
-      minLeverage: 5,
-      maxLeverage: 8,           // 8x
+      minLeverage: 3,
+      maxLeverage: 3,
       minTradeValue: 10,
       maxTradePercentage: 0.40,
-      maxQualifiedAssets: 25,   // 25 عملة
+      maxQualifiedAssets: 25,
       allowedSymbols: ['SOL/USDT', 'ETH/USDT', 'BTC/USDT', 'QNT/USDT'],
       quboEnabled: false,
       minZScore: -2.0,
@@ -78,12 +85,12 @@ export class PortfolioSizer {
     },
     MEDIUM: {
       tier: 'MEDIUM',
-      maxConcurrentPositions: 5,
-      minLeverage: 5,
-      maxLeverage: 12,          // 12x
+      maxConcurrentPositions: 3,
+      minLeverage: 4,
+      maxLeverage: 4,
       minTradeValue: 20,
       maxTradePercentage: 0.25,
-      maxQualifiedAssets: 40,   // 40 عملة
+      maxQualifiedAssets: 40,
       allowedSymbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'QNT/USDT'],
       quboEnabled: true,
       minZScore: -1.6,
@@ -91,12 +98,12 @@ export class PortfolioSizer {
     },
     LARGE: {
       tier: 'LARGE',
-      maxConcurrentPositions: 10,
+      maxConcurrentPositions: 5,
       minLeverage: 5,
-      maxLeverage: 15,          // 15x
+      maxLeverage: 5,
       minTradeValue: 50,
       maxTradePercentage: 0.15,
-      maxQualifiedAssets: 100,  // حتى 100 عملة مؤهلة
+      maxQualifiedAssets: 100,
       allowedSymbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'QNT/USDT', 'NVDA/USD', 'AAPL/USD'],
       quboEnabled: true,
       minZScore: -1.6,
@@ -147,15 +154,14 @@ export class PortfolioSizer {
 
     const previousTier = this.currentTier;
 
-    if (balance < 50) {
-      this.currentTier = 'MICRO';
-    } else if (balance < 100) {
-      this.currentTier = 'SMALL';
-    } else if (balance < 500) {
-      this.currentTier = 'MEDIUM';
-    } else {
-      this.currentTier = 'LARGE';
+    let tier: PortfolioTier = 'LARGE';
+    for (const [limit, t] of TIER_BOUNDS) {
+      if (balance <= limit) {
+        tier = t;
+        break;
+      }
     }
+    this.currentTier = tier;
 
     this.tierStats.tier = this.currentTier;
 
@@ -182,6 +188,10 @@ export class PortfolioSizer {
     }
     this.allowedSymbols = config.allowedSymbols;
     return this.allowedSymbols;
+  }
+
+  public getPortfolioTier(): PortfolioTier {
+    return this.currentTier;
   }
 
   public getAllowedSymbols(): AssetSymbol[] {
@@ -275,11 +285,15 @@ export class PortfolioSizer {
     return this.tierConfigs[this.currentTier];
   }
 
-  public canOpenNewTrade(currentOpenPositions: number): { allowed: boolean; reason?: string } {
+  public canOpenNewTrade(currentOpenPositions: number, totalOpenNotional: number = 0, currentEquity: number = 0): { allowed: boolean; reason?: string } {
     const config = this.getConfig();
 
     if (currentOpenPositions >= config.maxConcurrentPositions) {
       return { allowed: false, reason: `Max positions reached (${config.maxConcurrentPositions})` };
+    }
+
+    if (currentEquity > 0 && totalOpenNotional > currentEquity * 2.0) {
+      return { allowed: false, reason: `Total portfolio exposure exceeded ($${totalOpenNotional.toFixed(0)} > 2x Equity)` };
     }
 
     const starting = this.tierStats.startingBalance || this.currentBalance || 100;
@@ -305,32 +319,54 @@ export class PortfolioSizer {
     return this.canOpenNewTrade(currentOpenPositions).allowed;
   }
 
+  /**
+   * تحديد حجم الصفقة بناءً على إدارة المخاطر الصارمة (1% من رأس المال لكل صفقة)
+   * Quantity = RiskAmount / StopLossDistance
+   */
   public calculatePositionSize(
-    signalStrength: number,
-    currentPrice: number,
-    balance: number
+    entryOrStrength: number,
+    stopOrPrice: number,
+    equity: number,
+    riskPct: number = 0.01
   ): { quantity: number; notionalValue: number; leverage: number } {
     const config = this.getConfig();
-    const availableBalance = Math.max(1, balance - this.tierStats.profitsLocked);
+    const safeEquity = Math.max(10, equity);
 
-    let baseNotional: number;
-    if (this.compoundingConfig.enabled) {
-      baseNotional = availableBalance * config.maxTradePercentage * signalStrength * this.compoundingConfig.reinvestPercentage;
-    } else {
-      const starting = this.tierStats.startingBalance || balance;
-      baseNotional = starting * config.maxTradePercentage * signalStrength;
+    // التحقق مما إذا كانت المعاملات ممررة بنمط (entry, stop, equity, riskPct) أو (strength, price, balance)
+    let entry = entryOrStrength;
+    let stopDistance = Math.abs(entryOrStrength - stopOrPrice);
+
+    // إذا كان المعامل الثاني هو السعر والأول هو القوة (نمط قديم)
+    if (entryOrStrength <= 1.0 && stopOrPrice > 1.0) {
+      entry = stopOrPrice;
+      stopDistance = entry * 0.015; // افتراض مسافة وقف 1.5%
     }
 
-    const leverage = this.calculateDynamicLeverage(signalStrength);
-    const leveragedNotional = baseNotional * leverage;
+    if (stopDistance <= 0) {
+      stopDistance = entry * 0.01;
+    }
 
-    const notionalValue = Math.max(config.minTradeValue * leverage, leveragedNotional);
-    const safeNotional = Math.min(notionalValue, availableBalance * leverage * 0.95);
-    const quantity = currentPrice > 0 ? safeNotional / currentPrice : 0.01;
+    // المخاطرة المحددة (1% من إجمالي رأس المال)
+    const riskAmount = safeEquity * Math.min(0.02, Math.max(0.005, riskPct));
+    let rawQty = riskAmount / stopDistance;
+    let notional = rawQty * entry;
+
+    // سقف التعرض الأقصى لكل صفقة (50% من رأس المال)
+    const maxExposurePct = config.maxTradePercentage || 0.50;
+    const maxNotional = safeEquity * maxExposurePct;
+    if (notional > maxNotional) {
+      rawQty = maxNotional / entry;
+      notional = maxNotional;
+    }
+
+    // حساب الرافعة المطلوبة لتغطية الهامش، مع الالتزام بالحد الأقصى للطبقة
+    const requiredMargin = notional / 2; // هامش أولي
+    const calculatedLev = Math.ceil(notional / safeEquity);
+    const leverage = Math.min(config.maxLeverage, Math.max(1, calculatedLev));
 
     return {
-      quantity: Number(quantity.toFixed(6)),
-      notionalValue: Number(safeNotional.toFixed(2)),
+      quantity: Number(rawQty.toFixed(4)),
+      notionalValue: Number(notional.toFixed(2)),
       leverage,
     };
   }

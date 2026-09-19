@@ -1,6 +1,9 @@
 // src/backtest/BacktestEngine.ts
 
 import { DatabaseService } from '../storage/DatabaseService';
+import { AssetSymbol, Candle } from '../domain/types';
+import { FeatureEngine } from '../features/FeatureEngine';
+import { decide } from '../strategies/DecisionEngine';
 
 interface BacktestConfig {
     symbols: string[];
@@ -166,6 +169,7 @@ export class BacktestEngine {
         const trades: any[] = [];
         let capital = this.config.initialCapital;
         const equityCurve: { timestamp: number; equity: number }[] = [];
+        const featureEngine = new FeatureEngine();
 
         const allTimestamps = new Set<number>();
         historicalData.forEach(candles => {
@@ -176,56 +180,99 @@ export class BacktestEngine {
         let wins = 0, losses = 0, totalProfit = 0, totalLoss = 0;
 
         for (const timestamp of sortedTimestamps) {
-            for (const symbol of this.config.symbols) {
-                const candles = historicalData.get(symbol)!;
+            for (const rawSymbol of this.config.symbols) {
+                const symbol = rawSymbol as AssetSymbol;
+                const candles = historicalData.get(rawSymbol)!;
                 const currentCandle = candles.find(c => c.timestamp === timestamp);
                 if (!currentCandle) continue;
 
-                const recentCandles = candles.filter(c => c.timestamp <= timestamp).slice(-20);
-                if (recentCandles.length < 20) continue;
+                // 1. Check open trades for this symbol: Stop-Loss, Take-Profit, or Time Exit (maxHoldMs)
+                const openTradeIndex = trades.findIndex(t => t.symbol === symbol && t.status === 'OPEN');
+                if (openTradeIndex !== -1) {
+                    const openTrade = trades[openTradeIndex];
+                    const isLong = openTrade.side === 'BUY';
+                    const hitSL = isLong ? currentCandle.low <= openTrade.stopLoss : currentCandle.high >= openTrade.stopLoss;
+                    const hitTP = isLong ? currentCandle.high >= openTrade.takeProfit : currentCandle.low <= openTrade.takeProfit;
+                    const timeExpired = openTrade.maxHoldMs ? (timestamp - openTrade.entryTime >= openTrade.maxHoldMs) : false;
 
-                const avgPrice = recentCandles.reduce((sum, c) => sum + c.close, 0) / 20;
-                const std = this.calculateStdDev(recentCandles.map(c => c.close));
-                const zScore = std > 0 ? (currentCandle.close - avgPrice) / std : 0;
+                    if (hitSL || hitTP || timeExpired) {
+                        let exitPrice = currentCandle.close;
+                        if (hitSL) exitPrice = openTrade.stopLoss;
+                        else if (hitTP) exitPrice = openTrade.takeProfit;
 
-                // Simple mean-reversion rule
-                if (zScore < -1.5 && capital > 100) {
-                    const positionSize = capital * 0.1 * this.config.maxLeverage;
-                    const quantity = positionSize / currentCandle.close;
-                    const cost = quantity * currentCandle.close * this.config.commission;
+                        exitPrice = isLong ? exitPrice * (1 - this.config.slippage) : exitPrice * (1 + this.config.slippage);
+                        const rawPnl = isLong 
+                            ? (exitPrice - openTrade.entryPrice) * openTrade.quantity
+                            : (openTrade.entryPrice - exitPrice) * openTrade.quantity;
+                        const exitCost = openTrade.quantity * exitPrice * this.config.commission;
+                        const netPnl = rawPnl - exitCost;
+
+                        openTrade.exitTime = timestamp;
+                        openTrade.exitPrice = exitPrice;
+                        openTrade.pnl = netPnl;
+                        openTrade.status = 'CLOSED';
+                        openTrade.exitReason = hitSL ? 'STOP_LOSS' : (hitTP ? 'TAKE_PROFIT' : 'TIME_EXPIRED');
+
+                        capital += netPnl;
+
+                        if (netPnl > 0) {
+                            wins++;
+                            totalProfit += netPnl;
+                        } else {
+                            losses++;
+                            totalLoss += Math.abs(netPnl);
+                        }
+                        continue;
+                    }
+                }
+
+                // 2. Feature Extraction using FeatureEngine (Parity with Live Trading - Point 15 & 16)
+                const historicalSubCandles = candles.filter(c => c.timestamp <= timestamp).slice(-60) as Candle[];
+                if (historicalSubCandles.length < 20) continue;
+
+                const features = featureEngine.extractFeatures(
+                    symbol,
+                    currentCandle.close,
+                    historicalSubCandles
+                );
+
+                // 3. Decision Engine evaluation (Unified Single Source of Truth - Point 15 & 16)
+                const signal = decide({
+                    features,
+                    params: {
+                        candleIntervalMs: 60 * 60 * 1000 // 1h candles in backtest
+                    }
+                });
+
+                if (signal && capital > 100 && openTradeIndex === -1) {
+                    // Risk 1% of current capital per trade (Point 6 & 8)
+                    const riskAmount = capital * 0.01;
+                    const stopDistance = Math.abs(currentCandle.close - signal.stopLoss);
+                    let quantity = stopDistance > 0 ? (riskAmount / stopDistance) : (capital * 0.05) / currentCandle.close;
                     
+                    // Cap position notional to max 2x leverage (Point 7)
+                    const maxNotional = capital * Math.min(this.config.maxLeverage, 2);
+                    if (quantity * currentCandle.close > maxNotional) {
+                        quantity = maxNotional / currentCandle.close;
+                    }
+
+                    const entrySlippage = signal.type === 'BUY' ? (1 + this.config.slippage) : (1 - this.config.slippage);
+                    const entryPrice = currentCandle.close * entrySlippage;
+                    const entryCost = quantity * entryPrice * this.config.commission;
+
                     trades.push({
                         symbol,
                         entryTime: timestamp,
-                        entryPrice: currentCandle.close * (1 + this.config.slippage),
+                        entryPrice,
                         quantity,
-                        side: 'BUY',
+                        side: signal.type,
+                        stopLoss: signal.stopLoss,
+                        takeProfit: signal.takeProfit,
+                        maxHoldMs: signal.maxHoldMs,
                         status: 'OPEN'
                     });
-                    
-                    capital -= cost;
-                } else if (zScore > 1.5) {
-                    const openTrade = trades.find(t => t.symbol === symbol && t.status === 'OPEN');
-                    if (openTrade) {
-                        const exitPrice = currentCandle.close * (1 - this.config.slippage);
-                        const pnl = (exitPrice - openTrade.entryPrice) * openTrade.quantity;
-                        const exitCost = openTrade.quantity * exitPrice * this.config.commission;
-                        
-                        openTrade.exitTime = timestamp;
-                        openTrade.exitPrice = exitPrice;
-                        openTrade.pnl = pnl - exitCost;
-                        openTrade.status = 'CLOSED';
-                        
-                        capital += pnl - exitCost;
-                        
-                        if (openTrade.pnl > 0) {
-                            wins++;
-                            totalProfit += openTrade.pnl;
-                        } else {
-                            losses++;
-                            totalLoss += Math.abs(openTrade.pnl);
-                        }
-                    }
+
+                    capital -= entryCost;
                 }
             }
 

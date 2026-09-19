@@ -8,10 +8,17 @@ export interface TelegramConfig {
 export class TelegramService {
     private botToken: string;
     private config: TelegramConfig = { chatId: '', isEnabled: false };
+    private queue: string[] = [];
+    private draining: boolean = false;
+    private fails: number = 0;
 
     constructor() {
         // 🔒 The token is fetched only from server-side environment variables (never exposed to client)
         this.botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    }
+
+    public static esc(s: string): string {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     public updateConfig(chatId: string, isEnabled: boolean) {
@@ -26,6 +33,40 @@ export class TelegramService {
             // 🔒 Obfuscate chatId for security (show only last 4 digits)
             maskedChatId: this.config.chatId ? `***${this.config.chatId.slice(-4)}` : 'Not configured'
         };
+    }
+
+    /**
+     * Non-blocking notification dispatch into async queue
+     */
+    public notify(text: string): void {
+        this.queue.push(text);
+        void this.drain();
+    }
+
+    private async drain(): Promise<void> {
+        if (this.draining) return;
+        this.draining = true;
+
+        while (this.queue.length > 0) {
+            const msg = this.queue.shift()!;
+            try {
+                const ok = await this.sendMessage(msg);
+                if (ok) {
+                    this.fails = 0;
+                } else {
+                    this.fails++;
+                    if (this.fails > 5) {
+                        this.queue.length = 0; // Drop stale queue on repeated failures
+                    }
+                }
+            } catch (err) {
+                this.fails++;
+                if (this.fails > 5) {
+                    this.queue.length = 0;
+                }
+            }
+        }
+        this.draining = false;
     }
 
     public async sendMessage(text: string): Promise<boolean> {

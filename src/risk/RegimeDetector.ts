@@ -1,4 +1,5 @@
 import { Candle } from '../domain/types';
+import { hurstRS, sigmoid, clamp } from '../utils/stats';
 
 export interface RegimeAnalysis {
   volatilityRegime: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
@@ -7,8 +8,10 @@ export interface RegimeAnalysis {
   adx: number;
   volatility: number;
   trendStrength: number;
+  trendScore: number;
   tradingAllowed: boolean;
   confidence: number;
+  sizeMultiplier: number;
 }
 
 export class RegimeDetector {
@@ -36,31 +39,24 @@ export class RegimeDetector {
     const trendStrength = this.calculateTrendStrength();
 
     let volatilityRegime: RegimeAnalysis['volatilityRegime'];
-    if (volatility < 0.01) volatilityRegime = 'LOW';
-    else if (volatility < 0.02) volatilityRegime = 'NORMAL';
-    else if (volatility < 0.03) volatilityRegime = 'HIGH';
+    if (volatility < 0.40) volatilityRegime = 'LOW';
+    else if (volatility < 0.75) volatilityRegime = 'NORMAL';
+    else if (volatility < 1.10) volatilityRegime = 'HIGH';
     else volatilityRegime = 'EXTREME';
 
-    let marketRegime: RegimeAnalysis['marketRegime'];
-    let tradingAllowed = true;
-    let confidence = 0.5;
+    // Continuous classification (البند 41)
+    const trendScore = 0.6 * sigmoid(hurstExponent - 0.5, 12) + 0.4 * sigmoid((adx - 22) / 22, 12);
+    const tradingAllowed = trendScore < 0.65;
+    const confidence = Math.min(1, Math.abs(trendScore - 0.5) * 2);
+    const sizeMultiplier = clamp(1 - Math.max(0, trendScore - 0.45) * 2, 0.25, 1);
 
-    if (hurstExponent > 0.55 && adx > 25) {
+    let marketRegime: RegimeAnalysis['marketRegime'];
+    if (trendScore >= 0.60) {
       marketRegime = 'TRENDING';
-      tradingAllowed = false;
-      confidence = 0.9;
-    } else if (hurstExponent > 0.52 && adx > 20) {
-      marketRegime = 'TRENDING';
-      tradingAllowed = true;
-      confidence = 0.7;
-    } else if (hurstExponent < 0.45 && adx < 20) {
+    } else if (trendScore <= 0.40) {
       marketRegime = 'RANGING';
-      tradingAllowed = true;
-      confidence = 0.85;
     } else {
       marketRegime = 'VOLATILE';
-      tradingAllowed = true;
-      confidence = 0.5;
     }
 
     return {
@@ -70,8 +66,10 @@ export class RegimeDetector {
       adx,
       volatility,
       trendStrength,
+      trendScore,
       tradingAllowed,
       confidence,
+      sizeMultiplier,
     };
   }
 
@@ -132,55 +130,18 @@ export class RegimeDetector {
     return result;
   }
 
-  private calculateVolatility(): number {
-    if (this.returnsHistory.length < 20) return 0.02;
+  private calculateVolatility(candleIntervalMs: number = 60000): number {
+    if (this.returnsHistory.length < 20) return 0.50;
     const returns = this.returnsHistory.slice(-1440);
     const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
     const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
-    return Math.sqrt(variance) * Math.sqrt(1440);
+    const periodsPerYear = (365 * 24 * 3600 * 1000) / candleIntervalMs;
+    return Math.sqrt(variance) * Math.sqrt(periodsPerYear);
   }
 
   private calculateHurstExponent(): number {
-    if (this.returnsHistory.length < 100) return 0.5;
-    const returns = this.returnsHistory.slice(-1000);
-    const n = returns.length;
-    const sizes = [10, 20, 50, 100];
-    const rsValues: number[] = [];
-
-    for (const size of sizes) {
-      if (n < size) continue;
-      const numBlocks = Math.floor(n / size);
-      const rsList: number[] = [];
-      for (let i = 0; i < numBlocks; i++) {
-        const block = returns.slice(i * size, (i + 1) * size);
-        const mean = block.reduce((a, b) => a + b, 0) / block.length;
-        const cumDev: number[] = [];
-        let sum = 0;
-        for (const r of block) {
-          sum += (r - mean);
-          cumDev.push(sum);
-        }
-        const range = Math.max(...cumDev) - Math.min(...cumDev);
-        const stdDev = Math.sqrt(block.reduce((s, r) => s + Math.pow(r - mean, 2), 0) / block.length);
-        if (stdDev > 0) rsList.push(range / stdDev);
-      }
-      if (rsList.length > 0) {
-        const avgRs = rsList.reduce((a, b) => a + b, 0) / rsList.length;
-        rsValues.push(Math.log(avgRs) / Math.log(size));
-      }
-    }
-
-    if (rsValues.length === 0) return 0.5;
-    const x = rsValues.map((_, i) => Math.log(sizes[i]));
-    const y = rsValues.map((_, i) => Math.log(rsValues[i]));
-    const n2 = x.length;
-    const sumX = x.reduce((a, b) => a + b, 0);
-    const sumY = y.reduce((a, b) => a + b, 0);
-    const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
-    const sumX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
-
-    const hurst = (n2 * sumXY - sumX * sumY) / (n2 * sumX2 - sumX * sumX);
-    return Math.max(0, Math.min(1, hurst));
+    if (this.returnsHistory.length < 32) return 0.5;
+    return hurstRS(this.returnsHistory);
   }
 
   private calculateTrendStrength(): number {

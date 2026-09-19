@@ -335,15 +335,50 @@ export default function App() {
     setConfig({ ...config, ...newCfg });
   };
 
-  // Emergency KillSwitch trigger & reset
-  const handleEmergencyKill = () => {
-    setKillSwitchActive(true);
-    setKillSwitchLevel('HARD_HALT');
+  // Emergency KillSwitch trigger & reset via Backend API
+  const handleEmergencyKill = async (level: any = 'HARD_HALT', reason: string = 'Manual operator emergency stop') => {
+    try {
+      setKillSwitchActive(true);
+      setKillSwitchLevel(level);
+      const token = await getToken();
+      const res = await fetch('/api/protected/killswitch/trigger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ level, reason })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setKillSwitchActive(data.active);
+        setKillSwitchLevel(data.level);
+      }
+    } catch (err) {
+      console.error('Failed to trigger killswitch on server:', err);
+    }
   };
 
-  const handleResetKill = () => {
-    setKillSwitchActive(false);
-    setKillSwitchLevel('NORMAL');
+  const handleResetKill = async () => {
+    try {
+      setKillSwitchActive(false);
+      setKillSwitchLevel('NORMAL');
+      const token = await getToken();
+      const res = await fetch('/api/protected/killswitch/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setKillSwitchActive(data.active);
+        setKillSwitchLevel(data.level);
+      }
+    } catch (err) {
+      console.error('Failed to reset killswitch on server:', err);
+    }
   };
 
   // Manual trade dispatch via Backend API
@@ -406,9 +441,26 @@ export default function App() {
     }
   };
 
-  // Update risk limits
-  const handleUpdateLimits = (newLimits: Partial<RiskLimits>) => {
-    setRiskLimits({ ...riskLimits, ...newLimits });
+  // Update risk limits via Backend API
+  const handleUpdateLimits = async (newLimits: Partial<RiskLimits>) => {
+    setRiskLimits(prev => ({ ...prev, ...newLimits }));
+    try {
+      const token = await getToken();
+      const res = await fetch('/api/protected/risk-limits', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newLimits)
+      });
+      const data = await res.json();
+      if (data.success && data.limits) {
+        setRiskLimits(data.limits);
+      }
+    } catch (err) {
+      console.error('Failed to update risk limits on server:', err);
+    }
   };
 
   const isAr = lang === 'ar';
@@ -537,8 +589,7 @@ export default function App() {
               positions={positions}
               onUpdateLimits={handleUpdateLimits}
               onTriggerKillSwitch={(lvl, rsn) => {
-                setKillSwitchActive(true);
-                setKillSwitchLevel(lvl);
+                handleEmergencyKill(lvl, rsn);
               }}
               onResetKillSwitch={handleResetKill}
               killSwitchHistory={killSwitchHistory}

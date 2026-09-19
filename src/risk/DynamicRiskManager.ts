@@ -51,10 +51,20 @@ export class DynamicRiskManager extends EventEmitter {
     this.metrics = this.initializeMetrics();
   }
 
+  public setCurrentParameters(p: any) {
+    this.currentParameters = { ...this.currentParameters, ...p };
+    this.metrics.parameterDrift = this.calculateParameterDrift();
+  }
+
+  public getWarmupMultiplier(tradeCount: number): number {
+    if (tradeCount >= 30) return 1.0;
+    return 0.25 + 0.75 * (tradeCount / 30);
+  }
+
   private initializeMetrics(): RiskMetrics {
     return {
-      rollingSharpe: 1.5,
-      rollingWinRate: 0.60,
+      rollingSharpe: 0.0,
+      rollingWinRate: 0.50,
       rollingDrawdown: 0.0,
       drawdownVelocity: 0.0,
       parameterDrift: 0.0,

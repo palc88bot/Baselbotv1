@@ -17,16 +17,21 @@ dotenv.config();
 
 const logStream = fs.createWriteStream(path.join(process.cwd(), "server.log"), { flags: "a" });
 const originalConsoleLog = console.log;
-const originalConsoleError = console.log;
+const originalConsoleError = console.error;
+
+const formatLogArgs = (args: any[]) =>
+  args
+    .map((a) => (typeof a === "object" && a !== null ? JSON.stringify(a) : String(a)))
+    .join(" ");
 
 console.log = (...args) => {
-  const msg = `[${new Date().toISOString()}] LOG: ${args.join(" ")}\n`;
+  const msg = `[${new Date().toISOString()}] LOG: ${formatLogArgs(args)}\n`;
   logStream.write(msg);
   originalConsoleLog.apply(console, args);
 };
 
 console.error = (...args) => {
-  const msg = `[${new Date().toISOString()}] ERROR: ${args.join(" ")}\n`;
+  const msg = `[${new Date().toISOString()}] ERROR: ${formatLogArgs(args)}\n`;
   logStream.write(msg);
   originalConsoleError.apply(console, args);
 };
@@ -112,6 +117,79 @@ async function startServer() {
       pipeline.stop();
     }
     res.json({ success: true, isRunning: running });
+  });
+
+  // KillSwitch Endpoints
+  app.post("/api/protected/killswitch/trigger", async (req: AuthRequest, res) => {
+    try {
+      const { level, reason } = req.body;
+      const targetLevel = level || 'HARD_HALT';
+      const killReason = reason || `Manual operator trigger by ${req.user?.email || 'admin'}`;
+      pipeline.getKillSwitch().trigger(targetLevel, killReason, 'MANUAL_OPERATOR');
+      res.json({
+        success: true,
+        active: pipeline.getKillSwitch().isActive(),
+        level: pipeline.getKillSwitch().getLevel(),
+        reason: killReason,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/protected/killswitch/reset", async (req: AuthRequest, res) => {
+    try {
+      const result = pipeline.resetEmergencyKill();
+      res.json({
+        ...result,
+        active: pipeline.getKillSwitch().isActive(),
+        level: pipeline.getKillSwitch().getLevel(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/protected/killswitch/status", async (req: AuthRequest, res) => {
+    try {
+      res.json({
+        success: true,
+        active: pipeline.getKillSwitch().isActive(),
+        level: pipeline.getKillSwitch().getLevel(),
+        history: pipeline.getKillSwitch().getHistory(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Risk Limits Endpoints
+  app.post("/api/protected/risk-limits", async (req: AuthRequest, res) => {
+    try {
+      const newLimits = req.body;
+      pipeline.getRiskEngine().updateLimits(newLimits);
+      pipeline.updateConfig({
+        maxDrawdownCapPct: newLimits.maxDrawdownPct ?? pipeline.getConfig().maxDrawdownCapPct,
+        maxLeverage: newLimits.maxPortfolioLeverage ?? pipeline.getConfig().maxLeverage,
+      });
+      res.json({
+        success: true,
+        limits: pipeline.getRiskEngine().getLimits(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/protected/risk-limits", async (req: AuthRequest, res) => {
+    try {
+      res.json({
+        success: true,
+        limits: pipeline.getRiskEngine().getLimits(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
   });
 
   app.post("/api/protected/manual-order", async (req: AuthRequest, res) => {
@@ -475,6 +553,8 @@ async function startServer() {
           features: featuresDict,
           regime,
           riskDecision,
+          portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
+          qualifiedAssets: pipeline.getAssetScreener().getReport(),
         },
       }));
     } catch (err) {
@@ -526,6 +606,8 @@ async function startServer() {
           features: featuresDict,
           regime,
           riskDecision,
+          portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
+          qualifiedAssets: pipeline.getAssetScreener().getReport(),
         },
       });
 

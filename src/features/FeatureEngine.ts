@@ -4,6 +4,7 @@
  */
 
 import { AssetSymbol, Candle, OrderBook } from '../domain/types';
+import { hurstRS } from '../utils/stats';
 
 export interface CalculatedFeatures {
   symbol: AssetSymbol;
@@ -129,32 +130,7 @@ export class FeatureEngine {
     const n = prices.length;
     if (n < 16) return 0.45; // Default slightly mean-reverting
 
-    const returns: number[] = [];
-    for (let i = 1; i < n; i++) {
-      returns.push(Math.log(prices[i] / prices[i - 1]));
-    }
-
-    const m = returns.length;
-    const mean = returns.reduce((a, b) => a + b, 0) / m;
-    const meanAdj = returns.map((r) => r - mean);
-
-    // Cumulative sum
-    const cumDev: number[] = [];
-    let sum = 0;
-    for (const val of meanAdj) {
-      sum += val;
-      cumDev.push(sum);
-    }
-
-    const range = Math.max(...cumDev) - Math.min(...cumDev);
-    const stdDev = Math.sqrt(returns.reduce((acc, r) => acc + Math.pow(r - mean, 2), 0) / m);
-
-    if (stdDev === 0 || range === 0) return 0.5;
-    const rs = range / stdDev;
-    const hurst = Math.log(rs) / Math.log(m);
-
-    // Bound between 0.1 and 0.9
-    return Math.max(0.1, Math.min(0.9, hurst));
+    return hurstRS(prices);
   }
 
   public calculateRSI(prices: number[], period: number = 14): number {

@@ -21,6 +21,8 @@ export interface AssetMetrics {
   // معلومات عامة
   minNotional: number;          // الحد الأدنى للصفقة ($)
   minQuantity: number;          // الحد الأدنى للكمية
+  stepSize: number;             // دقة الكمية (LOT_SIZE)
+  tickSize: number;             // دقة السعر (PRICE_FILTER)
   maxLeverage: number;          // الحد الأقصى للرافعة
   minLeverage: number;          // الحد الأدنى للرافعة
   
@@ -28,6 +30,20 @@ export interface AssetMetrics {
   liquidityScore: number;       // درجة السيولة (0-100)
   isQualified: boolean;         // هل العملة مؤهلة؟
   disqualificationReasons: string[]; // أسباب عدم الأهلية
+}
+
+export function formatQuantityToStep(quantity: number, stepSize: number = 0.001): number {
+  if (!stepSize || stepSize <= 0) return Number(quantity.toFixed(3));
+  const precision = Math.max(0, Math.round(-Math.log10(stepSize)));
+  const factor = Math.pow(10, precision);
+  const rounded = Math.floor(quantity * factor) / factor;
+  return Number(rounded.toFixed(precision));
+}
+
+export function formatPriceToTick(price: number, tickSize: number = 0.01): number {
+  if (!tickSize || tickSize <= 0) return Number(price.toFixed(2));
+  const precision = Math.max(0, Math.round(-Math.log10(tickSize)));
+  return Number(price.toFixed(precision));
 }
 
 export interface ScreenerConfig {
@@ -218,9 +234,12 @@ export class AssetScreener {
     const filters = symbolInfo.filters || [];
     const minNotionalFilter = filters.find((f: any) => f.filterType === 'MIN_NOTIONAL');
     const lotSizeFilter = filters.find((f: any) => f.filterType === 'LOT_SIZE');
+    const priceFilter = filters.find((f: any) => f.filterType === 'PRICE_FILTER');
     
     const minNotional = minNotionalFilter ? parseFloat(minNotionalFilter.notional) : 5;
     const minQuantity = lotSizeFilter ? parseFloat(lotSizeFilter.minQty) : 0.001;
+    const stepSize = lotSizeFilter ? parseFloat(lotSizeFilter.stepSize) : 0.001;
+    const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : 0.01;
     const maxLeverage = parseInt(symbolInfo.maxLeverage) || 50;
     const minLeverage = 5;
     
@@ -239,6 +258,8 @@ export class AssetScreener {
       takerFee,
       minNotional,
       minQuantity,
+      stepSize,
+      tickSize,
       maxLeverage,
       minLeverage,
       liquidityScore,
@@ -311,6 +332,13 @@ export class AssetScreener {
   }
 
   /**
+   * الحصول على جميع مقاييس العملات
+   */
+  public getAllAssets(): AssetMetrics[] {
+    return Array.from(this.allAssets.values());
+  }
+
+  /**
    * الحصول على العملات المؤهلة
    */
   public getQualifiedAssets(maxCount: number = 20): AssetSymbol[] {
@@ -371,13 +399,13 @@ export class AssetScreener {
   }
 
   private populateDefaultFallbackAssets(): void {
-    const defaults: Array<{ symbol: AssetSymbol; clean: string; score: number; volume: number }> = [
-      { symbol: 'BTC/USDT', clean: 'BTCUSDT', score: 98, volume: 1500000000 },
-      { symbol: 'ETH/USDT', clean: 'ETHUSDT', score: 95, volume: 800000000 },
-      { symbol: 'SOL/USDT', clean: 'SOLUSDT', score: 92, volume: 400000000 },
-      { symbol: 'QNT/USDT', clean: 'QNTUSDT', score: 85, volume: 50000000 },
-      { symbol: 'NVDA/USD', clean: 'NVDAUSD', score: 80, volume: 100000000 },
-      { symbol: 'AAPL/USD', clean: 'AAPLUSD', score: 80, volume: 100000000 },
+    const defaults: Array<{ symbol: AssetSymbol; clean: string; score: number; volume: number; stepSize: number; tickSize: number }> = [
+      { symbol: 'BTC/USDT', clean: 'BTCUSDT', score: 98, volume: 1500000000, stepSize: 0.001, tickSize: 0.1 },
+      { symbol: 'ETH/USDT', clean: 'ETHUSDT', score: 95, volume: 800000000, stepSize: 0.001, tickSize: 0.01 },
+      { symbol: 'SOL/USDT', clean: 'SOLUSDT', score: 92, volume: 400000000, stepSize: 0.01, tickSize: 0.01 },
+      { symbol: 'BNB/USDT', clean: 'BNBUSDT', score: 90, volume: 200000000, stepSize: 0.01, tickSize: 0.01 },
+      { symbol: 'XRP/USDT', clean: 'XRPUSDT', score: 88, volume: 180000000, stepSize: 0.1, tickSize: 0.0001 },
+      { symbol: 'DOGE/USDT', clean: 'DOGEUSDT', score: 85, volume: 150000000, stepSize: 1, tickSize: 0.00001 },
     ];
 
     for (const d of defaults) {
@@ -393,7 +421,9 @@ export class AssetScreener {
         makerFee: 0.0002,
         takerFee: 0.0004,
         minNotional: 5,
-        minQuantity: 0.001,
+        minQuantity: d.stepSize,
+        stepSize: d.stepSize,
+        tickSize: d.tickSize,
         maxLeverage: 50,
         minLeverage: 5,
         liquidityScore: d.score,

@@ -1,0 +1,1089 @@
+{
+  "trades": {
+    "ORD-mu8r4t0d-1": {
+      "id": "ORD-mu8r4t0d-1",
+      "timestamp": 1789844383454,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1106,
+      "price": 81383,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8r4t0g-2": {
+      "id": "ORD-mu8r4t0g-2",
+      "timestamp": 1789844383458,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1106,
+      "price": 81383,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8rvero-1": {
+      "id": "ORD-mu8rvero-1",
+      "timestamp": 1789845624709,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1106,
+      "price": 81382.9,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8rverp-2": {
+      "id": "ORD-mu8rverp-2",
+      "timestamp": 1789845624711,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1106,
+      "price": 81382.9,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x04hs-1": {
+      "id": "ORD-mu8x04hs-1",
+      "timestamp": 1789854242755,
+      "symbol": "ETH/USDT",
+      "side": "BUY",
+      "quantity": 3.4321,
+      "price": 2622.32,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x0k2d-2": {
+      "id": "ORD-mu8x0k2d-2",
+      "timestamp": 1789854262936,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.319,
+      "price": 2622.52,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x0vq0-3": {
+      "id": "ORD-mu8x0vq0-3",
+      "timestamp": 1789854278042,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 2.7825,
+      "price": 2622.59,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x17ct-4": {
+      "id": "ORD-mu8x17ct-4",
+      "timestamp": 1789854293118,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 2.4357,
+      "price": 2622.83,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x1iy3-5": {
+      "id": "ORD-mu8x1iy3-5",
+      "timestamp": 1789854308141,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.4309,
+      "price": 2623.24,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x1ktt-6": {
+      "id": "ORD-mu8x1ktt-6",
+      "timestamp": 1789854310578,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 77.9739,
+      "price": 110.52,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x1wc9-7": {
+      "id": "ORD-mu8x1wc9-7",
+      "timestamp": 1789854325498,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.3098,
+      "price": 2623.3,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x221i-8": {
+      "id": "ORD-mu8x221i-8",
+      "timestamp": 1789854332887,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 69.547,
+      "price": 110.52,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x284w-9": {
+      "id": "ORD-mu8x284w-9",
+      "timestamp": 1789854340785,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.43,
+      "price": 2623.87,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x2fon-10": {
+      "id": "ORD-mu8x2fon-10",
+      "timestamp": 1789854350569,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 55.6461,
+      "price": 110.5,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x2jpu-11": {
+      "id": "ORD-mu8x2jpu-11",
+      "timestamp": 1789854355794,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.4288,
+      "price": 2624.84,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x2t3n-12": {
+      "id": "ORD-mu8x2t3n-12",
+      "timestamp": 1789854367957,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 56.4152,
+      "price": 110.52,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x2ywl-13": {
+      "id": "ORD-mu8x2ywl-13",
+      "timestamp": 1789854375478,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.4286,
+      "price": 2625.01,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x3iae-14": {
+      "id": "ORD-mu8x3iae-14",
+      "timestamp": 1789854400599,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 56.8961,
+      "price": 110.54,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x3vtq-15": {
+      "id": "ORD-mu8x3vtq-15",
+      "timestamp": 1789854418143,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 57.8171,
+      "price": 110.56,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x49ap-16": {
+      "id": "ORD-mu8x49ap-16",
+      "timestamp": 1789854435602,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 59.5441,
+      "price": 110.56,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x4mqx-17": {
+      "id": "ORD-mu8x4mqx-17",
+      "timestamp": 1789854453034,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 81.1908,
+      "price": 110.85,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x5fsy-1": {
+      "id": "ORD-mu8x5fsy-1",
+      "timestamp": 1789854490691,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1111,
+      "price": 81005.1,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "OPEN"
+    },
+    "ORD-mu8x5gq4-2": {
+      "id": "ORD-mu8x5gq4-2",
+      "timestamp": 1789854491885,
+      "symbol": "QNT/USDT",
+      "side": "BUY",
+      "quantity": 137.2998,
+      "price": 65.55,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "OPEN"
+    },
+    "ORD-mu8x5gq7-3": {
+      "id": "ORD-mu8x5gq7-3",
+      "timestamp": 1789854491887,
+      "symbol": "ETH/USDT",
+      "side": "BUY",
+      "quantity": 3.428,
+      "price": 2625.4,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "OPEN"
+    }
+  },
+  "signals": [
+    {
+      "id": "SIG-mu8r4t0a",
+      "timestamp": 1789844383450,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.124,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8r4t0c",
+      "timestamp": 1789844383452,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.124,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8rverk",
+      "timestamp": 1789845624704,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -4.927,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8rverm",
+      "timestamp": 1789845624706,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -4.927,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x0465",
+      "timestamp": 1789854242333,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x04aa",
+      "timestamp": 1789854242482,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x04bk",
+      "timestamp": 1789854242528,
+      "symbol": "ETH/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.34,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x04iv",
+      "timestamp": 1789854242791,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x05tc",
+      "timestamp": 1789854244464,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x05wx",
+      "timestamp": 1789854244593,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x060y",
+      "timestamp": 1789854244738,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0651",
+      "timestamp": 1789854244885,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x06an",
+      "timestamp": 1789854245087,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x06ql",
+      "timestamp": 1789854245661,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.575,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x07oj",
+      "timestamp": 1789854246883,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x07rl",
+      "timestamp": 1789854246993,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x07vr",
+      "timestamp": 1789854247143,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x09r1",
+      "timestamp": 1789854249565,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x09vr",
+      "timestamp": 1789854249735,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0bge",
+      "timestamp": 1789854251774,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0bgh",
+      "timestamp": 1789854251777,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0dih",
+      "timestamp": 1789854254441,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0dil",
+      "timestamp": 1789854254445,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0g3o",
+      "timestamp": 1789854257796,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0jvw",
+      "timestamp": 1789854262700,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.96712,
+      "zScore": 2.363,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x0vje",
+      "timestamp": 1789854277802,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.8687199999999999,
+      "zScore": 1.953,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x154x",
+      "timestamp": 1789854290241,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 5.046,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x176g",
+      "timestamp": 1789854292888,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.81904,
+      "zScore": 1.746,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x1irk",
+      "timestamp": 1789854307904,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 2.54,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x1knr",
+      "timestamp": 1789854310359,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.95752,
+      "zScore": 2.323,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x1w5r",
+      "timestamp": 1789854325263,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.96472,
+      "zScore": 2.353,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x20bg",
+      "timestamp": 1789854330652,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.91504,
+      "zScore": 2.146,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x27yc",
+      "timestamp": 1789854340548,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 3.831,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x2fia",
+      "timestamp": 1789854350338,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.78832,
+      "zScore": 1.618,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x2jji",
+      "timestamp": 1789854355566,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 6.371,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x2sx2",
+      "timestamp": 1789854367718,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.7993600000000001,
+      "zScore": 1.664,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x2yq1",
+      "timestamp": 1789854375241,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 5.764,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x3i3x",
+      "timestamp": 1789854400365,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.80632,
+      "zScore": 1.693,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x3vnd",
+      "timestamp": 1789854417913,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.81952,
+      "zScore": 1.748,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x4947",
+      "timestamp": 1789854435367,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.8440000000000001,
+      "zScore": 1.85,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x4mk8",
+      "timestamp": 1789854452792,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 5.076,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x4xr5",
+      "timestamp": 1789854467297,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.98008,
+      "zScore": 2.417,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x5fmg",
+      "timestamp": 1789854490456,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -6.848,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x5fxm",
+      "timestamp": 1789854490858,
+      "symbol": "QNT/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.606,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x5fzg",
+      "timestamp": 1789854490924,
+      "symbol": "ETH/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.497,
+      "executed": true
+    }
+  ],
+  "balanceSnapshots": [
+    {
+      "timestamp": 1789844383449,
+      "total_equity": 5000,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789844681988,
+      "total_equity": 4993.698200000001,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789844683587,
+      "total_equity": 4993.698200000001,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789844981988,
+      "total_equity": 4993.698200000001,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789844983715,
+      "total_equity": 4993.698200000001,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789845281989,
+      "total_equity": 4993.698200000001,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789845283744,
+      "total_equity": 4993.698200000001,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789845581990,
+      "total_equity": 4993.698200000001,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789845583822,
+      "total_equity": 4993.698200000001,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789845624702,
+      "total_equity": 5000,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789845923528,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789845924759,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789846223528,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789846225970,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789846523529,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789846526012,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789846823529,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789846826671,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789847123530,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789847127068,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789847423531,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789847427151,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789847723532,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789847727187,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789848023533,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789848027283,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789848323535,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789848327303,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789848623536,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789848627470,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789848923537,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789848928021,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789849223539,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789849228022,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789849523539,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789849528272,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789849823539,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789849828411,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789850123540,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789850128855,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789850423541,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789850428871,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789850723542,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789850728884,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789851023542,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789851029015,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789851323543,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789851329343,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789851623544,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789851629502,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789851923545,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789851929933,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789852223545,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789852230254,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789852523546,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789852530547,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789852823547,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789852830650,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789853123548,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789853130684,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789853423549,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789853430818,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789853723550,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789853730893,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789854023550,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789854030935,
+      "total_equity": 4993.696599999999,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789854241923,
+      "total_equity": 5000,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1789854490455,
+      "total_equity": 5000,
+      "free_margin": 5000,
+      "unrealized_pnl": 0
+    }
+  ],
+  "prices": {},
+  "botState": {
+    "last_balance": {
+      "equity": 5000,
+      "timestamp": 1789854487234
+    }
+  }
+}

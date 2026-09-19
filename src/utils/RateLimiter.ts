@@ -96,6 +96,23 @@ export class RateLimiter {
         };
     }
 
+    public async acquire(endpoint: string, weight: number = 1): Promise<boolean> {
+        return this.checkRateLimit(endpoint);
+    }
+
+    public syncUsed(usedWeight: number): void {
+        if (usedWeight > 0) {
+            if (usedWeight > 2000) {
+                console.warn(`🚨 High rate-limit usage reported by Binance: ${usedWeight}/2400`);
+            }
+        }
+    }
+
+    public async backoff(ms: number = 60000): Promise<void> {
+        console.warn(`🛑 RateLimiter backing off for ${ms}ms due to exchange 429/418`);
+        await new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     public handleBinanceRateLimitResponse(headers: any): void {
         const limit = parseInt(headers['x-mbx-used-weight-1m'] || '0');
         const orderLimit = parseInt(headers['x-mbx-order-count-10s'] || '0');

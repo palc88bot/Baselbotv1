@@ -1,20 +1,27 @@
-# 1. استخدام صورة Bun الخفيفة والذكية لتوفير الموارد
-FROM oven/bun:1-alpine AS base
+# 1. المرحلة الأولى: بناء المشروع (Builder Stage)
+FROM oven/bun:1-alpine AS builder
 WORKDIR /app
 
-# 2. تثبيت الاعتماديات الخاصة بالتشغيل فقط
+COPY package.json bun.lockb* package-lock.json* ./
+RUN bun install
+
+COPY . .
+RUN bun run build
+
+# 2. المرحلة الثانية: بيئة التشغيل الإنتاجية الخفيفة (Runtime Stage)
+FROM oven/bun:1-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=8080
+
 COPY package.json bun.lockb* package-lock.json* ./
 RUN bun install --production
 
-# 3. نسخ كود المصدر بالكامل
-COPY . .
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./package.json
 
-# 4. بناء المشروع بالكامل (الواجهة الأمامية + الخادم الخلفي) لضمان العمل السحابي 24/7
-RUN bun run build
-
-# 5. إعدادات المنفذ لـ Cloud Run
-ENV PORT=8080
 EXPOSE 8080
 
-# 6. أمر التشغيل السحابي لتشغيل المحرك المتكامل والـ WebSocket
+# أمر التشغيل السحابي للمحرك المتكامل والـ WebSocket
 CMD ["bun", "run", "dist/server.cjs"]

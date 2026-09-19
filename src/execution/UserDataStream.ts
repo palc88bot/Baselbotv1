@@ -5,12 +5,12 @@
 
 import crypto from 'crypto';
 import WebSocket from 'ws';
-import { AccountBalance, AssetSymbol, Fill, Position } from '../domain/types';
+import { AccountBalance, AssetSymbol, ExecutionMode, Fill, Position, getBinanceBaseUrl, getBinanceWsUrl, normalizeExecutionMode } from '../domain/types';
 
-type EventCallback = (type: 'balance_update' | 'position_update' | 'order_update', data: any) => void;
+type EventCallback = (type: 'balance_update' | 'position_update' | 'order_update' | 'position_closed', data: any) => void;
 
 export class UserDataStream {
-  private executionMode: string;
+  private executionMode: ExecutionMode;
   private apiKey: string;
   private apiSecret: string;
   private apiBaseUrl: string;
@@ -29,18 +29,20 @@ export class UserDataStream {
   private isRunning: boolean = false;
   private balanceListeners: Set<(b: AccountBalance) => void> = new Set();
   private fillListeners: Set<(f: Fill) => void> = new Set();
+  private closedListeners: Set<(s: AssetSymbol) => void> = new Set();
+  private orderTradeListeners: Set<(o: any) => void> = new Set();
 
   constructor(initialCapital: number = 0, onEvent?: EventCallback) {
     this.onEvent = onEvent;
     this.apiKey = process.env.EXCHANGE_API_KEY || '';
     this.apiSecret = process.env.EXCHANGE_API_SECRET || '';
-    this.executionMode = process.env.EXECUTION_MODE || (this.apiKey ? 'TESTNET' : 'PAPER');
+    this.executionMode = normalizeExecutionMode(process.env.EXECUTION_MODE, !!this.apiKey);
     
     // Default 10k for PAPER and initial fallback for others to prevent zeroed UI on boot
     const startBalance = initialCapital > 0 ? initialCapital : 10000;
 
-    this.apiBaseUrl = this.executionMode === 'LIVE' ? 'https://fapi.binance.com' : 'https://testnet.binancefuture.com';
-    this.wsUrl = this.executionMode === 'LIVE' ? 'wss://fstream.binance.com/ws' : 'wss://fstream.binancefuture.com/ws';
+    this.apiBaseUrl = getBinanceBaseUrl(this.executionMode);
+    this.wsUrl = `${getBinanceWsUrl(this.executionMode)}/ws`;
 
     this.balance = {
       totalEquity: startBalance,
@@ -81,14 +83,6 @@ export class UserDataStream {
       console.error('❌ UserDataStream: Failed to start Binance stream, falling back to simulation state.', error);
       this.scheduleReconnect();
     }
-  }
-
-  public stop() {
-    this.isRunning = false;
-    if (this.ws) this.ws.close();
-    if (this.listenKeyTimer) clearInterval(this.listenKeyTimer);
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    console.log('🔴 UserDataStream: Stopped.');
   }
 
   public getBalance(): AccountBalance {
@@ -325,7 +319,13 @@ export class UserDataStream {
               updatedAt: Date.now(),
             });
           } else {
+            const hadPosition = this.positions.has(symbol as AssetSymbol);
             this.positions.delete(symbol as AssetSymbol);
+            if (hadPosition) {
+              console.log(`🔒 UserDataStream: Position for ${symbol} is fully CLOSED on exchange.`);
+              for (const cl of this.closedListeners) cl(symbol as AssetSymbol);
+              if (this.onEvent) this.onEvent('position_closed', { symbol });
+            }
           }
         });
         if (this.onEvent) this.onEvent('position_update', this.getPositions());
@@ -335,8 +335,40 @@ export class UserDataStream {
     if (msg.e === 'ORDER_TRADE_UPDATE') {
       const order = msg.o;
       console.log(`📡 Order Update: ${order.s} | ${order.S} | Status: ${order.X} | Filled: ${order.z}`);
+      for (const ot of this.orderTradeListeners) ot(order);
       if (this.onEvent) this.onEvent('order_update', order);
     }
+  }
+
+  public onPositionClosed(listener: (symbol: AssetSymbol) => void): () => void {
+    this.closedListeners.add(listener);
+    return () => this.closedListeners.delete(listener);
+  }
+
+  public onOrderTradeUpdate(listener: (order: any) => void): () => void {
+    this.orderTradeListeners.add(listener);
+    return () => this.orderTradeListeners.delete(listener);
+  }
+
+  public stop(): void {
+    this.isRunning = false;
+    if (this.listenKeyTimer) {
+      clearInterval(this.listenKeyTimer);
+      this.listenKeyTimer = null;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      try {
+        this.ws.close();
+      } catch (e) {
+        // ignore
+      }
+      this.ws = null;
+    }
+    console.log('🛑 UserDataStream: Stopped cleanly.');
   }
 
   private startListenKeyKeepAlive() {

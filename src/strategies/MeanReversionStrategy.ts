@@ -19,9 +19,9 @@ export interface StrategyConfig {
 export const DEFAULT_STRATEGY_CONFIG: StrategyConfig = {
   zScoreEntryThreshold: 1.6,
   zScoreExitThreshold: 0.25,
-  maxHalfLifePeriods: 30,
-  maxHurstExponent: 0.52,
-  minConfidence: 0.60,
+  maxHalfLifePeriods: 35,
+  maxHurstExponent: 0.60,
+  minConfidence: 0.50,
   stopLossZScore: 3.5,
   takeProfitRatio: 0.85,
 };
