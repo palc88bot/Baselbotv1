@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
   AccountBalance,
   AssetSymbol,
@@ -215,11 +215,20 @@ export default function App() {
           reconnectAttempt = 0; // reset on success
         };
 
-        wsRef.current.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data);
-            if (message.type === 'INIT_STATE' || message.type === 'STATE_UPDATE') {
-              const data = message.data;
+        let pendingData: any = null;
+        let updateScheduled = false;
+
+        const processThrottledUpdate = () => {
+          if (updateScheduled) return;
+          updateScheduled = true;
+
+          requestAnimationFrame(() => {
+            updateScheduled = false;
+            if (!pendingData) return;
+            const data = pendingData;
+            pendingData = null;
+
+            React.startTransition(() => {
               if (data.balance) setBalance(data.balance);
               if (data.positions) setPositions(data.positions);
               if (data.orders) setOrders(data.orders);
@@ -234,7 +243,6 @@ export default function App() {
                 const signals = data.signals;
                 setLatestSignal(signals[signals.length - 1]);
                 setSignalHistory(prev => {
-                  // Merge new signals into history, ensuring no duplicates if possible
                   const combined = [...signals.slice(-5).reverse(), ...prev];
                   return combined.slice(0, 5);
                 });
@@ -251,6 +259,16 @@ export default function App() {
               if (data.features && data.features[currentSym]) {
                 setFeatures(data.features[currentSym]);
               }
+            });
+          });
+        };
+
+        wsRef.current.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === 'INIT_STATE' || message.type === 'STATE_UPDATE') {
+              pendingData = message.data;
+              processThrottledUpdate();
             }
           } catch (err) {
             console.error('Error parsing WebSocket message:', err);
@@ -472,112 +490,80 @@ export default function App() {
       <main className="max-w-[1680px] mx-auto px-4 sm:px-6 py-6">
         <AccountSummary balance={balance} lang={lang} />
         
-        <AnimatePresence mode="wait">
-          {activeTab === 'dashboard' && (
-            <motion.div
-              key="dashboard"
-              initial={{ opacity: 0, scale: 0.99 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.99 }}
-              transition={{ duration: 0.2 }}
-            >
-              <LiveTradingDashboard
-                selectedSymbol={selectedSymbol}
-                orderBook={orderBook}
-                candles={candles}
-                features={features}
-                latestSignal={latestSignal}
-                signalHistory={signalHistory}
-                balance={balance}
-                positions={positions}
-                orders={orders}
-                onManualOrder={handleManualOrder}
-                lang={lang}
-                reduceMotion={reduceMotion}
-                health={health}
-                isRunning={isRunning}
-                regime={regime}
-                riskDecision={riskDecision}
-              />
-              <div className="mt-6">
-                <SystemHealthPanel lang={lang} />
-              </div>
-            </motion.div>
-          )}
+        {activeTab === 'dashboard' && (
+          <div>
+            <LiveTradingDashboard
+              selectedSymbol={selectedSymbol}
+              orderBook={orderBook}
+              candles={candles}
+              features={features}
+              latestSignal={latestSignal}
+              signalHistory={signalHistory}
+              balance={balance}
+              positions={positions}
+              orders={orders}
+              onManualOrder={handleManualOrder}
+              lang={lang}
+              reduceMotion={reduceMotion}
+              health={health}
+              isRunning={isRunning}
+              regime={regime}
+              riskDecision={riskDecision}
+            />
+            <div className="mt-6">
+              <SystemHealthPanel lang={lang} />
+            </div>
+          </div>
+        )}
 
-          {activeTab === 'quantum' && (
-            <motion.div
-              key="quantum"
-              initial={{ opacity: 0, scale: 0.99 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.99 }}
-              transition={{ duration: 0.2 }}
-            >
-              <QuantumOptimizerView
-                activeSymbols={config.activeSymbols}
-                lastSolution={lastSolution}
-                onRunOptimization={handleRunOptimization}
-                lang={lang}
-                reduceMotion={reduceMotion}
-              />
-            </motion.div>
-          )}
+        {activeTab === 'quantum' && (
+          <div>
+            <QuantumOptimizerView
+              activeSymbols={config.activeSymbols}
+              lastSolution={lastSolution}
+              onRunOptimization={handleRunOptimization}
+              lang={lang}
+              reduceMotion={reduceMotion}
+            />
+          </div>
+        )}
 
-          {activeTab === 'risk' && (
-            <motion.div
-              key="risk"
-              initial={{ opacity: 0, scale: 0.99 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.99 }}
-              transition={{ duration: 0.2 }}
-            >
-              <RiskEngineView
-                metrics={riskMetrics}
-                limits={riskLimits}
-                balance={balance}
-                positions={positions}
-                onUpdateLimits={handleUpdateLimits}
-                onTriggerKillSwitch={(lvl, rsn) => {
-                  setKillSwitchActive(true);
-                  setKillSwitchLevel(lvl);
-                }}
-                onResetKillSwitch={handleResetKill}
-                killSwitchHistory={killSwitchHistory}
-                lang={lang}
-                reduceMotion={reduceMotion}
-              />
-            </motion.div>
-          )}
+        {activeTab === 'risk' && (
+          <div>
+            <RiskEngineView
+              metrics={riskMetrics}
+              limits={riskLimits}
+              balance={balance}
+              positions={positions}
+              onUpdateLimits={handleUpdateLimits}
+              onTriggerKillSwitch={(lvl, rsn) => {
+                setKillSwitchActive(true);
+                setKillSwitchLevel(lvl);
+              }}
+              onResetKillSwitch={handleResetKill}
+              killSwitchHistory={killSwitchHistory}
+              lang={lang}
+              reduceMotion={reduceMotion}
+            />
+          </div>
+        )}
 
-          {activeTab === 'backtest' && (
-            <motion.div
-              key="backtest"
-              initial={{ opacity: 0, scale: 0.99 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.99 }}
-              transition={{ duration: 0.2 }}
-            >
-              <BacktestWorkbench lang={lang} />
-            </motion.div>
-          )}
+        {activeTab === 'backtest' && (
+          <div>
+            <BacktestWorkbench lang={lang} />
+          </div>
+        )}
 
-          {activeTab === 'telemetry' && (
-            <motion.div
-              key="telemetry"
-              initial={{ opacity: 0, scale: 0.99 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.99 }}
-              transition={{ duration: 0.2 }}
-            >
-              <TelemetryJournalView
-                health={health}
-                events={events}
-                onClearJournal={() => setEvents([])}
-                lang={lang}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {activeTab === 'telemetry' && (
+          <div>
+            <TelemetryJournalView
+              health={health}
+              events={events}
+              onClearJournal={() => setEvents([])}
+              lang={lang}
+            />
+          </div>
+        )}
       </main>
     </div>
   );

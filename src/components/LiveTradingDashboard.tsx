@@ -88,29 +88,33 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
   const ouMu = features?.ouMu || currentPrice;
   const ouSigma = features?.ouSigma || currentPrice * 0.01;
 
-  // Chart data formatting
-  const chartData = (candles || []).slice(-50).map((c) => ({
-    time: new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    price: c?.close || 0,
-    vwap: c?.vwap || 0,
-    upper: Number((ouMu + 2 * ouSigma).toFixed(2)),
-    lower: Number((ouMu - 2 * ouSigma).toFixed(2)),
-  }));
+  // Chart data formatting - memoized to prevent re-parsing on unrelated renders
+  const chartData = React.useMemo(() => {
+    return (candles || []).slice(-50).map((c) => ({
+      time: new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      price: c?.close || 0,
+      vwap: c?.vwap || 0,
+      upper: Number((ouMu + 2 * ouSigma).toFixed(2)),
+      lower: Number((ouMu - 2 * ouSigma).toFixed(2)),
+    }));
+  }, [candles, ouMu, ouSigma]);
 
   // Real Decisions from signalHistory
-  const aiDecisions = signalHistory.map(sig => ({
-    time: new Date(sig.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    msg: isAr ? sig.reason : sig.reason,
-    type: sig.type
-  }));
+  const aiDecisions = React.useMemo(() => {
+    return signalHistory.map(sig => ({
+      time: new Date(sig.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      msg: isAr ? sig.reason : sig.reason,
+      type: sig.type
+    }));
+  }, [signalHistory, isAr]);
 
   return (
-    <div className={`relative w-full space-y-6 ${reduceMotion ? '' : 'animate-in fade-in slide-in-from-bottom-2 duration-500'}`} dir={isAr ? 'rtl' : 'ltr'}>
+    <div className="relative w-full space-y-6" dir={isAr ? 'rtl' : 'ltr'}>
       
       {/* 1. AlgoCore Top Hero Section (PnL, Regime, Risk & Algorithm Status) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Profits Card */}
-        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-cyan-500/20 rounded-[2rem] p-6 shadow-[0_0_40px_rgba(6,182,212,0.1)] relative overflow-hidden group">
+        <div className="bg-[#0a0f1d]/90 border border-cyan-500/20 rounded-[2rem] p-6 shadow-lg relative overflow-hidden group gpu-accelerated">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-cyan-500/10 transition-all" />
           <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'إجمالي الأرباح' : 'TOTAL_PROFITS'}</h4>
@@ -128,7 +132,7 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
         </div>
 
         {/* Market Regime Card */}
-        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-indigo-500/20 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+        <div className="bg-[#0a0f1d]/90 border border-indigo-500/20 rounded-[2rem] p-6 shadow-lg relative overflow-hidden group gpu-accelerated">
           <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
             <div className="flex items-center justify-between w-full">
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'نظام السوق' : 'MARKET_REGIME'}</h4>
@@ -150,7 +154,7 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
         </div>
 
         {/* Dynamic Risk Management Card */}
-        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-blue-500/20 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+        <div className="bg-[#0a0f1d]/90 border border-blue-500/20 rounded-[2rem] p-6 shadow-lg relative overflow-hidden group gpu-accelerated">
           <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
             <div className="flex items-center justify-between w-full">
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'إدارة المخاطر الديناميكية' : 'DYNAMIC_RISK'}</h4>
@@ -168,7 +172,7 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
         </div>
 
         {/* Algorithm Status Card */}
-        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-white/5 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+        <div className="bg-[#0a0f1d]/90 border border-white/5 rounded-[2rem] p-6 shadow-lg relative overflow-hidden group gpu-accelerated">
           <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'حالة الخوارزمية' : 'ALGO_STATE'}</h4>
             <div className="flex items-center gap-3 w-full">
@@ -196,7 +200,7 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
         
         {/* Market Visualizer (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
-          <div className="bg-[#0a0f1d]/80 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative">
+          <div className="bg-[#0a0f1d] border border-white/5 rounded-[2.5rem] p-6 md:p-8 shadow-xl relative gpu-accelerated">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-sm font-black text-slate-100 tracking-[0.3em] uppercase flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_10px_rgba(6,182,212,1)]" />
@@ -222,7 +226,7 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
                     <XAxis dataKey="time" hide />
                     <YAxis domain={['auto', 'auto']} hide />
                     <Tooltip
-                      contentStyle={{ backgroundColor: 'rgba(2, 4, 10, 0.95)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: '14px', fontSize: '10px', backdropFilter: 'blur(10px)' }}
+                      contentStyle={{ backgroundColor: 'rgba(2, 4, 10, 0.95)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: '14px', fontSize: '10px' }}
                       itemStyle={{ color: '#06b6d4', padding: '2px 0' }}
                       cursor={{ stroke: '#06b6d4', strokeWidth: 1, strokeDasharray: '4 4' }}
                     />
@@ -232,8 +236,7 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
                       stroke="#06b6d4" 
                       strokeWidth={2.5} 
                       fill="url(#qPrice)" 
-                      isAnimationActive={!reduceMotion}
-                      animationDuration={800}
+                      isAnimationActive={false}
                     />
                     <Line 
                       type="monotone" 

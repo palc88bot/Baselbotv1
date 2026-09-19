@@ -123,7 +123,7 @@ export class TradingPipeline {
     this.loadOptimizedParameters();
 
     this.dynamicRiskManager.on('critical_alert', async (decision) => {
-      await this.telegramService.sendMessage(`🚨 <b>Critical Risk Alert</b>\n\nAction: ${decision.action}\nLeverage: ${(decision.leverageMultiplier * 100).toFixed(0)}%\nPosition Size: ${(decision.positionSizeMultiplier * 100).toFixed(0)}%\n\nReasons:\n${decision.reasons.map(r => `• ${r}`).join('\n')}`);
+      await this.telegramService.sendMessage(`🚨 <b>Critical Risk Alert</b>\n\nAction: ${decision.action}\nLeverage: ${(decision.leverageMultiplier * 100).toFixed(0)}%\nPosition Size: ${(decision.positionSizeMultiplier * 100).toFixed(0)}%\n\nReasons:\n${decision.reasons.map((r: string) => `• ${r}`).join('\n')}`);
     });
 
     this.setupEventForwarding();
@@ -606,46 +606,18 @@ export class TradingPipeline {
     return solution;
   }
 
-  public async start() {
-    if (this.isRunning) return;
-    this.isRunning = true;
-    
-    await this.reconcileState();
-
-    try {
-      await this.userDataStream.start();
-    } catch (err) {
-      console.error("Error starting UserDataStream:", err);
-    }
-
-    this.marketData.startStreaming(250);
-
-    // Initial optimization
-    this.runQuantumOptimization();
-
-    // Rebalance timer
-    this.rebalanceTimer = setInterval(() => {
-      if (this.isRunning && this.killSwitch.isEntryAllowed()) {
-        this.runQuantumOptimization();
-      }
-    }, this.config.rebalanceIntervalMs);
-
-    this.eventJournal.record('INFO', 'SYSTEM', 'Basel Quantum Trading Pipeline launched successfully in ' + this.config.executionMode);
-  }
-
   private async reconcileState() {
     console.log('🔄 Starting State Reconciliation...');
     
     try {
         const baseUrl = this.userDataStream.getApiBaseUrl();
         
-        // 1. جلب البيانات الحقيقية من Binance Futures
         const accountRes = await fetch(`${baseUrl}/fapi/v2/account`, {
-            headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() }
+            headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() || '' }
         });
 
         const positionsRes = await fetch(`${this.orderGateway.getApiBaseUrl()}/fapi/v2/positionRisk`, {
-            headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() }
+            headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() || '' }
         });
 
         if (!accountRes.ok || !positionsRes.ok) {
@@ -656,7 +628,6 @@ export class TradingPipeline {
         const accountData = await accountRes.json();
         const positionsData = await positionsRes.json();
 
-        // 2. مقارنة الرصيد
         const realEquity = parseFloat(accountData.totalWalletBalance);
         if (isNaN(realEquity)) {
             console.warn('⚠️ Reconciliation skipped: Invalid account data received.');
@@ -670,7 +641,6 @@ export class TradingPipeline {
             await this.db.saveState('last_balance', { equity: realEquity, timestamp: Date.now() });
         }
 
-        // 3. مقارنة الصفقات المفتوحة
         if (!Array.isArray(positionsData)) {
             console.warn('⚠️ Reconciliation skipped: Invalid positions data received.');
             return;
@@ -681,7 +651,6 @@ export class TradingPipeline {
 
         if (realOpenPositions.length !== dbOpenTrades.length) {
             console.error(` CRITICAL: Position mismatch! Real: ${realOpenPositions.length}, DB: ${dbOpenTrades.length}`);
-            // Only halt if we have a real mismatch in a live environment
             if (this.config.executionMode !== 'PAPER_TRADING') {
                 await this.telegramService.sendMessage(`🚨 <b>Reconciliation Failed</b>\nPositions mismatch detected. Bot halted.`);
                 this.killSwitch.trigger('HARD_HALT', 'State mismatch');
@@ -755,18 +724,15 @@ export class TradingPipeline {
   }
 
   private async updateRiskMetrics() {
-    // Calculate rolling metrics from in-memory event journal or db
     const recentEvents = this.eventJournal.getEvents();
-    const fills = recentEvents.filter(e => e.type === 'FILL');
+    const fills = recentEvents.filter((e: any) => e.type === 'FILL');
     
-    // Simplified rolling metrics calculation
-    const winRate = fills.length > 0 ? fills.filter(f => (f.metadata?.pnl || 0) > 0).length / fills.length : 0.6;
-    const sharpe = 1.2; // Placeholder for real calculation
+    const winRate = fills.length > 0 ? fills.filter((f: any) => (f.metadata?.pnl || 0) > 0).length / fills.length : 0.6;
+    const sharpe = 1.2;
     
     const balance = this.userDataStream.getBalance();
-    const drawdown = balance.totalEquity > 0 ? (10000 - balance.totalEquity) / 10000 : 0; // Relative to start 10k
+    const drawdown = balance.totalEquity > 0 ? (10000 - balance.totalEquity) / 10000 : 0;
 
-    // Market Regime Analysis
     const symbol = this.config.activeSymbols[0] || 'BTC/USDT';
     const candles = this.marketData.getCandles(symbol);
     if (candles.length > 20) {
@@ -780,6 +746,7 @@ export class TradingPipeline {
         rollingSharpe: sharpe,
         rollingWinRate: winRate,
         rollingDrawdown: drawdown,
+        drawdownVelocity: 0,
         volatilityRegime: regime.volatilityRegime,
         marketRegime: regime.marketRegime,
         tradingAllowed: regime.tradingAllowed,
@@ -789,7 +756,6 @@ export class TradingPipeline {
         parameterDrift: this.dynamicRiskManager.calculateParameterDrift()
       });
 
-      // Notify if regime change halts trading
       if (!regime.tradingAllowed) {
         await this.telegramService.sendMessage(`⚠️ <b>Market Regime Change Detected</b>\n\nMarket: TRENDING (Strong Direction)\nHurst: ${regime.hurstExponent.toFixed(3)}\nADX: ${regime.adx.toFixed(1)}\n\nAction: <b>Trading PAUSED</b>\nReason: Mean Reversion strategy is not suitable for trending markets.`);
       }
@@ -811,13 +777,9 @@ export class TradingPipeline {
         const data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         console.log('✅ Loaded optimized parameters:', data);
         
-        // Update strategy parameters if applicable
         if (data.zScore) {
-            // Note: In a full implementation, we'd update the strategy instance
-            // For now, we update the risk manager's baseline if needed
             this.dynamicRiskManager.updateThresholds({
-                sharpePoor: 0.5, // Conservative default
-                drawdownMax: 0.15
+                sharpePoor: 0.5,
             });
         }
       }

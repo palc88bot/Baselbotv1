@@ -6,10 +6,22 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     background-color: #05080f;
     color: #f8fafc;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Optimize scroll performance */
+  *, ::before, ::after {
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -24,4 +36,20 @@
   .glow-cyan {
     box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
   }
+
+  /* GPU acceleration helper for cards and scroll containers */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
+

@@ -8,7 +8,7 @@ interface AccountSummaryProps {
   lang: 'ar' | 'en';
 }
 
-export const AccountSummary: React.FC<AccountSummaryProps> = ({ balance, lang }) => {
+export const AccountSummary: React.FC<AccountSummaryProps> = React.memo(({ balance, lang }) => {
   const isAr = lang === 'ar';
 
   const metrics = [
@@ -45,12 +45,9 @@ export const AccountSummary: React.FC<AccountSummaryProps> = ({ balance, lang })
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8" dir={isAr ? 'rtl' : 'ltr'}>
       {metrics.map((m, i) => (
-        <motion.div
+        <div
           key={i}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.2, delay: i * 0.05 }}
-          className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-white/5 p-4 rounded-3xl flex items-center gap-3 group hover:border-white/10 transition-all shadow-lg"
+          className="bg-[#0a0f1d] border border-white/5 p-4 rounded-3xl flex items-center gap-3 group hover:border-white/10 transition-all shadow-lg gpu-accelerated"
         >
           <div className={`p-2.5 rounded-2xl ${m.bg} ${m.color} transition-transform group-hover:scale-105 shrink-0`}>
             <m.icon className="w-5 h-5" />
@@ -59,8 +56,8 @@ export const AccountSummary: React.FC<AccountSummaryProps> = ({ balance, lang })
             <p className="text-[clamp(8px,2vw,9px)] font-black text-slate-500 uppercase tracking-wider mb-0.5 truncate">{m.label}</p>
             <p className={`text-[clamp(14px,4vw,16px)] font-black font-mono tracking-tight ${m.color} truncate`}>{m.value}</p>
           </div>
-        </motion.div>
+        </div>
       ))}
     </div>
   );
-};
+});

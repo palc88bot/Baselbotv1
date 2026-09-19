@@ -42,7 +42,7 @@ interface HeaderProps {
   onToggleReduceMotion: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+export const Header: React.FC<HeaderProps> = React.memo(({
   isRunning,
   onToggleRun,
   killSwitchActive,
@@ -67,7 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isAr = lang === 'ar';
 
   return (
-    <header className="border-b border-white/5 bg-[#0a0f1d]/90 backdrop-blur-xl sticky top-0 z-50 px-4 md:px-6 py-3 md:py-4">
+    <header className="border-b border-white/5 bg-[#080d1a] sticky top-0 z-50 px-4 md:px-6 py-3 md:py-4 gpu-accelerated">
       <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
         {/* Top Row for Mobile (Brand + Master Control) */}
         <div className="w-full md:w-auto flex items-center justify-between gap-4">
@@ -204,4 +204,4 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
-};
+});

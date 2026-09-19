@@ -40,6 +40,10 @@ export class DynamicRiskManager extends EventEmitter {
     maxParameterDrift: 0.3, // 30% drift
   };
 
+  public updateThresholds(newThresholds: Partial<typeof this.thresholds>) {
+    Object.assign(this.thresholds, newThresholds);
+  }
+
   constructor(wfoParameters: any) {
     super();
     this.wfoParameters = wfoParameters;
