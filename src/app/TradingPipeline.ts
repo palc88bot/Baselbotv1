@@ -38,9 +38,14 @@ import { CorrelationRiskManager } from '../risk/CorrelationRiskManager';
 import { TelegramService } from '../services/TelegramService';
 import { DynamicRiskManager } from '../risk/DynamicRiskManager';
 import { RegimeDetector } from '../risk/RegimeDetector';
+import { PortfolioSizer } from '../risk/PortfolioSizer';
+import { PartialProfitManager } from '../execution/PartialProfitManager';
+import { ScaleInManager } from '../execution/ScaleInManager';
+import { AssetScreener } from '../market-data/AssetScreener';
 import fs from 'fs';
 
 export class TradingPipeline {
+  private assetScreener: AssetScreener;
   private marketData: ExchangeMarketData;
   private orderBookBuilder: OrderBookBuilder;
   private featureEngine: FeatureEngine;
@@ -56,6 +61,9 @@ export class TradingPipeline {
   private strategy: MeanReversionStrategy;
   private dynamicRiskManager: DynamicRiskManager;
   private regimeDetector: RegimeDetector;
+  private portfolioSizer: PortfolioSizer;
+  private partialProfitManager: PartialProfitManager;
+  private scaleInManager: ScaleInManager;
   private lastSnapshotTime: number = 0;
 
   private config: RuntimeConfigState;
@@ -115,9 +123,17 @@ export class TradingPipeline {
     this.telegramService = telegramService;
     this.strategy = new MeanReversionStrategy();
 
-    // Initialize Dynamic Risk System
+    // Initialize Asset Screener & Dynamic Risk System
+    this.assetScreener = new AssetScreener(
+      apiBaseUrl,
+      process.env.EXCHANGE_API_KEY || '',
+      process.env.EXCHANGE_API_SECRET || ''
+    );
     this.dynamicRiskManager = new DynamicRiskManager({ zScoreThreshold: -1.6, halfLifeMax: 30 });
     this.regimeDetector = new RegimeDetector();
+    this.portfolioSizer = new PortfolioSizer(this.assetScreener);
+    this.partialProfitManager = new PartialProfitManager(this.orderGateway);
+    this.scaleInManager = new ScaleInManager(this.orderGateway);
 
     // Load optimized parameters if available
     this.loadOptimizedParameters();
@@ -136,6 +152,12 @@ export class TradingPipeline {
     console.log('🚀 Starting Basel AlgoCore Autonomous Trading System...');
 
     try {
+      // 0. Screen qualified assets
+      console.log('🔍 Screening qualified assets from exchange...');
+      await this.assetScreener.refreshAllAssets();
+      this.portfolioSizer.updateBalance(this.userDataStream.getBalance().totalEquity);
+      this.config.activeSymbols = this.portfolioSizer.getAllowedSymbols();
+
       // 1. Reconcile State with Exchange
       await this.reconcileState();
       
@@ -402,7 +424,9 @@ export class TradingPipeline {
       this.db.saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
     }
 
-    // 3. Automated Strategy Evaluation (if enabled and killswitch allows entry)
+    // 3. Automated Strategy Evaluation & Partial Profit Management
+    this.partialProfitManager.updatePosition(tick.symbol, tick.price);
+
     if (this.config.autoTradingEnabled && this.killSwitch.isEntryAllowed()) {
       this.evaluateSignalAndExecute(tick.symbol, features, book);
     }
@@ -424,6 +448,18 @@ export class TradingPipeline {
       return;
     }
 
+    // 0.1 Portfolio Tier & Safety Brake Check
+    if (!this.portfolioSizer.isSymbolAllowed(symbol)) {
+      return;
+    }
+
+    const openPositionsCount = this.userDataStream.getPositions().length;
+    const safetyCheck = this.portfolioSizer.canOpenNewTrade(openPositionsCount);
+    if (!safetyCheck.allowed) {
+      console.log(`🛑 Trade blocked for ${symbol}: ${safetyCheck.reason}`);
+      return;
+    }
+
     const { zScore, ouMu, ouSigma, halfLifePeriods, hurstExponent, rsi14, orderFlowImbalance } = features;
 
     // Check if mean-reversion signal condition is met
@@ -433,17 +469,31 @@ export class TradingPipeline {
     let strength = 0;
     let reason = '';
 
-    if (zScore <= -1.6 && rsi14 < 45) {
+    const adjustedMinZScore = this.portfolioSizer.getAdjustedZScoreThreshold(-1.6);
+
+    if (zScore <= adjustedMinZScore && rsi14 < 45) {
       signalType = 'BUY';
       strength = Math.min(1.0, Math.abs(zScore) / 3.0);
-      reason = `Oversold Reversion: Z-Score ${zScore.toFixed(2)}, RSI ${rsi14}, Target $${ouMu}`;
-    } else if (zScore >= 1.6 && rsi14 > 55) {
+      reason = `Oversold Reversion: Z-Score ${zScore.toFixed(2)} (Threshold: ${adjustedMinZScore.toFixed(1)}), RSI ${rsi14}`;
+    } else if (zScore >= -adjustedMinZScore && rsi14 > 55) {
       signalType = 'SELL';
       strength = Math.min(1.0, zScore / 3.0);
-      reason = `Overbought Reversion: Z-Score +${zScore.toFixed(2)}, RSI ${rsi14}, Target $${ouMu}`;
+      reason = `Overbought Reversion: Z-Score +${zScore.toFixed(2)}, RSI ${rsi14}`;
     }
 
     if (signalType && strength >= 0.6) {
+      // 1. Check if we can Scale-In to an existing position on this symbol
+      const scaled = await this.checkScaleInOpportunity(
+        symbol,
+        signalType,
+        features.currentPrice,
+        strength,
+        features.realizedVolAnn || 0.01
+      );
+      if (scaled) {
+        return;
+      }
+
       // 30-second cooldown per symbol to prevent order spamming
       const now = Date.now();
       const lastTime = this.lastOrderTime.get(symbol) || 0;
@@ -467,11 +517,15 @@ export class TradingPipeline {
       };
       this.lastSignals.set(symbol, sig);
 
-      // Determine order quantity based on QUBO target weight
-      const quboWeight = this.lastQuboSolution?.normalizedWeights[symbol] || (1 / this.config.activeSymbols.length);
+      // Portfolio Sizer calculation with Compounding
       const balance = this.userDataStream.getBalance();
-      const notionalToAllocate = Math.min(balance.freeMargin * 0.25, balance.totalEquity * quboWeight * 0.5);
-      let qty = Number((notionalToAllocate / Math.max(1, features.currentPrice)).toFixed(3));
+      const positionSizing = this.portfolioSizer.calculatePositionSize(
+        strength,
+        features.currentPrice,
+        balance.totalEquity
+      );
+
+      let qty = positionSizing.quantity;
 
       // Correlation risk adjustment factor
       const correlationFactor = this.correlationRiskManager.getCorrelationAdjustmentFactor(this.config.activeSymbols);
@@ -479,17 +533,13 @@ export class TradingPipeline {
         console.log(`⏸️ Trading halted for ${symbol} due to critical correlation risk`);
         return;
       }
-      qty = Number((qty * correlationFactor).toFixed(3));
+      qty = Number((qty * correlationFactor).toFixed(4));
 
       // Apply Dynamic Position Size Multiplier
       const multipliers = this.dynamicRiskManager.getCurrentMultipliers();
-      qty = Number((qty * multipliers.positionSize).toFixed(3));
-      
-      if (multipliers.positionSize < 1.0) {
-        console.log(`📉 Position size reduced to ${(multipliers.positionSize * 100).toFixed(0)}% for ${symbol} due to risk metrics`);
-      }
+      qty = Number((qty * multipliers.positionSize).toFixed(4));
 
-      if (qty > 0.001) {
+      if (qty > 0.0001) {
         // Pre-trade risk validation
         const val = this.riskEngine.validateOrder(
           { quantity: qty, price: features.currentPrice, symbol },
@@ -517,7 +567,7 @@ export class TradingPipeline {
             type: 'MARKET',
             quantity: qty,
             price: features.currentPrice,
-            strategyId: 'OU-QUBO-AUTO',
+            strategyId: 'OU-QUBO-COMPOUND',
           });
 
           // 💾 Save Trade to database
@@ -528,9 +578,27 @@ export class TradingPipeline {
             side: signalType === 'BUY' ? 'BUY' : 'SELL',
             quantity: qty,
             price: features.currentPrice,
-            strategy: 'OU-QUBO-AUTO',
+            strategy: 'OU-QUBO-COMPOUND',
             status: 'OPEN'
           });
+
+          // 📝 Register with Partial Profit Manager
+          this.partialProfitManager.registerPosition(
+            ord.id,
+            symbol,
+            signalType,
+            features.currentPrice,
+            qty
+          );
+
+          // 📈 Register with Scale-In Manager
+          this.scaleInManager.registerOriginalPosition(
+            ord.id,
+            symbol,
+            signalType,
+            features.currentPrice,
+            qty
+          );
 
           // 🔥 Add protective orders
           this.orderGateway.sendProtectiveOrders(
@@ -551,6 +619,82 @@ export class TradingPipeline {
         }
       }
     }
+  }
+
+  /**
+   * Evaluates Scale-In opportunity for an active symbol position
+   */
+  private async checkScaleInOpportunity(
+    symbol: AssetSymbol,
+    signalType: 'BUY' | 'SELL',
+    currentPrice: number,
+    signalStrength: number,
+    realizedVol: number = 0.01
+  ): Promise<boolean> {
+    const positions = this.userDataStream.getPositions();
+    const balance = this.userDataStream.getBalance();
+
+    for (const pos of positions) {
+      const posSide = pos.size >= 0 ? 'BUY' : 'SELL';
+      if (pos.symbol === symbol && posSide === signalType) {
+        const scaleInState = this.scaleInManager.getActivePositions().find(
+          (p) => p.symbol === symbol && p.side === signalType
+        );
+
+        if (scaleInState) {
+          const partialState = this.partialProfitManager.getPositionState(scaleInState.originalOrderId);
+          const lockedProfit = partialState?.partialProfitTaken
+            ? (partialState.entryPrice * 0.05 * partialState.originalQuantity * 0.5)
+            : 0;
+
+          const scaleInCheck = await this.scaleInManager.evaluateScaleIn(
+            scaleInState.originalOrderId,
+            currentPrice,
+            balance.totalEquity,
+            lockedProfit,
+            realizedVol
+          );
+
+          if (scaleInCheck.allowed && scaleInCheck.quantity) {
+            console.log(`📈 Scale-In opportunity approved for ${symbol}!`);
+
+            const scaleInOrderId = await this.scaleInManager.executeScaleIn(
+              scaleInState.originalOrderId,
+              currentPrice,
+              scaleInCheck.quantity
+            );
+
+            if (scaleInOrderId) {
+              this.partialProfitManager.registerPosition(
+                scaleInOrderId,
+                symbol,
+                signalType,
+                currentPrice,
+                scaleInCheck.quantity
+              );
+
+              const updatedState = this.scaleInManager.getState(scaleInState.originalOrderId);
+              await this.telegramService.sendMessage(`
+📈 <b>Scale-In Executed</b>
+━━━━━━━━━━━━━━━━
+Symbol: ${symbol}
+Side: ${signalType}
+Added Qty: ${scaleInCheck.quantity.toFixed(4)} @ $${currentPrice.toFixed(2)}
+Total Position: ${updatedState?.currentTotalQuantity.toFixed(4)}
+New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
+━━━━━━━━━━━━━━━━
+              `);
+
+              return true;
+            }
+          } else if (scaleInCheck.reason) {
+            console.log(`ℹ️ Scale-In evaluated for ${symbol} but not executed: ${scaleInCheck.reason}`);
+          }
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -692,6 +836,10 @@ export class TradingPipeline {
     this.eventJournal.record('INFO', 'SYSTEM', 'Basel Quantum Trading Pipeline paused by operator');
   }
 
+  public getPortfolioSizer(): PortfolioSizer { return this.portfolioSizer; }
+  public getPartialProfitManager(): PartialProfitManager { return this.partialProfitManager; }
+  public getScaleInManager(): ScaleInManager { return this.scaleInManager; }
+
   // Getters
   public getMarketData(): ExchangeMarketData { return this.marketData; }
   public getOrderBookBuilder(): OrderBookBuilder { return this.orderBookBuilder; }
@@ -724,13 +872,23 @@ export class TradingPipeline {
   }
 
   private async updateRiskMetrics() {
+    if (this.assetScreener.shouldRefresh()) {
+      console.log('🔄 Refreshing qualified assets screener...');
+      await this.assetScreener.refreshAllAssets();
+    }
+
+    const balance = this.userDataStream.getBalance();
+    const currentTier = this.portfolioSizer.updateBalance(balance.totalEquity);
+    this.config.activeSymbols = this.portfolioSizer.getAllowedSymbols();
+
+    this.scaleInManager.updateTier(currentTier);
+
     const recentEvents = this.eventJournal.getEvents();
     const fills = recentEvents.filter((e: any) => e.type === 'FILL');
     
     const winRate = fills.length > 0 ? fills.filter((f: any) => (f.metadata?.pnl || 0) > 0).length / fills.length : 0.6;
     const sharpe = 1.2;
     
-    const balance = this.userDataStream.getBalance();
     const drawdown = balance.totalEquity > 0 ? (10000 - balance.totalEquity) / 10000 : 0;
 
     const symbol = this.config.activeSymbols[0] || 'BTC/USDT';
@@ -768,6 +926,10 @@ export class TradingPipeline {
 
   public getRegimeDetector(): RegimeDetector {
     return this.regimeDetector;
+  }
+
+  public getAssetScreener(): AssetScreener {
+    return this.assetScreener;
   }
 
   private loadOptimizedParameters() {

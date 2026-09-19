@@ -253,7 +253,7 @@ export class BacktestEngine {
         const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(252 * 24) : 0; // Hourly to Annual
 
         // Sortino Ratio (Downside deviation only)
-        const negativeReturns = returns.filter(r => r < 0);
+        const negativeReturns = returns.filter((r: number) => r < 0);
         const downsideDev = this.calculateStdDev(negativeReturns);
         const sortinoRatio = downsideDev > 0 ? (avgReturn / downsideDev) * Math.sqrt(252 * 24) : 0;
 

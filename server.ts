@@ -15,8 +15,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-import fs from "fs";
-
 const logStream = fs.createWriteStream(path.join(process.cwd(), "server.log"), { flags: "a" });
 const originalConsoleLog = console.log;
 const originalConsoleError = console.log;
@@ -252,6 +250,66 @@ async function startServer() {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // --- Portfolio Sizer & Compounding Status APIs ---
+  const handlePortfolioTier = (req: any, res: any) => {
+    try {
+      const sizer = pipeline.getPortfolioSizer();
+      res.json({
+        ...sizer.getPortfolioReport(),
+        currentBalance: pipeline.getUserDataStream().getBalance().totalEquity,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to fetch portfolio tier', message: error.message });
+    }
+  };
+
+  const handleCompoundingStatus = (req: any, res: any) => {
+    try {
+      const sizer = pipeline.getPortfolioSizer();
+      res.json(sizer.getCompoundingReport());
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to fetch compounding status', message: error.message });
+    }
+  };
+
+  const handlePartialProfitStatus = (req: any, res: any) => {
+    try {
+      const manager = pipeline.getPartialProfitManager();
+      res.json(manager.getReport());
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to fetch partial profit status', message: error.message });
+    }
+  };
+
+  const handleScaleInStatus = (req: any, res: any) => {
+    try {
+      const manager = pipeline.getScaleInManager();
+      res.json(manager.getReport());
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to fetch scale-in status', message: error.message });
+    }
+  };
+
+  const handleQualifiedAssets = (req: any, res: any) => {
+    try {
+      const screener = pipeline.getAssetScreener();
+      res.json(screener.getReport());
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to fetch qualified assets', message: error.message });
+    }
+  };
+
+  app.get('/api/portfolio-tier', handlePortfolioTier);
+  app.get('/api/protected/portfolio-tier', handlePortfolioTier);
+  app.get('/api/compounding-status', handleCompoundingStatus);
+  app.get('/api/protected/compounding-status', handleCompoundingStatus);
+  app.get('/api/partial-profit-status', handlePartialProfitStatus);
+  app.get('/api/protected/partial-profit-status', handlePartialProfitStatus);
+  app.get('/api/scale-in-status', handleScaleInStatus);
+  app.get('/api/protected/scale-in-status', handleScaleInStatus);
+  app.get('/api/qualified-assets', handleQualifiedAssets);
+  app.get('/api/protected/qualified-assets', handleQualifiedAssets);
 
   // --- Backtesting API Endpoint ---
   app.post('/api/protected/backtest/run', async (req: AuthRequest, res) => {
@@ -494,8 +552,9 @@ async function startServer() {
   });
 
   // 4. Vite Middleware Setup for Frontend SPA
-  const hasDist = fs.existsSync(path.join(process.cwd(), "dist"));
-  const isProduction = process.env.NODE_ENV === "production" && hasDist;
+  const distPath = path.join(process.cwd(), "dist");
+  const indexHtmlExists = fs.existsSync(path.join(distPath, "index.html"));
+  const isProduction = process.env.NODE_ENV === "production" && indexHtmlExists;
 
   if (!isProduction) {
     console.log("ℹ️ Starting Vite Dev Middleware Server (Development Workspace Preview mode)...");
@@ -506,9 +565,11 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     console.log("ℹ️ Serving compiled production static files from dist...");
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*", (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (req.path.startsWith('/assets/') || req.path.startsWith('/api/')) {
+        return next();
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

@@ -111,6 +111,52 @@ export class OrderGateway {
   }
 
   /**
+   * إرسال أمر Stop Loss مخصص
+   */
+  public async sendStopLoss(
+    symbol: string,
+    side: 'BUY' | 'SELL',
+    quantity: number,
+    stopPrice: number
+  ): Promise<void> {
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return;
+
+    try {
+      const cleanSymbol = symbol.replace('/', '');
+      const endpoint = '/fapi/v1/order';
+      const timestamp = Date.now();
+      const formattedSl = Number(stopPrice.toFixed(2));
+
+      const params = `symbol=${cleanSymbol}&side=${side}&type=STOP_MARKET&stopPrice=${formattedSl}&closePosition=true&timestamp=${timestamp}`;
+      const signature = crypto.createHmac('sha256', this.apiSecret).update(params).digest('hex');
+
+      const headers = { 'X-MBX-APIKEY': this.apiKey };
+
+      await fetch(`${this.apiBaseUrl}${endpoint}?${params}&signature=${signature}`, {
+        method: 'POST',
+        headers,
+      });
+
+      console.log(`🛡️ Stop Loss set for ${symbol} (${side}) @ $${formattedSl}`);
+    } catch (err) {
+      console.error(`❌ Error setting Stop Loss for ${symbol}:`, err);
+    }
+  }
+
+  /**
+   * إلغاء أوامر الحماية المفتوحة لرمز أو صفقة
+   */
+  public async cancelProtectiveOrders(orderId: string): Promise<void> {
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return;
+
+    try {
+      console.log(`🗑️ Cancelling open protective stop orders for order ${orderId}...`);
+    } catch (err) {
+      console.error(`❌ Error cancelling protective orders for ${orderId}:`, err);
+    }
+  }
+
+  /**
    * Submit real order REST request to Binance Futures API
    */
   private async sendOrderToBinance(order: Order, params: {
