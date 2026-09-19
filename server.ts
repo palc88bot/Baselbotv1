@@ -513,8 +513,36 @@ async function startServer() {
   });
 
   // 3. Setup WebSocket Server for Real-Time UI Telemetry on /brain-ws
-  app.ws("/brain-ws", (ws) => {
-    console.log("✅ Brain WebSocket Connected via express-ws");
+  app.ws("/brain-ws", async (ws, req) => {
+    // Authenticate WebSocket connection if configured
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const token = urlObj.searchParams.get("token");
+
+    const adminEmailsEnv = process.env.ADMIN_EMAILS || '';
+    if (adminEmailsEnv.trim().length > 0) {
+      if (!token) {
+        console.warn("⛔ Brain WebSocket rejected: Missing authorization token");
+        ws.close(1008, "Token required");
+        return;
+      }
+      try {
+        const { adminAuth } = await import("./src/lib/firebase-admin.ts");
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        const allowedList = adminEmailsEnv.split(',').map((e) => e.trim().toLowerCase());
+        const userEmail = (decodedToken.email || '').toLowerCase();
+        if (!allowedList.includes(userEmail)) {
+          console.warn(`⛔ Brain WebSocket rejected: User ${userEmail} not in allowlist`);
+          ws.close(1008, "Unauthorized operator");
+          return;
+        }
+      } catch (err: any) {
+        console.warn("⛔ Brain WebSocket rejected: Invalid token -", err.message);
+        ws.close(1008, "Invalid token");
+        return;
+      }
+    }
+
+    console.log("✅ Brain WebSocket Connected and Authorized via express-ws");
 
     // Send initial state
     try {

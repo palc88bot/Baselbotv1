@@ -202,11 +202,13 @@ export default function App() {
     let reconnectTimer: NodeJS.Timeout | null = null;
     let isUnmounted = false;
 
-    const connect = () => {
+    const connect = async () => {
       if (isUnmounted) return;
       try {
+        const token = await getToken();
+        const fullWsUrl = token ? `${wsUrl}?token=${encodeURIComponent(token)}` : wsUrl;
         console.log(`🔌 Attempting Brain WebSocket connection: ${wsUrl}`);
-        wsRef.current = new WebSocket(wsUrl);
+        wsRef.current = new WebSocket(fullWsUrl);
 
         wsRef.current.onopen = () => {
           console.log('✅ Connected to Baselbot Brain WebSocket');
