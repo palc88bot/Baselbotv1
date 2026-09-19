@@ -36,6 +36,9 @@ import { INITIAL_RUNTIME_CONFIG, RuntimeConfigState } from './RuntimeConfig';
 import { DatabaseService } from '../storage/DatabaseService';
 import { CorrelationRiskManager } from '../risk/CorrelationRiskManager';
 import { TelegramService } from '../services/TelegramService';
+import { DynamicRiskManager } from '../risk/DynamicRiskManager';
+import { RegimeDetector } from '../risk/RegimeDetector';
+import fs from 'fs';
 
 export class TradingPipeline {
   private marketData: ExchangeMarketData;
@@ -51,6 +54,8 @@ export class TradingPipeline {
   private correlationRiskManager: CorrelationRiskManager;
   private telegramService: TelegramService;
   private strategy: MeanReversionStrategy;
+  private dynamicRiskManager: DynamicRiskManager;
+  private regimeDetector: RegimeDetector;
   private lastSnapshotTime: number = 0;
 
   private config: RuntimeConfigState;
@@ -110,6 +115,17 @@ export class TradingPipeline {
     this.telegramService = telegramService;
     this.strategy = new MeanReversionStrategy();
 
+    // Initialize Dynamic Risk System
+    this.dynamicRiskManager = new DynamicRiskManager({ zScoreThreshold: -1.6, halfLifeMax: 30 });
+    this.regimeDetector = new RegimeDetector();
+
+    // Load optimized parameters if available
+    this.loadOptimizedParameters();
+
+    this.dynamicRiskManager.on('critical_alert', async (decision) => {
+      await this.telegramService.sendMessage(`🚨 <b>Critical Risk Alert</b>\n\nAction: ${decision.action}\nLeverage: ${(decision.leverageMultiplier * 100).toFixed(0)}%\nPosition Size: ${(decision.positionSizeMultiplier * 100).toFixed(0)}%\n\nReasons:\n${decision.reasons.map(r => `• ${r}`).join('\n')}`);
+    });
+
     this.setupEventForwarding();
   }
 
@@ -135,7 +151,16 @@ export class TradingPipeline {
         }
       }, 1000);
 
-      // 4. Start Maintenance Cycle (5m)
+      // 4. Start Risk Evaluation Loop (1m)
+      setInterval(async () => {
+        try {
+          await this.updateRiskMetrics();
+        } catch (error) {
+          console.error('Error in risk evaluation loop:', error);
+        }
+      }, 60 * 1000);
+
+      // 5. Start Maintenance Cycle (5m)
       setInterval(async () => {
         try {
           this.correlationRiskManager.calculateCorrelationMatrix();
@@ -176,7 +201,11 @@ export class TradingPipeline {
     // 1. Safety Check
     if (!this.killSwitch.isEntryAllowed()) return;
 
-    // 2. Evaluate each symbol
+    // 2. Risk Decision Check
+    const lastDecision = this.dynamicRiskManager.getLastDecision();
+    if (lastDecision?.action === 'STOP' || lastDecision?.action === 'PAUSE') return;
+
+    // 3. Evaluate each symbol
     for (const symbol of this.config.activeSymbols) {
       const book = this.orderBookBuilder.getBook(symbol);
       const currentPrice = book?.midPrice || 0;
@@ -187,15 +216,21 @@ export class TradingPipeline {
       const features = this.lastFeatures.get(symbol);
       if (!features) continue;
 
-      // 3. Strategy Evaluation
+      // 4. Strategy Evaluation
       const signal = this.strategy.evaluate(features, book);
       
       if (signal) {
         // Only trade if signal is strong enough
         if (signal.strength > 0.7) {
-           // 4. Risk Validation
+           const multipliers = this.dynamicRiskManager.getCurrentMultipliers();
+           const baseQty = 0.01;
+           const qty = Number((baseQty * multipliers.positionSize).toFixed(3));
+
+           if (qty < 0.001) continue;
+
+           // 5. Risk Validation
            const riskCheck = this.riskEngine.validateOrder(
-             { symbol, side: signal.type === 'BUY' ? 'BUY' : 'SELL', quantity: 0.01, price: currentPrice },
+             { symbol, side: signal.type === 'BUY' ? 'BUY' : 'SELL', quantity: qty, price: currentPrice },
              this.userDataStream.getBalance(),
              this.userDataStream.getPositions()
            );
@@ -204,14 +239,14 @@ export class TradingPipeline {
               // Rate limiting - 1 order per symbol per 10 seconds for safety in trial
               const lastTime = this.lastOrderTime.get(symbol) || 0;
               if (Date.now() - lastTime > 10000) {
-                 console.log(`🎯 Executing real-time signal for ${symbol}: ${signal.type} @ ${currentPrice}`);
+                 console.log(`🎯 Executing real-time signal for ${symbol}: ${signal.type} @ ${currentPrice} (Size Adj: ${multipliers.positionSize.toFixed(2)}x)`);
                  
                  // Execute order
                  const order = this.orderGateway.submitOrder({
                    symbol,
                    side: signal.type === 'BUY' ? 'BUY' : 'SELL',
                    type: 'MARKET',
-                   quantity: 0.01,
+                   quantity: qty,
                    strategyId: 'MeanReversion'
                  });
                  
@@ -354,6 +389,12 @@ export class TradingPipeline {
   }
 
   private async evaluateSignalAndExecute(symbol: AssetSymbol, features: any, book?: OrderBook) {
+    // 0. Dynamic Risk Check
+    const lastDecision = this.dynamicRiskManager.getLastDecision();
+    if (lastDecision?.action === 'STOP' || lastDecision?.action === 'PAUSE') {
+      return;
+    }
+
     const { zScore, ouMu, ouSigma, halfLifePeriods, hurstExponent, rsi14, orderFlowImbalance } = features;
 
     // Check if mean-reversion signal condition is met
@@ -655,5 +696,77 @@ export class TradingPipeline {
 
   public resetEmergencyKill(): { success: boolean; message: string } {
     return this.killSwitch.reset();
+  }
+
+  private async updateRiskMetrics() {
+    // Calculate rolling metrics from in-memory event journal or db
+    const recentEvents = this.eventJournal.getEvents();
+    const fills = recentEvents.filter(e => e.type === 'FILL');
+    
+    // Simplified rolling metrics calculation
+    const winRate = fills.length > 0 ? fills.filter(f => (f.metadata?.pnl || 0) > 0).length / fills.length : 0.6;
+    const sharpe = 1.2; // Placeholder for real calculation
+    
+    const balance = this.userDataStream.getBalance();
+    const drawdown = balance.totalEquity > 0 ? (10000 - balance.totalEquity) / 10000 : 0; // Relative to start 10k
+
+    // Market Regime Analysis
+    const symbol = this.config.activeSymbols[0] || 'BTC/USDT';
+    const candles = this.marketData.getCandles(symbol);
+    if (candles.length > 20) {
+      this.regimeDetector.update(candles);
+      const regime = this.regimeDetector.analyze();
+
+      console.log(`📊 Market Regime: ${regime.marketRegime} (Hurst: ${regime.hurstExponent.toFixed(3)}, ADX: ${regime.adx.toFixed(1)})`);
+      console.log(`   Trading Allowed: ${regime.tradingAllowed ? '✅' : '❌'} | Confidence: ${(regime.confidence * 100).toFixed(0)}%`);
+
+      this.dynamicRiskManager.updateMetrics({
+        rollingSharpe: sharpe,
+        rollingWinRate: winRate,
+        rollingDrawdown: drawdown,
+        volatilityRegime: regime.volatilityRegime,
+        marketRegime: regime.marketRegime,
+        tradingAllowed: regime.tradingAllowed,
+        regimeConfidence: regime.confidence,
+        hurstExponent: regime.hurstExponent,
+        adx: regime.adx,
+        parameterDrift: this.dynamicRiskManager.calculateParameterDrift()
+      });
+
+      // Notify if regime change halts trading
+      if (!regime.tradingAllowed) {
+        await this.telegramService.sendMessage(`⚠️ <b>Market Regime Change Detected</b>\n\nMarket: TRENDING (Strong Direction)\nHurst: ${regime.hurstExponent.toFixed(3)}\nADX: ${regime.adx.toFixed(1)}\n\nAction: <b>Trading PAUSED</b>\nReason: Mean Reversion strategy is not suitable for trending markets.`);
+      }
+    }
+  }
+
+  public getDynamicRiskManager(): DynamicRiskManager {
+    return this.dynamicRiskManager;
+  }
+
+  public getRegimeDetector(): RegimeDetector {
+    return this.regimeDetector;
+  }
+
+  private loadOptimizedParameters() {
+    const configPath = './data/optimized_params.json';
+    try {
+      if (fs.existsSync(configPath)) {
+        const data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        console.log('✅ Loaded optimized parameters:', data);
+        
+        // Update strategy parameters if applicable
+        if (data.zScore) {
+            // Note: In a full implementation, we'd update the strategy instance
+            // For now, we update the risk manager's baseline if needed
+            this.dynamicRiskManager.updateThresholds({
+                sharpePoor: 0.5, // Conservative default
+                drawdownMax: 0.15
+            });
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Could not load optimized parameters, using defaults.');
+    }
   }
 }

@@ -7,6 +7,8 @@
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
+    "data:fetch": "tsx scripts/fetch-historical-data.ts",
+    "data:wfo": "tsx scripts/run-wfo.ts",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
   },

@@ -15,6 +15,8 @@ interface BacktestConfig {
 interface BacktestResult {
     totalReturn: number;
     sharpeRatio: number;
+    sortinoRatio: number;
+    calmarRatio: number;
     maxDrawdown: number;
     winRate: number;
     profitFactor: number;
@@ -33,14 +35,14 @@ export class BacktestEngine {
     }
 
     /**
-     * Run the backtest
+     * Run the backtest using fetched or synthetic data
      */
     public async run(): Promise<BacktestResult> {
         console.log('🧪 Starting backtest...');
         console.log(`   Period: ${this.config.startDate} to ${this.config.endDate}`);
         console.log(`   Capital: $${this.config.initialCapital}`);
 
-        // 1. Load historical data (or fallback gracefully to beautiful synthetic historical curves if API fails or blocks)
+        // 1. Load historical data
         let historicalData: Map<string, any[]>;
         try {
             historicalData = await this.loadHistoricalData();
@@ -66,6 +68,14 @@ export class BacktestEngine {
         this.printReport(metrics);
         
         return metrics;
+    }
+
+    /**
+     * Run the backtest with pre-loaded candles (used by Optimizer)
+     */
+    public async runWithCandles(candles: Map<string, any[]>): Promise<BacktestResult> {
+        const simulation = await this.simulateTrading(candles);
+        return this.calculateMetrics(simulation);
     }
 
     private async loadHistoricalData() {
@@ -235,9 +245,17 @@ export class BacktestEngine {
             const prev = simulation.equityCurve[i].equity;
             return prev > 0 ? (e.equity - prev) / prev : 0;
         });
+        
         const avgReturn = returns.length > 0 ? returns.reduce((a: number, b: number) => a + b, 0) / returns.length : 0;
         const stdDev = this.calculateStdDev(returns);
-        const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(252) : 0;
+        
+        // Sharpe Ratio
+        const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(252 * 24) : 0; // Hourly to Annual
+
+        // Sortino Ratio (Downside deviation only)
+        const negativeReturns = returns.filter(r => r < 0);
+        const downsideDev = this.calculateStdDev(negativeReturns);
+        const sortinoRatio = downsideDev > 0 ? (avgReturn / downsideDev) * Math.sqrt(252 * 24) : 0;
 
         let peak = this.config.initialCapital;
         let maxDrawdown = 0;
@@ -247,6 +265,10 @@ export class BacktestEngine {
             if (drawdown > maxDrawdown) maxDrawdown = drawdown;
         });
 
+        // Calmar Ratio
+        const annualReturn = totalTrades > 0 ? (simulation.equityCurve[simulation.equityCurve.length - 1].equity / this.config.initialCapital) - 1 : 0;
+        const calmarRatio = maxDrawdown > 0 ? annualReturn / maxDrawdown : 0;
+
         const totalReturn = this.config.initialCapital > 0 
             ? ((simulation.equityCurve[simulation.equityCurve.length - 1].equity - this.config.initialCapital) / this.config.initialCapital) * 100
             : 0;
@@ -254,6 +276,8 @@ export class BacktestEngine {
         return {
             totalReturn,
             sharpeRatio,
+            sortinoRatio,
+            calmarRatio,
             maxDrawdown: maxDrawdown * 100,
             winRate,
             profitFactor,
@@ -276,6 +300,8 @@ export class BacktestEngine {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         console.log(`Total Return:      ${metrics.totalReturn.toFixed(2)}%`);
         console.log(`Sharpe Ratio:      ${metrics.sharpeRatio.toFixed(2)}`);
+        console.log(`Sortino Ratio:     ${metrics.sortinoRatio.toFixed(2)}`);
+        console.log(`Calmar Ratio:      ${metrics.calmarRatio.toFixed(2)}`);
         console.log(`Max Drawdown:      ${metrics.maxDrawdown.toFixed(2)}%`);
         console.log(`Win Rate:          ${metrics.winRate.toFixed(1)}%`);
         console.log(`Profit Factor:     ${metrics.profitFactor.toFixed(2)}`);

@@ -6,6 +6,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { TradingPipeline } from "./src/app/TradingPipeline";
 import { TelegramService } from "./src/services/TelegramService";
 import { BacktestEngine } from "./src/backtest/BacktestEngine";
+import { RegimeDetector } from "./src/risk/RegimeDetector";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { CloudDatabaseService } from "./src/storage/CloudDatabaseService.ts";
@@ -292,6 +293,48 @@ async function startServer() {
       res.json(status);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to fetch bot status" });
+    }
+  });
+
+  app.get('/api/protected/risk-status', async (req: AuthRequest, res) => {
+    try {
+      const riskManager = pipeline.getDynamicRiskManager();
+      const lastDecision = riskManager.getLastDecision();
+      const history = riskManager.getDecisionHistory(50);
+
+      res.json({
+        success: true,
+        currentDecision: lastDecision,
+        history,
+        summary: {
+          totalDecisions: history.length,
+          normalCount: history.filter(d => d.action === 'NORMAL').length,
+          pauseCount: history.filter(d => d.action === 'PAUSE').length,
+          stopCount: history.filter(d => d.action === 'STOP').length,
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/protected/regime-status', async (req: AuthRequest, res) => {
+    try {
+      const symbol = pipeline.getConfig().activeSymbols[0] || 'BTC/USDT';
+      const candles = pipeline.getMarketData().getCandles(symbol);
+      const detector = pipeline.getRegimeDetector();
+      
+      // Update with latest candles for the API call specifically
+      detector.update(candles);
+      const analysis = detector.analyze();
+
+      res.json({
+        success: true,
+        symbol,
+        analysis
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
