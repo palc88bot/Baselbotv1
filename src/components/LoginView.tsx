@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { LogIn, ShieldCheck, Cpu, Database } from 'lucide-react';
 
-export const LoginView: React.FC<{ lang: 'ar' | 'en' }> = ({ lang }) => {
+export const LoginView: React.FC<{ lang: 'ar' | 'en'; onGuestAccess?: () => void }> = ({ lang, onGuestAccess }) => {
   const { signIn } = useAuth();
   const isAr = lang === 'ar';
 
@@ -48,13 +48,25 @@ export const LoginView: React.FC<{ lang: 'ar' | 'en' }> = ({ lang }) => {
           </div>
         </div>
 
-        <button
-          onClick={signIn}
-          className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-white text-black hover:bg-slate-200 font-bold rounded-xl transition-all active:scale-95"
-        >
-          <LogIn className="w-5 h-5" />
-          {isAr ? 'تسجيل الدخول عبر Google' : 'Sign in with Google'}
-        </button>
+        <div className="space-y-3">
+          <button
+            onClick={signIn}
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-white text-black hover:bg-slate-200 font-bold rounded-xl transition-all active:scale-95"
+          >
+            <LogIn className="w-5 h-5" />
+            {isAr ? 'تسجيل الدخول عبر Google' : 'Sign in with Google'}
+          </button>
+
+          {onGuestAccess && (
+            <button
+              onClick={onGuestAccess}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-800/80 hover:bg-slate-700 text-cyan-400 font-semibold rounded-xl border border-cyan-500/20 transition-all text-sm"
+            >
+              <Cpu className="w-4 h-4" />
+              {isAr ? 'معاينة البوت المباشرة (وضع الضيف)' : 'Live Bot Preview (Guest Mode)'}
+            </button>
+          )}
+        </div>
 
         <p className="mt-6 text-center text-xs text-slate-500">
           {isAr 

@@ -36,8 +36,8 @@ export class UserDataStream {
     this.apiSecret = process.env.EXCHANGE_API_SECRET || '';
     this.executionMode = process.env.EXECUTION_MODE || (this.apiKey ? 'TESTNET' : 'PAPER');
     
-    // Default 10k for PAPER, 0 for others until fetched
-    const startBalance = (this.executionMode === 'PAPER' && initialCapital === 0) ? 10000 : initialCapital;
+    // Default 10k for PAPER and initial fallback for others to prevent zeroed UI on boot
+    const startBalance = initialCapital > 0 ? initialCapital : 10000;
 
     this.apiBaseUrl = this.executionMode === 'LIVE' ? 'https://fapi.binance.com' : 'https://testnet.binancefuture.com';
     this.wsUrl = this.executionMode === 'LIVE' ? 'wss://fstream.binance.com/ws' : 'wss://fstream.binancefuture.com/ws';

@@ -196,7 +196,8 @@ export class ExchangeMarketData extends EventEmitter {
   // --- Binance Live WebSocket Stream Integration ---
   private startWebSocketStreaming() {
     // Map system symbols to lowercase for Binance stream format (e.g. BTC/USDT -> btcusdt)
-    const activeSymbols = ['btcusdt', 'ethusdt', 'solusdt'];
+    const symbols = Object.keys(DEFAULT_SYMBOLS);
+    const activeSymbols = symbols.map(s => s.replace('/', '').toLowerCase());
     
     // Build multi-stream URL
     const streams = activeSymbols.flatMap(symbol => [

@@ -52,6 +52,8 @@ interface DashboardProps {
   reduceMotion: boolean;
   health: SystemHealth;
   isRunning: boolean;
+  regime?: any;
+  riskDecision?: any;
 }
 
 export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
@@ -69,6 +71,8 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
   reduceMotion,
   health,
   isRunning,
+  regime,
+  riskDecision,
 }) => {
   const isAr = lang === 'ar';
   const [orderSide, setOrderSide] = useState<'BUY' | 'SELL'>('BUY');
@@ -103,17 +107,17 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
   return (
     <div className={`relative w-full space-y-6 ${reduceMotion ? '' : 'animate-in fade-in slide-in-from-bottom-2 duration-500'}`} dir={isAr ? 'rtl' : 'ltr'}>
       
-      {/* 1. AlgoCore Top Hero Section (PnL & Algorithm Status) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* 1. AlgoCore Top Hero Section (PnL, Regime, Risk & Algorithm Status) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Profits Card */}
-        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-cyan-500/20 rounded-[2rem] p-6 md:p-8 shadow-[0_0_40px_rgba(6,182,212,0.1)] relative overflow-hidden group">
+        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-cyan-500/20 rounded-[2rem] p-6 shadow-[0_0_40px_rgba(6,182,212,0.1)] relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-cyan-500/10 transition-all" />
           <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
-            <h4 className="text-[clamp(8px,2vw,10px)] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'إجمالي الأرباح' : 'TOTAL_PROFITS'}</h4>
-            <div className={`text-[clamp(24px,5vw,36px)] font-black font-mono tracking-tighter ${balance?.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'} truncate w-full`}>
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'إجمالي الأرباح' : 'TOTAL_PROFITS'}</h4>
+            <div className={`text-2xl font-black font-mono tracking-tighter ${balance?.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'} truncate w-full`}>
               {balance?.unrealizedPnl >= 0 ? '+' : ''}${Math.abs(balance?.unrealizedPnl || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
-            <div className="w-full bg-slate-900/50 h-1.5 rounded-full mt-4 overflow-hidden border border-white/5">
+            <div className="w-full bg-slate-900/50 h-1.5 rounded-full mt-3 overflow-hidden border border-white/5">
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: '75%' }}
@@ -123,20 +127,60 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
           </div>
         </div>
 
-        {/* Algorithm Status Card */}
-        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-white/5 rounded-[2rem] p-6 md:p-8 shadow-xl relative overflow-hidden group">
+        {/* Market Regime Card */}
+        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-indigo-500/20 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
           <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
-            <h4 className="text-[clamp(8px,2vw,10px)] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'حالة الخوارزمية' : 'ALGO_STATE'}</h4>
-            <div className="flex items-center gap-3 md:gap-4 w-full">
-              <div className={`text-[clamp(24px,5vw,36px)] font-black tracking-tight shrink-0 ${isRunning ? 'text-cyan-400' : 'text-rose-500'}`}>
+            <div className="flex items-center justify-between w-full">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'نظام السوق' : 'MARKET_REGIME'}</h4>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                regime?.tradingAllowed !== false ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+              }`}>
+                {regime?.tradingAllowed !== false ? (isAr ? 'مسموح ✅' : 'ALLOWED ✅') : (isAr ? 'متوقف 🛑' : 'PAUSED 🛑')}
+              </span>
+            </div>
+            <div className="text-xl font-black text-indigo-400 font-mono tracking-tight uppercase">
+              {regime?.marketRegime || 'RANGING'}
+            </div>
+            <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2 mt-1">
+              <span>Hurst: {regime?.hurstExponent ? regime.hurstExponent.toFixed(3) : '0.420'}</span>
+              <span>•</span>
+              <span>ADX: {regime?.adx ? regime.adx.toFixed(1) : '15.2'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Risk Management Card */}
+        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-blue-500/20 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+          <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
+            <div className="flex items-center justify-between w-full">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'إدارة المخاطر الديناميكية' : 'DYNAMIC_RISK'}</h4>
+              <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[9px] font-black uppercase">
+                {riskDecision?.action || 'NORMAL'}
+              </span>
+            </div>
+            <div className="text-xl font-black text-cyan-400 font-mono tracking-tight">
+              {((riskDecision?.positionSizeMultiplier ?? 1) * 100).toFixed(0)}% <span className="text-xs font-normal text-slate-400">{isAr ? 'حجم الصفقة' : 'Pos Size'}</span>
+            </div>
+            <div className="text-[10px] font-mono text-slate-400 mt-1">
+              {isAr ? 'مضاعف الرافعة:' : 'Leverage:'} {((riskDecision?.leverageMultiplier ?? 1) * 100).toFixed(0)}%
+            </div>
+          </div>
+        </div>
+
+        {/* Algorithm Status Card */}
+        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-white/5 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group">
+          <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'حالة الخوارزمية' : 'ALGO_STATE'}</h4>
+            <div className="flex items-center gap-3 w-full">
+              <div className={`text-xl font-black tracking-tight shrink-0 ${isRunning ? 'text-cyan-400' : 'text-rose-500'}`}>
                 {isRunning ? (isAr ? 'نشط' : 'ACTIVE') : (isAr ? 'متوقف' : 'STOPPED')}
               </div>
               <div className={`flex flex-col justify-center min-w-0 ${isAr ? 'items-end' : 'items-start'}`}>
-                <span className="text-[clamp(7px,1.5vw,9px)] font-black text-emerald-400 uppercase tracking-widest truncate">{isAr ? 'سرعة المعالجة' : 'PROCESSING_LOAD'}</span>
-                <span className="text-[clamp(9px,2vw,11px)] font-mono text-slate-500 truncate">{latency.toFixed(2)}ms | {throughput} msg/s</span>
+                <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest truncate">{isAr ? 'السرعة' : 'LOAD'}</span>
+                <span className="text-[10px] font-mono text-slate-500 truncate">{latency.toFixed(1)}ms | {throughput} msg/s</span>
               </div>
             </div>
-            <div className="w-full bg-slate-900/50 h-1.5 rounded-full mt-4 overflow-hidden border border-white/5">
+            <div className="w-full bg-slate-900/50 h-1.5 rounded-full mt-3 overflow-hidden border border-white/5">
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: isRunning ? '92%' : '0%' }}

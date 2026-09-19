@@ -1,4 +1,5 @@
 import express from "express";
+import expressWs from "express-ws";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
@@ -14,8 +15,27 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+import fs from "fs";
+
+const logStream = fs.createWriteStream(path.join(process.cwd(), "server.log"), { flags: "a" });
+const originalConsoleLog = console.log;
+const originalConsoleError = console.log;
+
+console.log = (...args) => {
+  const msg = `[${new Date().toISOString()}] LOG: ${args.join(" ")}\n`;
+  logStream.write(msg);
+  originalConsoleLog.apply(console, args);
+};
+
+console.error = (...args) => {
+  const msg = `[${new Date().toISOString()}] ERROR: ${args.join(" ")}\n`;
+  logStream.write(msg);
+  originalConsoleError.apply(console, args);
+};
+
 async function startServer() {
-  const app = express();
+  const expressWsInstance = expressWs(express());
+  const app = expressWsInstance.app;
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   app.use(express.json());
@@ -172,7 +192,9 @@ async function startServer() {
   });
 
   // Start Autonomous Trading
-  pipeline.startAutonomousTrading();
+  pipeline.start().catch(err => {
+    console.error("CRITICAL: Failed to start trading pipeline:", err);
+  });
 
   // Telegram Start Notification
   telegramService.sendMessage(`
@@ -354,18 +376,13 @@ async function startServer() {
     console.log(`🚀 Baselbot Brain Server running on http://0.0.0.0:${PORT}`);
   });
 
-  // 3. Setup WebSocket Server for Real-Time UI Telemetry on /ws
-  const wss = new WebSocketServer({ noServer: true });
+  // 3. Setup WebSocket Server for Real-Time UI Telemetry on /brain-ws
+  app.ws("/brain-ws", (ws) => {
+    console.log("✅ Brain WebSocket Connected via express-ws");
 
-  wss.on("connection", async (ws: WebSocket) => {
-    console.log("✅ Frontend UI connected to Trading Brain WebSocket (/ws)");
-
-    // Send initial state including SQL persisted trades
+    // Send initial state
     try {
-      const db = pipeline.getDatabase();
-      const persistentTrades = await db.getOpenTrades();
       const activeSymbols = pipeline.getConfig().activeSymbols;
-      
       const candlesDict: Record<string, any> = {};
       const orderBooksDict: Record<string, any> = {};
       const featuresDict: Record<string, any> = {};
@@ -376,30 +393,38 @@ async function startServer() {
         featuresDict[symbol] = pipeline.getLastFeatures().get(symbol);
       }
 
-      ws.send(
-        JSON.stringify({
-          type: "INIT_STATE",
-          data: {
-            balance: pipeline.getUserDataStream().getBalance(),
-            positions: pipeline.getUserDataStream().getPositions(),
-            orders: persistentTrades.length > 0 ? persistentTrades : pipeline.getOrderGateway().getOrders(),
-            health: pipeline.getHealthMonitor().getHealth(),
-            killSwitch: {
-              active: pipeline.getKillSwitch().isActive(),
-              level: pipeline.getKillSwitch().getLevel(),
-            },
-            candles: candlesDict,
-            orderBooks: orderBooksDict,
-            features: featuresDict,
+      const defaultSymbol = activeSymbols[0] || 'BTC/USDT';
+      const defaultCandles = candlesDict[defaultSymbol] || [];
+      if (defaultCandles.length > 0) {
+        pipeline.getRegimeDetector().update(defaultCandles);
+      }
+      const regime = pipeline.getRegimeDetector().analyze();
+      const riskDecision = pipeline.getDynamicRiskManager().getLastDecision();
+
+      ws.send(JSON.stringify({
+        type: "INIT_STATE",
+        data: {
+          balance: pipeline.getUserDataStream().getBalance(),
+          positions: pipeline.getUserDataStream().getPositions(),
+          orders: pipeline.getOrderGateway().getOrders(),
+          health: pipeline.getHealthMonitor().getHealth(),
+          killSwitch: {
+            active: pipeline.getKillSwitch().isActive(),
+            level: pipeline.getKillSwitch().getLevel(),
           },
-        })
-      );
+          candles: candlesDict,
+          orderBooks: orderBooksDict,
+          features: featuresDict,
+          regime,
+          riskDecision,
+        },
+      }));
     } catch (err) {
-      console.error("Error sending initial state:", err);
+      console.error("Error sending initial WS state:", err);
     }
 
     ws.on("close", () => {
-      console.log("❌ Frontend UI disconnected from WebSocket");
+      console.log("❌ Brain WebSocket Disconnected");
     });
   });
 
@@ -417,6 +442,14 @@ async function startServer() {
         featuresDict[symbol] = pipeline.getLastFeatures().get(symbol);
       }
 
+      const defaultSymbol = activeSymbols[0] || 'BTC/USDT';
+      const defaultCandles = candlesDict[defaultSymbol] || [];
+      if (defaultCandles.length > 0) {
+        pipeline.getRegimeDetector().update(defaultCandles);
+      }
+      const regime = pipeline.getRegimeDetector().analyze();
+      const riskDecision = pipeline.getDynamicRiskManager().getLastDecision();
+
       const statePayload = JSON.stringify({
         type: "STATE_UPDATE",
         data: {
@@ -433,11 +466,21 @@ async function startServer() {
           candles: candlesDict,
           orderBooks: orderBooksDict,
           features: featuresDict,
+          regime,
+          riskDecision,
         },
       });
 
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
+      // Periodically log state health
+      if (Math.random() < 0.05) {
+        const bal = pipeline.getUserDataStream().getBalance();
+        const candCount = Object.values(candlesDict).reduce((acc: number, c: any) => acc + (c?.length || 0), 0);
+        console.log(`📡 Broadcast: Bal=$${bal.totalEquity.toFixed(2)}, Candles=${candCount}, Signals=${pipeline.getLastSignals().size}, Status=${pipeline.getIsRunning() ? 'RUNNING' : 'STOPPED'}`);
+      }
+
+      const wss = expressWsInstance.getWss();
+      wss.clients.forEach((client: any) => {
+        if (client.readyState === 1) { // OPEN
           client.send(statePayload);
         }
       });
@@ -448,24 +491,6 @@ async function startServer() {
 
   server.on("close", () => {
     clearInterval(broadcastInterval);
-  });
-
-  // Upgrade HTTP server to handle WebSocket connections strictly on /ws
-  server.on("upgrade", (request, socket, head) => {
-    try {
-      const urlStr = request.url || "";
-      const pathname = urlStr.split("?")[0];
-      if (pathname === "/ws") {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit("connection", ws, request);
-        });
-      } else {
-        socket.destroy();
-      }
-    } catch (err) {
-      console.error("Error during WebSocket upgrade:", err);
-      socket.destroy();
-    }
   });
 
   // 4. Vite Middleware Setup for Frontend SPA

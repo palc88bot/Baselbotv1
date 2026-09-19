@@ -129,51 +129,30 @@ export class TradingPipeline {
     this.setupEventForwarding();
   }
 
-  public async startAutonomousTrading() {
+  public async start() {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    
     console.log('🚀 Starting Basel AlgoCore Autonomous Trading System...');
 
     try {
-      // 1. Recover State from DB
-      console.log('🗄️ Recovering system state...');
+      // 1. Reconcile State with Exchange
+      await this.reconcileState();
       
       // 2. Start Market Data & User Data Streams
       console.log('🌐 Connecting to Market Data & User Data Streams...');
       await this.userDataStream.start();
-      this.marketData.startStreaming();
+      this.marketData.startStreaming(300);
 
-      // 3. Start Main Trading Loop
-      console.log('🔄 Engaging Trading Loop (1Hz)...');
-      setInterval(async () => {
-        try {
-          await this.evaluateAndExecute();
-        } catch (error) {
-          console.error('Error in trading loop:', error);
-        }
-      }, 1000);
+      // 3. Start Optimization
+      this.runQuantumOptimization();
 
-      // 4. Start Risk Evaluation Loop (1m)
-      setInterval(async () => {
-        try {
-          await this.updateRiskMetrics();
-        } catch (error) {
-          console.error('Error in risk evaluation loop:', error);
-        }
-      }, 60 * 1000);
-
-      // 5. Start Maintenance Cycle (5m)
-      setInterval(async () => {
-        try {
-          this.correlationRiskManager.calculateCorrelationMatrix();
-          const balance = this.userDataStream.getBalance();
-          await this.db.saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
-        } catch (error) {
-          console.error('Error in maintenance tasks:', error);
-        }
-      }, 5 * 60 * 1000);
+      // 4. Start Control Loops
+      this.setupIntervals();
 
       console.log('✅ Autonomous System is fully operational!');
       
-      // Send a "System Init" signal for immediate UI feedback in demo/trial mode
+      // Send a "System Init" signal for immediate UI feedback
       const initSignal: TradingSignal = {
         id: `INIT-${Date.now().toString(36)}`,
         symbol: this.config.activeSymbols[0],
@@ -192,9 +171,58 @@ export class TradingPipeline {
 
       await this.telegramService.sendMessage('🚀 <b>Basel AlgoCore Started</b>\n\nAutonomous Trading System is now active.');
     } catch (error: any) {
+      this.isRunning = false;
       console.error('❌ Failed to start autonomous trading:', error);
       await this.telegramService.sendMessage(`🚨 <b>Critical Startup Error</b>\n\n${error.message}`);
     }
+  }
+
+  private setupIntervals() {
+    // Main Trading Loop (1Hz)
+    setInterval(async () => {
+      try {
+        if (this.isRunning) {
+          await this.evaluateAndExecute();
+        }
+      } catch (error) {
+        console.error('Error in trading loop:', error);
+      }
+    }, 1000);
+
+    // Risk Evaluation Loop (1m)
+    setInterval(async () => {
+      try {
+        if (this.isRunning) {
+          await this.updateRiskMetrics();
+        }
+      } catch (error) {
+        console.error('Error in risk evaluation loop:', error);
+      }
+    }, 60 * 1000);
+
+    // Maintenance Cycle (5m)
+    setInterval(async () => {
+      try {
+        if (this.isRunning) {
+          this.correlationRiskManager.calculateCorrelationMatrix();
+          const balance = this.userDataStream.getBalance();
+          await this.db.saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
+        }
+      } catch (error) {
+        console.error('Error in maintenance tasks:', error);
+      }
+    }, 5 * 60 * 1000);
+
+    // Rebalance timer (Quantum Optimization)
+    this.rebalanceTimer = setInterval(() => {
+      if (this.isRunning && this.killSwitch.isEntryAllowed()) {
+        this.runQuantumOptimization();
+      }
+    }, this.config.rebalanceIntervalMs);
+  }
+
+  public async startAutonomousTrading() {
+    await this.start();
   }
 
   private async evaluateAndExecute() {
@@ -392,6 +420,7 @@ export class TradingPipeline {
     // 0. Dynamic Risk Check
     const lastDecision = this.dynamicRiskManager.getLastDecision();
     if (lastDecision?.action === 'STOP' || lastDecision?.action === 'PAUSE') {
+      console.log(`🛑 Trading halted/paused for ${symbol}: ${lastDecision.reasons[0] || 'Dynamic risk stop'}`);
       return;
     }
 
@@ -451,6 +480,14 @@ export class TradingPipeline {
         return;
       }
       qty = Number((qty * correlationFactor).toFixed(3));
+
+      // Apply Dynamic Position Size Multiplier
+      const multipliers = this.dynamicRiskManager.getCurrentMultipliers();
+      qty = Number((qty * multipliers.positionSize).toFixed(3));
+      
+      if (multipliers.positionSize < 1.0) {
+        console.log(`📉 Position size reduced to ${(multipliers.positionSize * 100).toFixed(0)}% for ${symbol} due to risk metrics`);
+      }
 
       if (qty > 0.001) {
         // Pre-trade risk validation
@@ -678,6 +715,7 @@ export class TradingPipeline {
   public stop() {
     this.isRunning = false;
     this.marketData.stopStreaming();
+    this.userDataStream.stop();
     if (this.rebalanceTimer) {
       clearInterval(this.rebalanceTimer);
       this.rebalanceTimer = null;

@@ -94,6 +94,9 @@ export default function App() {
   const [killSwitchHistory, setKillSwitchHistory] = useState<any[]>([]);
   const [isTelegramEnabled, setIsTelegramEnabled] = useState<boolean>(false);
   const [telegramMaskedId, setTelegramMaskedId] = useState<string>('Not configured');
+  const [regime, setRegime] = useState<any>(null);
+  const [riskDecision, setRiskDecision] = useState<any>(null);
+  const [isGuestMode, setIsGuestMode] = useState<boolean>(true);
   const [riskMetrics, setRiskMetrics] = useState<RiskMetrics>({
     portfolioValue: 100000,
     currentDrawdownPct: 0.45,
@@ -148,6 +151,8 @@ export default function App() {
         }
       };
       syncUser();
+    } else if (!user) {
+      setIsSynced(true);
     }
   }, [user, isSynced, getToken]);
 
@@ -188,10 +193,10 @@ export default function App() {
 
   // Connect to Backend WebSocket Brain with Exponential Backoff
   useEffect(() => {
-    if (!user || !isSynced) return;
+    if (!user && !isGuestMode) return;
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = import.meta.env.VITE_BRAIN_WS_URL || `${wsProtocol}//${window.location.host}/ws`;
+    const wsUrl = import.meta.env.VITE_BRAIN_WS_URL || `${wsProtocol}//${window.location.host}/brain-ws`;
 
     let reconnectAttempt = 0;
     let reconnectTimer: NodeJS.Timeout | null = null;
@@ -200,9 +205,7 @@ export default function App() {
     const connect = () => {
       if (isUnmounted) return;
       try {
-        if (!wsUrl || (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://'))) {
-          throw new Error('Invalid WebSocket URL schema: ' + wsUrl);
-        }
+        console.log(`🔌 Attempting Brain WebSocket connection: ${wsUrl}`);
         wsRef.current = new WebSocket(wsUrl);
 
         wsRef.current.onopen = () => {
@@ -221,6 +224,8 @@ export default function App() {
               if (data.positions) setPositions(data.positions);
               if (data.orders) setOrders(data.orders);
               if (data.health) setHealth(data.health);
+              if (data.regime) setRegime(data.regime);
+              if (data.riskDecision) setRiskDecision(data.riskDecision);
               if (data.killSwitch) {
                 setKillSwitchActive(data.killSwitch.active);
                 setKillSwitchLevel(data.killSwitch.level);
@@ -252,21 +257,21 @@ export default function App() {
           }
         };
 
-        wsRef.current.onclose = () => {
+        wsRef.current.onclose = (event) => {
           if (isUnmounted) return;
           setIsConnected(false);
           setIsRunning(false);
 
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000);
-          console.log(`❌ Disconnected from Baselbot Brain. Reconnecting in ${(delay / 1000).toFixed(1)}s (Attempt ${reconnectAttempt + 1})...`);
+          console.log(`❌ Brain WebSocket closed: ${event.code} ${event.reason}. Reconnecting in ${(delay / 1000).toFixed(1)}s (Attempt ${reconnectAttempt + 1})...`);
           
           reconnectAttempt++;
           reconnectTimer = setTimeout(connect, delay);
         };
 
         wsRef.current.onerror = (err) => {
-          console.error('WebSocket error:', err);
+          console.error('❌ Brain WebSocket Error:', err);
         };
       } catch (err) {
         console.error('Failed to initialize WebSocket safely:', err);
@@ -399,9 +404,9 @@ export default function App() {
     );
   }
 
-  if (!user) return <LoginView lang={lang} />;
+  if (!user && !isGuestMode) return <LoginView lang={lang} onGuestAccess={() => setIsGuestMode(true)} />;
 
-  if (!isSynced) {
+  if (!isSynced && !isGuestMode) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#02040a] text-slate-100 font-bold gap-6 p-6 text-center">
         <div className="relative">
@@ -491,6 +496,8 @@ export default function App() {
                 reduceMotion={reduceMotion}
                 health={health}
                 isRunning={isRunning}
+                regime={regime}
+                riskDecision={riskDecision}
               />
               <div className="mt-6">
                 <SystemHealthPanel lang={lang} />
