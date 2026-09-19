@@ -1,5 +1,5 @@
 /**
- * Basel Quantum Algorithmic Trading System
+ * Basel AlgoCore Trading System
  * Quantum Optimizer Studio (QUBO Matrix, QAOA Quantum Circuit & Solvers Benchmark)
  */
 
@@ -39,6 +39,7 @@ interface QuantumViewProps {
   lastSolution: QuboSolution | null;
   onRunOptimization: () => void;
   lang: 'ar' | 'en';
+  reduceMotion: boolean;
 }
 
 export const QuantumOptimizerView: React.FC<QuantumViewProps> = ({
@@ -46,6 +47,7 @@ export const QuantumOptimizerView: React.FC<QuantumViewProps> = ({
   lastSolution,
   onRunOptimization,
   lang,
+  reduceMotion,
 }) => {
   const isAr = lang === 'ar';
   const [riskLambda, setRiskLambda] = useState<number>(0.5);
@@ -54,6 +56,9 @@ export const QuantumOptimizerView: React.FC<QuantumViewProps> = ({
   const [benchmarkData, setBenchmarkData] = useState<any[]>([]);
   const [isRunningBench, setIsRunningBench] = useState<boolean>(false);
   const [qaoaSimResult, setQaoaSimResult] = useState<QAOAResult | null>(null);
+
+  // Use reduceMotion for charts
+  const isAnimationActive = !reduceMotion;
 
   // Expected returns and covariance
   const expectedReturns: Record<AssetSymbol, number> = {
@@ -161,37 +166,37 @@ export const QuantumOptimizerView: React.FC<QuantumViewProps> = ({
   }));
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${reduceMotion ? '' : 'animate-in fade-in duration-500'}`}>
       {/* Top Banner & Control Bar */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
-        <div>
+      <div className="bg-[#0a0f1d]/80 backdrop-blur-sm border border-slate-800/60 rounded-2xl p-4 md:p-5 shadow-xl flex flex-wrap items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <Cpu className="w-5 h-5 text-cyan-400" />
-            <h2 className="text-lg font-bold text-slate-100">
+            <Cpu className="w-5 h-5 text-cyan-400 shrink-0" />
+            <h2 className="text-base md:text-lg font-bold text-slate-100 tracking-tight truncate">
               {isAr
-                ? 'استوديو التحسين الكمومي (QUBO & QAOA Portfolio Optimizer)'
+                ? 'استوديو التحسين الكمومي (QUBO & QAOA)'
                 : 'Quantum Optimization Studio (QUBO & QAOA)'}
             </h2>
           </div>
-          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+          <p className="text-[9px] md:text-xs text-slate-500 mt-1 max-w-2xl font-medium line-clamp-2 md:line-clamp-none">
             {isAr
               ? 'صياغة هاميلتونيان المحفظة المالية ومحاكاة النفق الكمومي (Quantum Tunneling) وخوارزمية QAOA للوصول إلى التوزيع الأمثل للأصول'
               : 'Formulating the portfolio Ising Hamiltonian, simulating transverse-field quantum tunneling, and evaluating variational QAOA statevectors for asset allocation'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 shrink-0">
           <button
             onClick={onRunOptimization}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-900/30 transition"
+            className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] md:text-xs font-bold shadow-lg shadow-cyan-900/30 transition-all active:scale-95"
           >
             <Sparkles className="w-4 h-4" />
-            <span>{isAr ? 'إعادة التحسين الكمي اللحظي' : 'Re-Run Quantum Solver'}</span>
+            <span>{isAr ? 'إعادة التحسين الكمي' : 'Re-Run Quantum Solver'}</span>
           </button>
           <button
             onClick={handleRunBenchmark}
             disabled={isRunningBench}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition"
+            className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-slate-900/50 hover:bg-slate-800 text-slate-300 border border-slate-800 text-[10px] md:text-xs font-semibold transition-all active:scale-95"
           >
             <Activity className="w-4 h-4 text-amber-400" />
             <span>{isRunningBench ? (isAr ? 'جاري المقارنة...' : 'Benchmarking...') : (isAr ? 'مقارنة الخوارزميات' : 'Run Full Benchmark')}</span>

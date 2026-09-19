@@ -72,9 +72,9 @@ export const BacktestWorkbench: React.FC<BacktestProps> = ({ lang }) => {
 
   const chartData = (backtestResult?.equityCurve || []).map((pt, i) => ({
     time: new Date(pt.timestamp).toLocaleDateString(),
-    equity: Number(pt.equity.toFixed(2)),
-    benchmark: Number(pt.benchmark.toFixed(2)),
-    drawdown: Number(pt.drawdown.toFixed(2)),
+    equity: Number((pt?.equity || 0).toFixed(2)),
+    benchmark: Number((pt?.benchmark || 0).toFixed(2)),
+    drawdown: Number((pt?.drawdown || 0).toFixed(2)),
   }));
 
   return (
@@ -169,7 +169,7 @@ export const BacktestWorkbench: React.FC<BacktestProps> = ({ lang }) => {
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-sm">
             <span className="text-xs text-slate-400 block mb-1">{isAr ? 'مؤشر كفاءة العينة WFE' : 'Walk-Forward WFE'}</span>
             <span className="text-xl font-bold font-mono text-amber-400">
-              {walkForwardResult?.overallEfficiency ? `${(walkForwardResult.overallEfficiency * 100).toFixed(0)}%` : '86%'}
+              {walkForwardResult?.overallEfficiency ? `${(walkForwardResult.overallEfficiency * 100).toFixed(0)}%` : '0%'}
             </span>
             <span className="text-[10px] text-emerald-400 block mt-1">
               {walkForwardResult?.verdict === 'HIGHLY_ROBUST' ? (isAr ? 'مقاوم للتخصيص' : 'Overfit-Robust') : 'Robust'}

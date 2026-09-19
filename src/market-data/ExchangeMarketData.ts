@@ -1,8 +1,10 @@
 /**
  * Basel Quantum Algorithmic Trading System
- * Exchange Market Data Stream & Synthetic Jump-Diffusion/Hawkes Generator
+ * Exchange Market Data Stream & Synthetic/Live Data Bridge
  */
 
+import { EventEmitter } from 'events';
+import WebSocket from 'ws';
 import { AssetSymbol, Candle, Tick } from '../domain/types';
 import { OrderBookBuilder } from './OrderBookBuilder';
 
@@ -73,18 +75,30 @@ export const DEFAULT_SYMBOLS: Record<AssetSymbol, SymbolConfig> = {
   },
 };
 
-export class ExchangeMarketData {
+export class ExchangeMarketData extends EventEmitter {
   private currentPrices: Map<AssetSymbol, number> = new Map();
   private hawkesIntensity: Map<AssetSymbol, number> = new Map();
   private candleHistory: Map<AssetSymbol, Candle[]> = new Map();
   private orderBookBuilder: OrderBookBuilder;
-  private listeners: Set<(tick: Tick) => void> = new Set();
+  private tickListeners: Set<(tick: Tick) => void> = new Set();
+  
+  // Simulated streaming timer
   private intervalId: any = null;
   private isRunning: boolean = false;
   private tradeCounter: number = 0;
 
+  // Live WebSocket variables
+  private ws: WebSocket | null = null;
+  private executionMode: string;
+  private wsUrl: string;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+
   constructor(orderBookBuilder?: OrderBookBuilder) {
+    super();
     this.orderBookBuilder = orderBookBuilder || new OrderBookBuilder(10);
+    const hasApiKey = !!process.env.EXCHANGE_API_KEY;
+    this.executionMode = process.env.EXECUTION_MODE || (hasApiKey ? 'TESTNET' : 'PAPER');
+    this.wsUrl = this.executionMode === 'LIVE' ? 'wss://fstream.binance.com/stream?streams=' : 'wss://fstream.binancefuture.com/stream?streams=';
     this.initializeState();
   }
 
@@ -143,26 +157,191 @@ export class ExchangeMarketData {
   }
 
   public subscribeTicks(listener: (tick: Tick) => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    this.tickListeners.add(listener);
+    return () => this.tickListeners.delete(listener);
   }
 
   public startStreaming(tickRateMs: number = 300) {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    this.intervalId = setInterval(() => {
-      this.generateNextTicks();
-    }, tickRateMs);
+    if (this.executionMode === 'PAPER') {
+      console.log('📝 ExchangeMarketData: Running in PAPER simulation mode.');
+      this.intervalId = setInterval(() => {
+        this.generateNextTicks();
+      }, tickRateMs);
+    } else {
+      console.log(`🌐 ExchangeMarketData: Connecting to live streams via WebSocket (${this.executionMode})...`);
+      this.startWebSocketStreaming();
+    }
   }
 
   public stopStreaming() {
+    this.isRunning = false;
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    this.isRunning = false;
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    console.log('🔴 ExchangeMarketData: Stopped.');
   }
+
+  // --- Binance Live WebSocket Stream Integration ---
+  private startWebSocketStreaming() {
+    // Map system symbols to lowercase for Binance stream format (e.g. BTC/USDT -> btcusdt)
+    const activeSymbols = ['btcusdt', 'ethusdt', 'solusdt'];
+    
+    // Build multi-stream URL
+    const streams = activeSymbols.flatMap(symbol => [
+      `${symbol}@depth20@100ms`, // Orderbook (20 levels, 100ms updates)
+      `${symbol}@kline_1m`,      // Candles (1m interval)
+      `${symbol}@aggTrade`       // Ticks / Aggregate Trades
+    ]).join('/');
+
+    const url = `${this.wsUrl}${streams}`;
+    console.log(`📡 ExchangeMarketData: Connecting to streams: ${url}`);
+    
+    this.connectWebSocket(url);
+  }
+
+  private connectWebSocket(url: string) {
+    if (this.ws) this.ws.close();
+
+    this.ws = new WebSocket(url);
+
+    this.ws.on('open', () => {
+      console.log('✅ ExchangeMarketData: WebSocket connected to Binance Futures ' + this.executionMode);
+    });
+
+    this.ws.on('message', (data: any) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        this.handleWebSocketMessage(msg);
+      } catch (e) {
+        console.error('❌ ExchangeMarketData: Error parsing message', e);
+      }
+    });
+
+    this.ws.on('close', () => {
+      console.log('⚠️ ExchangeMarketData: WebSocket connection closed.');
+      if (this.isRunning) {
+        this.scheduleReconnect(url);
+      }
+    });
+
+    this.ws.on('error', (err) => {
+      console.error('❌ ExchangeMarketData: WebSocket error', err);
+    });
+  }
+
+  private handleWebSocketMessage(msg: any) {
+    const stream = msg.stream;
+    const data = msg.data;
+
+    if (!stream || !data) return;
+
+    // Convert raw Binance symbol (e.g. BTCUSDT) to System Symbol (BTC/USDT)
+    const rawSym = data.s || (data.k && data.k.s);
+    if (!rawSym) return;
+    const symbol = this.toSystemSymbol(rawSym);
+
+    // 1. OrderBook Update
+    if (stream.includes('@depth')) {
+      if (data.b && data.a) {
+        this.orderBookBuilder.update(symbol, data.b, data.a);
+        this.emit('market_update', symbol);
+      }
+    }
+
+    // 2. Candlestick Update
+    if (stream.includes('@kline')) {
+      const candle: Candle = {
+        timestamp: data.k.t,
+        open: parseFloat(data.k.o),
+        high: parseFloat(data.k.h),
+        low: parseFloat(data.k.l),
+        close: parseFloat(data.k.c),
+        volume: parseFloat(data.k.v),
+        vwap: parseFloat(data.k.V) || parseFloat(data.k.c)
+      };
+
+      if (!this.candleHistory.has(symbol)) {
+        this.candleHistory.set(symbol, []);
+      }
+      const candlesArr = this.candleHistory.get(symbol)!;
+      const lastCandle = candlesArr[candlesArr.length - 1];
+
+      if (lastCandle && lastCandle.timestamp === candle.timestamp) {
+        candlesArr[candlesArr.length - 1] = candle;
+      } else {
+        candlesArr.push(candle);
+        if (candlesArr.length > 120) candlesArr.shift();
+      }
+
+      // Update last price map too
+      this.currentPrices.set(symbol, candle.close);
+      
+      this.emit('market_update', symbol);
+      if (data.k.x) {
+        this.emit('candle_close', symbol, candle);
+      }
+    }
+
+    // 3. Trade Ticks Update
+    if (stream.includes('@aggTrade')) {
+      const tickPrice = parseFloat(data.p);
+      const tickSize = parseFloat(data.q);
+      const side = data.m ? 'sell' : 'buy';
+
+      this.currentPrices.set(symbol, tickPrice);
+
+      const tick: Tick = {
+        symbol,
+        price: tickPrice,
+        size: tickSize,
+        side,
+        timestamp: data.T,
+        tradeId: data.a.toString()
+      };
+
+      // Reconstruct orderbook from tick to keep simulation active for UI
+      this.orderBookBuilder.processTick(tick);
+
+      // Trigger listeners
+      this.tickListeners.forEach((fn) => fn(tick));
+      
+      this.emit('market_update', symbol);
+    }
+  }
+
+  private toSystemSymbol(binanceSymbol: string): AssetSymbol {
+    const upper = binanceSymbol.toUpperCase();
+    if (upper.endsWith('USDT')) {
+      return `${upper.slice(0, -4)}/USDT` as AssetSymbol;
+    }
+    if (upper.endsWith('USD')) {
+      return `${upper.slice(0, -3)}/USD` as AssetSymbol;
+    }
+    return upper as AssetSymbol;
+  }
+
+  private scheduleReconnect(url: string) {
+    if (this.reconnectTimer) return;
+    console.log('⏳ ExchangeMarketData: Reconnecting in 5 seconds...');
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connectWebSocket(url);
+    }, 5000);
+  }
+
+  // --- End of Binance Live Integration ---
 
   public generateNextTicks(): Tick[] {
     const symbols = Object.keys(DEFAULT_SYMBOLS) as AssetSymbol[];
@@ -173,19 +352,16 @@ export class ExchangeMarketData {
       const prevPrice = this.currentPrices.get(symbol) || config.basePrice;
       const intensity = this.hawkesIntensity.get(symbol) || 1.0;
 
-      // Ornstein-Uhlenbeck continuous drift + Brownian motion + Hawkes shock
       const dt = 1 / 3600;
       const ouDrift = config.meanReversionSpeed * (config.equilibriumMean - prevPrice) * dt;
       const sigma = (config.volatilityDaily / Math.sqrt(24)) * Math.sqrt(intensity);
       const brownian = sigma * prevPrice * this.boxMullerRandom();
 
-      // Jump diffusion Poisson jump (rare big move)
       let jump = 0;
       if (Math.random() < 0.02) {
         jump = (Math.random() - 0.5) * prevPrice * 0.015;
-        this.hawkesIntensity.set(symbol, intensity + 3.0); // excite Hawkes process
+        this.hawkesIntensity.set(symbol, intensity + 3.0);
       } else {
-        // Hawkes decay
         this.hawkesIntensity.set(symbol, Math.max(1.0, intensity * 0.96));
       }
 
@@ -206,12 +382,12 @@ export class ExchangeMarketData {
         tradeId: `TICK-${this.tradeCounter}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
       };
 
-      // Process inside orderbook
       this.orderBookBuilder.processTick(tick);
       this.updateCandles(symbol, newPrice, size);
 
       ticks.push(tick);
-      this.listeners.forEach((fn) => fn(tick));
+      this.tickListeners.forEach((fn) => fn(tick));
+      this.emit('market_update', symbol);
     }
 
     return ticks;

@@ -21,6 +21,7 @@ import {
 import { OrderGateway } from '../execution/OrderGateway';
 import { UserDataStream } from '../execution/UserDataStream';
 import { FeatureEngine } from '../features/FeatureEngine';
+import { MeanReversionStrategy } from '../strategies/MeanReversionStrategy';
 import { ExchangeMarketData } from '../market-data/ExchangeMarketData';
 import { OrderBookBuilder } from '../market-data/OrderBookBuilder';
 import { HealthMonitor } from '../monitoring/HealthMonitor';
@@ -32,6 +33,9 @@ import { KillSwitch } from '../risk/KillSwitch';
 import { RiskEngine } from '../risk/RiskEngine';
 import { EventJournal } from '../storage/EventJournal';
 import { INITIAL_RUNTIME_CONFIG, RuntimeConfigState } from './RuntimeConfig';
+import { DatabaseService } from '../storage/DatabaseService';
+import { CorrelationRiskManager } from '../risk/CorrelationRiskManager';
+import { TelegramService } from '../services/TelegramService';
 
 export class TradingPipeline {
   private marketData: ExchangeMarketData;
@@ -43,6 +47,11 @@ export class TradingPipeline {
   private killSwitch: KillSwitch;
   private eventJournal: EventJournal;
   private healthMonitor: HealthMonitor;
+  private db: DatabaseService;
+  private correlationRiskManager: CorrelationRiskManager;
+  private telegramService: TelegramService;
+  private strategy: MeanReversionStrategy;
+  private lastSnapshotTime: number = 0;
 
   private config: RuntimeConfigState;
   private isRunning: boolean = false;
@@ -50,6 +59,7 @@ export class TradingPipeline {
   private lastSignals: Map<AssetSymbol, TradingSignal> = new Map();
   private lastFeatures: Map<AssetSymbol, any> = new Map();
   private rebalanceTimer: any = null;
+  private lastOrderTime: Map<AssetSymbol, number> = new Map();
 
   // Covariance matrix for quantum portfolio optimization
   private covarianceMatrix: number[][] = [
@@ -70,19 +80,135 @@ export class TradingPipeline {
     'AAPL/USD': 0.075,
   };
 
-  constructor() {
+  constructor(telegramService: TelegramService) {
     this.config = { ...INITIAL_RUNTIME_CONFIG };
     this.orderBookBuilder = new OrderBookBuilder(10);
     this.marketData = new ExchangeMarketData(this.orderBookBuilder);
     this.featureEngine = new FeatureEngine();
-    this.userDataStream = new UserDataStream(100000);
+    this.userDataStream = new UserDataStream(0); // Start with 0, will be updated by fetchInitialAccountData
     this.orderGateway = new OrderGateway(this.userDataStream, this.orderBookBuilder);
     this.riskEngine = new RiskEngine({ maxDrawdownPct: this.config.maxDrawdownCapPct, maxPortfolioLeverage: this.config.maxLeverage });
     this.killSwitch = new KillSwitch();
     this.eventJournal = new EventJournal(1000);
     this.healthMonitor = new HealthMonitor();
+    this.db = new DatabaseService();
+    this.correlationRiskManager = new CorrelationRiskManager();
+    this.telegramService = telegramService;
+    this.strategy = new MeanReversionStrategy();
 
     this.setupEventForwarding();
+  }
+
+  public async startAutonomousTrading() {
+    console.log('🚀 Starting Basel AlgoCore Autonomous Trading System...');
+
+    try {
+      // 1. Recover State from DB
+      console.log('🗄️ Recovering system state...');
+      
+      // 2. Start Market Data & User Data Streams
+      console.log('🌐 Connecting to Market Data & User Data Streams...');
+      await this.userDataStream.start();
+      this.marketData.startStreaming();
+
+      // 3. Start Main Trading Loop
+      console.log('🔄 Engaging Trading Loop (1Hz)...');
+      setInterval(async () => {
+        try {
+          await this.evaluateAndExecute();
+        } catch (error) {
+          console.error('Error in trading loop:', error);
+        }
+      }, 1000);
+
+      // 4. Start Maintenance Cycle (5m)
+      setInterval(async () => {
+        try {
+          this.correlationRiskManager.calculateCorrelationMatrix();
+          const balance = this.userDataStream.getBalance();
+          this.db.saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
+        } catch (error) {
+          console.error('Error in maintenance tasks:', error);
+        }
+      }, 5 * 60 * 1000);
+
+      console.log('✅ Autonomous System is fully operational!');
+      
+      // Send a "System Init" signal for immediate UI feedback in demo/trial mode
+      const initSignal: TradingSignal = {
+        id: `INIT-${Date.now().toString(36)}`,
+        symbol: this.config.activeSymbols[0],
+        timestamp: Date.now(),
+        type: 'NEUTRAL',
+        strength: 0.99,
+        zScore: 0,
+        halfLife: 0,
+        targetPrice: 0,
+        stopLoss: 0,
+        takeProfit: 0,
+        reason: 'Basel Core System Initialized - Monitoring Market Liquidity',
+        strategy: 'System Diagnostics',
+      };
+      this.lastSignals.set(this.config.activeSymbols[0], initSignal);
+
+      await this.telegramService.sendMessage('🚀 <b>Basel AlgoCore Started</b>\n\nAutonomous Trading System is now active.');
+    } catch (error: any) {
+      console.error('❌ Failed to start autonomous trading:', error);
+      await this.telegramService.sendMessage(`🚨 <b>Critical Startup Error</b>\n\n${error.message}`);
+    }
+  }
+
+  private async evaluateAndExecute() {
+    // 1. Safety Check
+    if (!this.killSwitch.isEntryAllowed()) return;
+
+    // 2. Evaluate each symbol
+    for (const symbol of this.config.activeSymbols) {
+      const book = this.orderBookBuilder.getBook(symbol);
+      const currentPrice = book?.midPrice || 0;
+
+      if (!book || currentPrice === 0) continue;
+
+      // Get latest features for this symbol
+      const features = this.featureEngine.getLatestFeatures(symbol);
+      if (!features) continue;
+
+      // 3. Strategy Evaluation
+      const signal = this.strategy.evaluate(features, book);
+      
+      if (signal) {
+        // Only trade if signal is strong enough
+        if (signal.strength > 0.7) {
+           // 4. Risk Validation
+           const riskCheck = this.riskEngine.validateSignal(signal, this.userDataStream.getBalance());
+           
+           if (riskCheck.isAllowed) {
+              // Rate limiting - 1 order per symbol per 10 seconds for safety in trial
+              const lastTime = this.lastOrderTime.get(symbol) || 0;
+              if (Date.now() - lastTime > 10000) {
+                 console.log(`🎯 Executing real-time signal for ${symbol}: ${signal.type} @ ${currentPrice}`);
+                 
+                 // Execute order
+                 await this.orderGateway.executeSignal(signal);
+                 
+                 // Update tracking
+                 this.lastOrderTime.set(symbol, Date.now());
+                 this.lastSignals.set(symbol, signal);
+                 
+                 // Notify UI
+                 this.eventJournal.log({
+                   type: 'ORDER_EXECUTED',
+                   symbol,
+                   data: signal,
+                   timestamp: Date.now()
+                 });
+
+                 await this.telegramService.sendMessage(`🎯 <b>Signal Executed</b>\n\nSymbol: ${symbol}\nType: ${signal.type}\nPrice: ${currentPrice}\nReason: ${signal.reason}`);
+              }
+           }
+        }
+      }
+    }
   }
 
   private setupEventForwarding() {
@@ -116,11 +242,54 @@ export class TradingPipeline {
         this.eventJournal.record('WARN', 'ORDER_GATEWAY', `Order ${ord.id} ${ord.status}: ${ord.errorMessage || 'No reason provided'}`);
       }
     });
+
+    // Setup Auto-Trading Event Engine
+    this.setupAutoTradingEngine();
+  }
+
+  /**
+   * Autonomous Trading Processor: evaluated when any market update comes in
+   */
+  private async processMarketUpdate(symbol: AssetSymbol) {
+    if (!this.isRunning) return;
+
+    // 1. Check Kill Switch
+    if (!this.killSwitch.isEntryAllowed()) {
+      return;
+    }
+
+    // 2. Fetch current features and orderbook builder state
+    const features = this.lastFeatures.get(symbol);
+    const book = this.orderBookBuilder.getBook(symbol);
+
+    if (!features || !book) {
+      return;
+    }
+
+    // 3. Evaluate signals & execute if auto trading is enabled
+    if (this.config.autoTradingEnabled) {
+      this.evaluateSignalAndExecute(symbol, features, book);
+    }
+  }
+
+  /**
+   * Subscribes the auto-trading decision maker to the unified event emitter
+   */
+  private setupAutoTradingEngine() {
+    console.log('🤖 Autonomous Auto-Trading Engine activated...');
+    
+    // Listen to real-time market updates emitted by ExchangeMarketData
+    this.marketData.on('market_update', async (symbol: string) => {
+      await this.processMarketUpdate(symbol as AssetSymbol);
+    });
   }
 
   private handleIncomingTick(tick: Tick) {
     const t0 = performance.now();
     this.healthMonitor.recordMessage();
+
+    // Update Correlation Risk price history
+    this.correlationRiskManager.updatePriceHistory(tick.symbol, tick.price);
 
     // 1. Feature Extraction
     const candles = this.marketData.getCandles(tick.symbol);
@@ -137,6 +306,13 @@ export class TradingPipeline {
 
     if (riskEval.violation && this.config.enableKillSwitch) {
       this.killSwitch.trigger(riskEval.recommendedKillLevel || 'SOFT_HALT', riskEval.violationReason || 'Risk limit breached');
+    }
+
+    // Throttle balance snapshot logging (every 5 minutes in production)
+    const nowMs = Date.now();
+    if (nowMs - this.lastSnapshotTime > 5 * 60 * 1000) {
+      this.lastSnapshotTime = nowMs;
+      this.db.saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
     }
 
     // 3. Automated Strategy Evaluation (if enabled and killswitch allows entry)
@@ -174,6 +350,13 @@ export class TradingPipeline {
     }
 
     if (signalType && strength >= 0.6) {
+      // 30-second cooldown per symbol to prevent order spamming
+      const now = Date.now();
+      const lastTime = this.lastOrderTime.get(symbol) || 0;
+      if (now - lastTime < 30000) {
+        return;
+      }
+
       const sig: TradingSignal = {
         id: `SIG-${Date.now().toString(36)}`,
         symbol,
@@ -194,7 +377,15 @@ export class TradingPipeline {
       const quboWeight = this.lastQuboSolution?.normalizedWeights[symbol] || (1 / this.config.activeSymbols.length);
       const balance = this.userDataStream.getBalance();
       const notionalToAllocate = Math.min(balance.freeMargin * 0.25, balance.totalEquity * quboWeight * 0.5);
-      const qty = Number((notionalToAllocate / Math.max(1, features.currentPrice)).toFixed(3));
+      let qty = Number((notionalToAllocate / Math.max(1, features.currentPrice)).toFixed(3));
+
+      // Correlation risk adjustment factor
+      const correlationFactor = this.correlationRiskManager.getCorrelationAdjustmentFactor(this.config.activeSymbols);
+      if (correlationFactor === 0) {
+        console.log(`⏸️ Trading halted for ${symbol} due to critical correlation risk`);
+        return;
+      }
+      qty = Number((qty * correlationFactor).toFixed(3));
 
       if (qty > 0.001) {
         // Pre-trade risk validation
@@ -205,8 +396,20 @@ export class TradingPipeline {
           book ? (book.spread / book.midPrice) * 100 : 0.02
         );
 
+        // 💾 Save Signal to database
+        this.db.saveSignal({
+          id: sig.id,
+          timestamp: sig.timestamp,
+          symbol,
+          type: signalType,
+          strength,
+          zScore,
+          executed: val.allowed
+        });
+
         if (val.allowed) {
-          this.orderGateway.submitOrder({
+          this.lastOrderTime.set(symbol, now);
+          const ord = this.orderGateway.submitOrder({
             symbol,
             side: signalType,
             type: 'MARKET',
@@ -214,6 +417,28 @@ export class TradingPipeline {
             price: features.currentPrice,
             strategyId: 'OU-QUBO-AUTO',
           });
+
+          // 💾 Save Trade to database
+          this.db.saveTrade({
+            id: ord.id,
+            timestamp: Date.now(),
+            symbol,
+            side: signalType === 'BUY' ? 'BUY' : 'SELL',
+            quantity: qty,
+            price: features.currentPrice,
+            strategy: 'OU-QUBO-AUTO',
+            status: 'OPEN'
+          });
+
+          // 🔥 Add protective orders
+          this.orderGateway.sendProtectiveOrders(
+              ord.symbol,
+              ord.side,
+              qty,
+              features.currentPrice,
+              sig.stopLoss,
+              sig.takeProfit
+          );
 
           this.eventJournal.record(
             'ORDER',
@@ -279,9 +504,18 @@ export class TradingPipeline {
     return solution;
   }
 
-  public start() {
+  public async start() {
     if (this.isRunning) return;
     this.isRunning = true;
+    
+    await this.reconcileState();
+
+    try {
+      await this.userDataStream.start();
+    } catch (err) {
+      console.error("Error starting UserDataStream:", err);
+    }
+
     this.marketData.startStreaming(250);
 
     // Initial optimization
@@ -295,6 +529,62 @@ export class TradingPipeline {
     }, this.config.rebalanceIntervalMs);
 
     this.eventJournal.record('INFO', 'SYSTEM', 'Basel Quantum Trading Pipeline launched successfully in ' + this.config.executionMode);
+  }
+
+  private async reconcileState() {
+    console.log('🔄 Starting State Reconciliation...');
+    
+    try {
+        const baseUrl = this.userDataStream.getApiBaseUrl();
+        
+        // 1. جلب البيانات الحقيقية من Binance Futures
+        const accountRes = await fetch(`${baseUrl}/fapi/v2/account`, {
+            headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() }
+        });
+        const accountData = await accountRes.json();
+
+        const positionsRes = await fetch(`${this.orderGateway.getApiBaseUrl()}/fapi/v2/positionRisk`, {
+            headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() }
+        });
+        const positionsData = await positionsRes.json();
+
+        // 2. مقارنة الرصيد
+        const realEquity = parseFloat(accountData.totalWalletBalance);
+        const dbState = this.db.getState<{equity: number, timestamp: number}>('last_balance');
+        
+        if (dbState && Math.abs(realEquity - dbState.equity) > 1) {
+            console.warn(`⚠️ Balance mismatch! Real: ${realEquity}, DB: ${dbState.equity}. Updating DB.`);
+            this.db.saveState('last_balance', { equity: realEquity, timestamp: Date.now() });
+        }
+
+        // 3. مقارنة الصفقات المفتوحة
+        const realOpenPositions = positionsData.filter((p: any) => parseFloat(p.positionAmt) !== 0);
+        const dbOpenTrades = this.db.getOpenTrades();
+
+        if (realOpenPositions.length !== dbOpenTrades.length) {
+            console.error(` CRITICAL: Position mismatch! Real: ${realOpenPositions.length}, DB: ${dbOpenTrades.length}`);
+            // هنا يمكنك إرسال تنبيه Telegram حرج وإيقاف البوت تلقائياً
+            await this.telegramService.sendMessage(`🚨 <b>Reconciliation Failed</b>\nPositions mismatch detected. Bot halted.`);
+            this.killSwitch.trigger('HARD_HALT', 'State mismatch');
+            return;
+        }
+
+        console.log('✅ State Reconciliation successful. Bot is in sync with Exchange.');
+    } catch (error) {
+        console.error('❌ Reconciliation failed:', error);
+    }
+  }
+
+  public getLastHealth() {
+    return this.healthMonitor.getHealth();
+  }
+
+  public getDatabase(): DatabaseService {
+    return this.db;
+  }
+
+  public getCorrelationReport(): string {
+    return this.correlationRiskManager.getCorrelationReport(this.config.activeSymbols);
   }
 
   public stop() {

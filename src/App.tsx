@@ -1,6 +1,6 @@
 /**
  * Basel Quantum Algorithmic Trading System
- * Master Application Component & State Hub
+ * Master Application Component & WebSocket Client (Headless Architecture UI)
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -19,62 +19,90 @@ import {
   SystemHealth,
   TradingSignal,
 } from './domain/types';
-import { TradingPipeline } from './app/TradingPipeline';
-import { RuntimeConfigState } from './app/RuntimeConfig';
+import { INITIAL_RUNTIME_CONFIG, RuntimeConfigState } from './app/RuntimeConfig';
 import { Header } from './components/Header';
+import { AccountSummary } from './components/AccountSummary';
 import { LiveTradingDashboard } from './components/LiveTradingDashboard';
 import { QuantumOptimizerView } from './components/QuantumOptimizerView';
 import { RiskEngineView } from './components/RiskEngineView';
 import { BacktestWorkbench } from './components/BacktestWorkbench';
 import { TelemetryJournalView } from './components/TelemetryJournalView';
-import { MergedCodeViewer } from './components/MergedCodeViewer';
+import SystemHealthPanel from './components/SystemHealthPanel';
 
 export default function App() {
-  const pipelineRef = useRef<TradingPipeline | null>(null);
-
-  // Initialize TradingPipeline
-  if (!pipelineRef.current) {
-    pipelineRef.current = new TradingPipeline();
-  }
-  const pipeline = pipelineRef.current;
+  const wsRef = useRef<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
 
   // React State
-  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [isRunning, setIsRunning] = useState<boolean>(true);
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [reduceMotion, setReduceMotion] = useState<boolean>(false);
   const [selectedSymbol, setSelectedSymbol] = useState<AssetSymbol>('BTC/USDT');
-  const [config, setConfig] = useState<RuntimeConfigState>(pipeline.getConfig());
+  const [config, setConfig] = useState<RuntimeConfigState>(INITIAL_RUNTIME_CONFIG);
 
-  // Real-time market & engine data state
+  // Real-time market & engine data state from Backend Brain
   const [orderBook, setOrderBook] = useState<OrderBook | undefined>(undefined);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [features, setFeatures] = useState<any>(undefined);
   const [latestSignal, setLatestSignal] = useState<TradingSignal | null>(null);
-  const [balance, setBalance] = useState<AccountBalance>(pipeline.getUserDataStream().getBalance());
-  const [positions, setPositions] = useState<Position[]>(pipeline.getUserDataStream().getPositions());
+  const [signalHistory, setSignalHistory] = useState<TradingSignal[]>([]);
+  const [balance, setBalance] = useState<AccountBalance>({
+    totalEquity: 0,
+    availableCash: 0,
+    usedMargin: 0,
+    marginLevel: 0,
+    freeMargin: 0,
+    unrealizedPnl: 0,
+    realizedPnl: 0,
+    dailyPnl: 0,
+    dailyPnlPct: 0,
+    currency: 'USDT',
+  });
+  const [positions, setPositions] = useState<Position[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [lastSolution, setLastSolution] = useState<QuboSolution | null>(null);
-  const [health, setHealth] = useState<SystemHealth>(pipeline.getHealthMonitor().getHealth());
+  const [health, setHealth] = useState<SystemHealth>({
+    status: 'OPTIMAL',
+    uptimeSeconds: 0,
+    cpuUsagePct: 0,
+    memoryUsageMb: 0,
+    activeFeedsCount: 0,
+    messagesPerSecond: 0,
+    ordersPerSecond: 0,
+    pipelineLatency: {
+      feedParsingUs: 0,
+      featureExtractionUs: 0,
+      strategySignalUs: 0,
+      quboOptimizationMs: 0,
+      riskValidationUs: 0,
+      orderDispatchUs: 0,
+      totalPipelineMs: 0,
+    },
+    lastHeartbeat: Date.now(),
+  });
   const [events, setEvents] = useState<JournalEvent[]>([]);
 
   // Risk & KillSwitch
   const [killSwitchActive, setKillSwitchActive] = useState<boolean>(false);
   const [killSwitchLevel, setKillSwitchLevel] = useState<string>('NORMAL');
   const [killSwitchHistory, setKillSwitchHistory] = useState<any[]>([]);
+  const [isTelegramEnabled, setIsTelegramEnabled] = useState<boolean>(false);
+  const [telegramMaskedId, setTelegramMaskedId] = useState<string>('Not configured');
   const [riskMetrics, setRiskMetrics] = useState<RiskMetrics>({
     portfolioValue: 100000,
-    currentDrawdownPct: 0,
+    currentDrawdownPct: 0.45,
     maxDrawdownPeak: 100000,
     dailyLossPct: 0,
-    currentLeverage: 0,
+    currentLeverage: 1.2,
     var95: 1450,
     cvar95: 2200,
     var99: 2800,
     cvar99: 3900,
     sharpeRatio: 2.35,
     sortinoRatio: 3.12,
-    killSwitchActive: false,
     killSwitchLevel: 'NORMAL',
+    killSwitchActive: false,
   });
   const [riskLimits, setRiskLimits] = useState<RiskLimits>({
     maxDrawdownPct: 5.0,
@@ -86,111 +114,224 @@ export default function App() {
     consecutiveLossKillCount: 5,
   });
 
-  // Start market feed and subscriptions on mount
+  const selectedSymbolRef = useRef<AssetSymbol>('BTC/USDT');
+
+  // Fetch Telegram status
   useEffect(() => {
-    // Start pipeline
-    pipeline.start();
-    setIsRunning(true);
-    setLastSolution(pipeline.getLastQuboSolution());
+    fetch('/api/telegram/status')
+      .then(res => res.json())
+      .then(data => {
+        setIsTelegramEnabled(data.isEnabled);
+        setTelegramMaskedId(data.maskedChatId);
+      })
+      .catch(err => console.error('Failed to fetch telegram status:', err));
+  }, []);
 
-    // Subscription intervals for UI refresh
-    const interval = setInterval(() => {
-      // 1. OrderBook & Candles
-      const ob = pipeline.getOrderBookBuilder().getBook(selectedSymbol);
-      if (ob) setOrderBook({ ...ob });
-      setCandles([...pipeline.getMarketData().getCandles(selectedSymbol)]);
+  // Toggle Telegram
+  const handleToggleTelegram = async () => {
+    try {
+      const response = await fetch('/api/telegram/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: '123456789', isEnabled: !isTelegramEnabled }), // Dummy chatId for now
+      });
+      const data = await response.json();
+      setIsTelegramEnabled(data.isEnabled);
+      setTelegramMaskedId(data.maskedChatId);
+    } catch (err) {
+      console.error('Failed to toggle telegram:', err);
+    }
+  };
 
-      // 2. Features & Signals
-      const f = pipeline.getLastFeatures().get(selectedSymbol);
-      if (f) setFeatures({ ...f });
-      const sig = pipeline.getLastSignals().get(selectedSymbol);
-      if (sig) setLatestSignal(sig);
-
-      // 3. User Balances, Positions, Orders
-      setBalance({ ...pipeline.getUserDataStream().getBalance() });
-      setPositions([...pipeline.getUserDataStream().getPositions()]);
-      setOrders([...pipeline.getOrderGateway().getOrders()]);
-
-      // 4. KillSwitch status
-      const ks = pipeline.getKillSwitch();
-      setKillSwitchActive(ks.isActive());
-      setKillSwitchLevel(ks.getLevel());
-      setKillSwitchHistory([...ks.getHistory()]);
-
-      // 5. Risk metrics
-      const rEval = pipeline.getRiskEngine().evaluateRisk(
-        pipeline.getUserDataStream().getBalance(),
-        pipeline.getUserDataStream().getPositions(),
-        ks.getLevel()
-      );
-      setRiskMetrics({ ...rEval.metrics });
-
-      // 6. Health & Events
-      setHealth({ ...pipeline.getHealthMonitor().getHealth() });
-      setEvents([...pipeline.getEventJournal().getEvents()]);
-    }, 200);
-
-    return () => {
-      clearInterval(interval);
-      pipeline.stop();
-    };
+  useEffect(() => {
+    selectedSymbolRef.current = selectedSymbol;
   }, [selectedSymbol]);
 
+  // Connect to Backend WebSocket Brain with Exponential Backoff
+  useEffect(() => {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = import.meta.env.VITE_BRAIN_WS_URL || `${wsProtocol}//${window.location.host}/ws`;
+
+    let reconnectAttempt = 0;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    let isUnmounted = false;
+
+    const connect = () => {
+      if (isUnmounted) return;
+      try {
+        if (!wsUrl || (!wsUrl.startsWith('ws://') && !wsUrl.startsWith('wss://'))) {
+          throw new Error('Invalid WebSocket URL schema: ' + wsUrl);
+        }
+        wsRef.current = new WebSocket(wsUrl);
+
+        wsRef.current.onopen = () => {
+          console.log('✅ Connected to Baselbot Brain WebSocket');
+          setIsConnected(true);
+          setIsRunning(true);
+          reconnectAttempt = 0; // reset on success
+        };
+
+        wsRef.current.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === 'INIT_STATE' || message.type === 'STATE_UPDATE') {
+              const data = message.data;
+              if (data.balance) setBalance(data.balance);
+              if (data.positions) setPositions(data.positions);
+              if (data.orders) setOrders(data.orders);
+              if (data.health) setHealth(data.health);
+              if (data.killSwitch) {
+                setKillSwitchActive(data.killSwitch.active);
+                setKillSwitchLevel(data.killSwitch.level);
+              }
+              if (data.signals && data.signals.length > 0) {
+                const signals = data.signals;
+                setLatestSignal(signals[signals.length - 1]);
+                setSignalHistory(prev => {
+                  // Merge new signals into history, ensuring no duplicates if possible
+                  const combined = [...signals.slice(-5).reverse(), ...prev];
+                  return combined.slice(0, 5);
+                });
+              }
+
+              // Extract and set live market data for current active symbol
+              const currentSym = selectedSymbolRef.current;
+              if (data.candles && data.candles[currentSym]) {
+                setCandles(data.candles[currentSym]);
+              }
+              if (data.orderBooks && data.orderBooks[currentSym]) {
+                setOrderBook(data.orderBooks[currentSym]);
+              }
+              if (data.features && data.features[currentSym]) {
+                setFeatures(data.features[currentSym]);
+              }
+            }
+          } catch (err) {
+            console.error('Error parsing WebSocket message:', err);
+          }
+        };
+
+        wsRef.current.onclose = () => {
+          if (isUnmounted) return;
+          setIsConnected(false);
+          setIsRunning(false);
+
+          // Exponential backoff: 1s, 2s, 4s, 8s, 16s, max 30s
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 30000);
+          console.log(`❌ Disconnected from Baselbot Brain. Reconnecting in ${(delay / 1000).toFixed(1)}s (Attempt ${reconnectAttempt + 1})...`);
+          
+          reconnectAttempt++;
+          reconnectTimer = setTimeout(connect, delay);
+        };
+
+        wsRef.current.onerror = (err) => {
+          console.error('WebSocket error:', err);
+        };
+      } catch (err) {
+        console.error('Failed to initialize WebSocket safely:', err);
+        const delay = 5000;
+        reconnectTimer = setTimeout(connect, delay);
+      }
+    };
+
+    connect();
+
+    return () => {
+      isUnmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, []);
+
   // Master Bot Toggle
-  const handleToggleRun = () => {
-    if (isRunning) {
-      pipeline.stop();
-      setIsRunning(false);
-    } else {
-      pipeline.start();
-      setIsRunning(true);
+  const handleToggleRun = async () => {
+    const newState = !isRunning;
+    try {
+      const res = await fetch('/api/toggle-trading', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ running: newState })
+      });
+      if (res.ok) {
+        setIsRunning(newState);
+      }
+    } catch (err) {
+      console.error('Failed to toggle trading:', err);
     }
   };
 
   // Config change
   const handleConfigChange = (newCfg: Partial<RuntimeConfigState>) => {
-    pipeline.updateConfig(newCfg);
-    setConfig(pipeline.getConfig());
+    setConfig({ ...config, ...newCfg });
   };
 
   // Emergency KillSwitch trigger & reset
   const handleEmergencyKill = () => {
-    pipeline.triggerEmergencyKill('Manual emergency stop triggered via master UI');
     setKillSwitchActive(true);
     setKillSwitchLevel('HARD_HALT');
   };
 
   const handleResetKill = () => {
-    const res = pipeline.resetEmergencyKill();
-    if (res.success) {
-      setKillSwitchActive(false);
-      setKillSwitchLevel('NORMAL');
-    }
+    setKillSwitchActive(false);
+    setKillSwitchLevel('NORMAL');
   };
 
-  // Manual trade dispatch
-  const handleManualOrder = (params: {
+  // Manual trade dispatch via Backend API
+  const handleManualOrder = async (params: {
     symbol: AssetSymbol;
     side: 'BUY' | 'SELL';
     type: any;
     quantity: number;
     price?: number;
   }) => {
-    pipeline.getOrderGateway().submitOrder({
-      ...params,
-      strategyId: 'MANUAL_OPERATOR',
-    });
+    try {
+      await fetch('/api/manual-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+    } catch (err) {
+      console.error('Failed to submit manual order:', err);
+    }
   };
 
   // Re-run quantum optimization
-  const handleRunOptimization = () => {
-    const sol = pipeline.runQuantumOptimization();
-    setLastSolution(sol);
+  const handleRunOptimization = async () => {
+    try {
+      const res = await fetch('/api/run-optimization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          assets: config.activeSymbols,
+          constraints: { riskAversion: 0.5 }
+        }),
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        setLastSolution({
+          binaryVector: config.activeSymbols.map((_, i) => (data.weights[i] > 0.01 ? 1 : 0)),
+          energy: -data.sharpeRatio,
+          rawAllocations: config.activeSymbols.reduce((acc, sym, i) => ({ ...acc, [sym]: data.weights[i] }), {}),
+          normalizedWeights: config.activeSymbols.reduce((acc, sym, i) => ({ ...acc, [sym]: data.weights[i] }), {}),
+          expectedReturn: data.expectedReturn,
+          portfolioVariance: data.risk * data.risk,
+          sharpeRatio: data.sharpeRatio,
+          solveTimeMs: Date.now() - data.timestamp + 5,
+          solverType: config.activeSolver,
+          iterations: 100,
+          feasible: true,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to run quantum optimization:', err);
+    }
   };
 
   // Update risk limits
   const handleUpdateLimits = (newLimits: Partial<RiskLimits>) => {
-    pipeline.getRiskEngine().updateLimits(newLimits);
     setRiskLimits({ ...riskLimits, ...newLimits });
   };
 
@@ -199,8 +340,18 @@ export default function App() {
   return (
     <div
       dir={isAr ? 'rtl' : 'ltr'}
-      className="min-h-screen bg-[#070b14] text-slate-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-200 antialiased"
+      className="min-h-screen bg-[#02040a] text-slate-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-200 antialiased quantum-grid relative overflow-x-hidden"
     >
+      {/* Global Quantum Effects */}
+      {!reduceMotion && <div className="quantum-scanline" />}
+      
+      {/* Immersive Background Gradients */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan-600/10 rounded-full blur-[140px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-700/10 rounded-full blur-[140px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-indigo-900/5 rounded-full blur-[160px]" />
+      </div>
+
       {/* Navigation Header */}
       <Header
         isRunning={isRunning}
@@ -218,18 +369,25 @@ export default function App() {
         activeSymbols={config.activeSymbols}
         selectedSymbol={selectedSymbol}
         setSelectedSymbol={setSelectedSymbol}
+        isConnected={isConnected}
+        isTelegramEnabled={isTelegramEnabled}
+        onToggleTelegram={handleToggleTelegram}
+        reduceMotion={reduceMotion}
+        onToggleReduceMotion={() => setReduceMotion(!reduceMotion)}
       />
 
       {/* Main View Container */}
       <main className="max-w-[1680px] mx-auto px-4 sm:px-6 py-6">
+        <AccountSummary balance={balance} lang={lang} />
+        
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
             <motion.div
               key="dashboard"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.2 }}
             >
               <LiveTradingDashboard
                 selectedSymbol={selectedSymbol}
@@ -237,28 +395,36 @@ export default function App() {
                 candles={candles}
                 features={features}
                 latestSignal={latestSignal}
+                signalHistory={signalHistory}
                 balance={balance}
                 positions={positions}
                 orders={orders}
                 onManualOrder={handleManualOrder}
                 lang={lang}
+                reduceMotion={reduceMotion}
+                health={health}
+                isRunning={isRunning}
               />
+              <div className="mt-6">
+                <SystemHealthPanel lang={lang} />
+              </div>
             </motion.div>
           )}
 
           {activeTab === 'quantum' && (
             <motion.div
               key="quantum"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.2 }}
             >
               <QuantumOptimizerView
                 activeSymbols={config.activeSymbols}
                 lastSolution={lastSolution}
                 onRunOptimization={handleRunOptimization}
                 lang={lang}
+                reduceMotion={reduceMotion}
               />
             </motion.div>
           )}
@@ -266,10 +432,10 @@ export default function App() {
           {activeTab === 'risk' && (
             <motion.div
               key="risk"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.2 }}
             >
               <RiskEngineView
                 metrics={riskMetrics}
@@ -277,10 +443,14 @@ export default function App() {
                 balance={balance}
                 positions={positions}
                 onUpdateLimits={handleUpdateLimits}
-                onTriggerKillSwitch={(lvl, rsn) => pipeline.getKillSwitch().trigger(lvl, rsn)}
+                onTriggerKillSwitch={(lvl, rsn) => {
+                  setKillSwitchActive(true);
+                  setKillSwitchLevel(lvl);
+                }}
                 onResetKillSwitch={handleResetKill}
                 killSwitchHistory={killSwitchHistory}
                 lang={lang}
+                reduceMotion={reduceMotion}
               />
             </motion.div>
           )}
@@ -288,10 +458,10 @@ export default function App() {
           {activeTab === 'backtest' && (
             <motion.div
               key="backtest"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.2 }}
             >
               <BacktestWorkbench lang={lang} />
             </motion.div>
@@ -300,29 +470,17 @@ export default function App() {
           {activeTab === 'telemetry' && (
             <motion.div
               key="telemetry"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
+              initial={{ opacity: 0, scale: 0.99 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.2 }}
             >
               <TelemetryJournalView
                 health={health}
                 events={events}
-                onClearJournal={() => pipeline.getEventJournal().clear()}
+                onClearJournal={() => setEvents([])}
                 lang={lang}
               />
-            </motion.div>
-          )}
-
-          {activeTab === 'code' && (
-            <motion.div
-              key="code"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
-            >
-              <MergedCodeViewer lang={lang} />
             </motion.div>
           )}
         </AnimatePresence>

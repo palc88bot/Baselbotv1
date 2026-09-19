@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+@layer base {
+  body {
+    background-color: #05080f;
+    color: #f8fafc;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  .quantum-grid {
+    background-image: 
+      linear-gradient(to right, rgba(6, 182, 212, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
+    background-size: 30px 30px;
+  }
+  
+  .glow-cyan {
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+  }
+}

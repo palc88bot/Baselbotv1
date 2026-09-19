@@ -7,12 +7,18 @@ import { AssetSymbol, Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForc
 import { OrderBookBuilder } from '../market-data/OrderBookBuilder';
 import { OrderStateMachine } from './OrderStateMachine';
 import { UserDataStream } from './UserDataStream';
+import { RateLimiter } from '../utils/RateLimiter';
+import crypto from 'crypto';
 
 export interface GatewayConfig {
   makerFeeBps: number;
   takerFeeBps: number;
   simulatedLatencyMs: number;
   commissionAsset: string;
+  apiKey?: string;
+  apiSecret?: string;
+  apiBaseUrl?: string;
+  executionMode?: 'LIVE' | 'PAPER';
 }
 
 export class OrderGateway {
@@ -23,6 +29,12 @@ export class OrderGateway {
   private config: GatewayConfig;
   private orderCounter: number = 0;
   private listeners: Set<(order: Order) => void> = new Set();
+  private rateLimiter: RateLimiter;
+
+  private apiKey: string = '';
+  private apiSecret: string = '';
+  private apiBaseUrl: string = 'https://fapi.binance.com';
+  private executionMode: 'LIVE' | 'PAPER' = 'PAPER';
 
   constructor(
     userDataStream: UserDataStream,
@@ -32,6 +44,7 @@ export class OrderGateway {
     this.userDataStream = userDataStream;
     this.orderBookBuilder = orderBookBuilder;
     this.fsm = new OrderStateMachine();
+    this.rateLimiter = new RateLimiter();
     this.config = {
       makerFeeBps: 1.0,
       takerFeeBps: 3.5,
@@ -39,6 +52,47 @@ export class OrderGateway {
       commissionAsset: 'USDT',
       ...config,
     };
+    this.apiKey = this.config.apiKey || '';
+    this.apiSecret = this.config.apiSecret || '';
+    this.apiBaseUrl = this.config.apiBaseUrl || 'https://fapi.binance.com';
+    this.executionMode = this.config.executionMode || 'PAPER';
+  }
+
+  public getRateLimiter(): RateLimiter {
+    return this.rateLimiter;
+  }
+
+  public getApiKey(): string { return this.apiKey; }
+  public getApiBaseUrl(): string { return this.apiBaseUrl; }
+
+  /**
+   * إرسال أوامر الحماية (Stop Loss & Take Profit) فور تنفيذ صفقة
+   */
+  public async sendProtectiveOrders(symbol: string, side: 'BUY' | 'SELL', quantity: number, entryPrice: number, slPrice: number, tpPrice: number) {
+    if (this.executionMode === 'PAPER') return;
+
+    const cleanSymbol = symbol.replace('/', '');
+    const endpoint = '/fapi/v1/order';
+    const timestamp = Date.now();
+
+    // 1. Stop Loss Order
+    const slSide = side === 'BUY' ? 'SELL' : 'BUY';
+    const slParams = `symbol=${cleanSymbol}&side=${slSide}&type=STOP_MARKET&stopPrice=${slPrice}&quantity=${quantity}&reduceOnly=true&closePosition=true&timestamp=${timestamp}`;
+    const slSig = crypto.createHmac('sha256', this.apiSecret).update(slParams).digest('hex');
+    
+    // 2. Take Profit Order
+    const tpParams = `symbol=${cleanSymbol}&side=${slSide}&type=TAKE_PROFIT_MARKET&stopPrice=${tpPrice}&quantity=${quantity}&reduceOnly=true&closePosition=true&timestamp=${timestamp + 1}`;
+    const tpSig = crypto.createHmac('sha256', this.apiSecret).update(tpParams).digest('hex');
+
+    // إرسال الأوامر بالتوازي
+    const headers = { 'X-MBX-APIKEY': this.apiKey, 'Content-Type': 'application/json' };
+    
+    await Promise.all([
+        fetch(`${this.apiBaseUrl}${endpoint}?${slParams}&signature=${slSig}`, { method: 'POST', headers }),
+        fetch(`${this.apiBaseUrl}${endpoint}?${tpParams}&signature=${tpSig}`, { method: 'POST', headers })
+    ]);
+
+    console.log(`🛡️ Protective Orders (SL: ${slPrice}, TP: ${tpPrice}) set for ${cleanSymbol}`);
   }
 
   public getOrders(): Order[] {
@@ -64,6 +118,9 @@ export class OrderGateway {
     strategyId?: string;
     executionTag?: string;
   }): Order {
+    // Check and record rate limit usage asynchronously to prevent blocking execution
+    this.rateLimiter.checkRateLimit('/fapi/v1/order').catch(err => console.error("RateLimiter error:", err));
+
     this.orderCounter += 1;
     const orderId = `ORD-${Date.now().toString(36)}-${this.orderCounter}`;
     const clientOrderId = `C_${orderId}`;

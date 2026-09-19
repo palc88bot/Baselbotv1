@@ -5,6 +5,7 @@
 
 import { IntegrationBootstrap } from './IntegrationBootstrap';
 import { TradingPipeline } from './TradingPipeline';
+import { TelegramService } from '../services/TelegramService';
 
 export async function runHeadlessDemo() {
   console.log('====================================================');
@@ -18,7 +19,8 @@ export async function runHeadlessDemo() {
   });
 
   console.log('\n[2] Initializing Trading Pipeline...');
-  const pipeline = new TradingPipeline();
+  const telegramService = new TelegramService();
+  const pipeline = new TradingPipeline(telegramService);
   pipeline.start();
 
   console.log('\n[3] Solving Initial QUBO Allocation (Quantum Annealing)...');

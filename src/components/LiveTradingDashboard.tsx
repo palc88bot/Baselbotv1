@@ -1,25 +1,21 @@
 /**
- * Basel Quantum Algorithmic Trading System
+ * Basel AlgoCore Trading System
  * Live Trading Dashboard, L2 OrderBook Ladder, OU Mean-Reversion Chart & Execution FSM
  */
 
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import {
   Area,
   AreaChart,
   CartesianGrid,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import {
-  Activity,
-  ArrowDownRight,
-  ArrowUpRight,
-  CheckCircle,
   Clock,
   DollarSign,
   Layers,
@@ -27,7 +23,6 @@ import {
   RefreshCw,
   Send,
   Shield,
-  TrendingDown,
   TrendingUp,
   Zap,
 } from 'lucide-react';
@@ -47,510 +42,290 @@ interface DashboardProps {
   candles: Candle[];
   features?: any;
   latestSignal?: TradingSignal | null;
+  signalHistory?: TradingSignal[];
   balance: AccountBalance;
   positions: Position[];
   orders: Order[];
   onManualOrder: (params: { symbol: AssetSymbol; side: 'BUY' | 'SELL'; type: any; quantity: number; price?: number }) => void;
   lang: 'ar' | 'en';
+  reduceMotion: boolean;
+  health: SystemHealth;
+  isRunning: boolean;
 }
 
-export const LiveTradingDashboard: React.FC<DashboardProps> = ({
+export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
   selectedSymbol,
   orderBook,
   candles,
   features,
   latestSignal,
+  signalHistory = [],
   balance,
   positions,
   orders,
   onManualOrder,
   lang,
+  reduceMotion,
+  health,
+  isRunning,
 }) => {
   const isAr = lang === 'ar';
   const [orderSide, setOrderSide] = useState<'BUY' | 'SELL'>('BUY');
-  const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT' | 'TWAP'>('MARKET');
   const [orderQty, setOrderQty] = useState<number>(0.1);
-  const [limitPrice, setLimitPrice] = useState<number>(orderBook?.midPrice || 100);
 
-  const currentPrice = orderBook?.midPrice || 100;
-  const spread = orderBook?.spread || 0.5;
-  const spreadBps = currentPrice > 0 ? (spread / currentPrice) * 10000 : 0;
-  const obi = orderBook?.orderBookImbalance || 0;
-  const zScore = features?.zScore || 0;
-  const halfLife = features?.halfLifePeriods || 0;
+  const currentPrice = orderBook?.midPrice || 0;
+  const spread = orderBook?.spread || 0;
+  
+  // Real-time metrics from health object
+  const latency = health.pipelineLatency.totalPipelineMs || 0;
+  const throughput = health.messagesPerSecond || 0;
+
   const ouMu = features?.ouMu || currentPrice;
   const ouSigma = features?.ouSigma || currentPrice * 0.01;
 
   // Chart data formatting
-  const chartData = candles.slice(-40).map((c, i) => ({
+  const chartData = (candles || []).slice(-50).map((c) => ({
     time: new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    price: c.close,
-    vwap: c.vwap,
-    mu: ouMu,
-    upperCorridor: Number((ouMu + 2 * ouSigma).toFixed(2)),
-    lowerCorridor: Number((ouMu - 2 * ouSigma).toFixed(2)),
+    price: c?.close || 0,
+    vwap: c?.vwap || 0,
+    upper: Number((ouMu + 2 * ouSigma).toFixed(2)),
+    lower: Number((ouMu - 2 * ouSigma).toFixed(2)),
   }));
 
-  const activePos = positions.find((p) => p.symbol === selectedSymbol);
-
-  const handleSubmitOrder = (e: React.FormEvent) => {
-    e.preventDefault();
-    onManualOrder({
-      symbol: selectedSymbol,
-      side: orderSide,
-      type: orderType,
-      quantity: Number(orderQty),
-      price: orderType === 'LIMIT' ? Number(limitPrice) : undefined,
-    });
-  };
+  // Real Decisions from signalHistory
+  const aiDecisions = signalHistory.map(sig => ({
+    time: new Date(sig.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    msg: isAr ? sig.reason : sig.reason,
+    type: sig.type
+  }));
 
   return (
-    <div className="space-y-6">
-      {/* Top Metrics Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        {/* Metric 1: Mid Price & Microprice */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span>{isAr ? 'السعر اللحظي / المجهري' : 'Mid / MicroPrice'}</span>
-            <Activity className="w-3.5 h-3.5 text-cyan-400" />
-          </div>
-          <div className="text-xl font-bold font-mono text-slate-100">${currentPrice.toLocaleString()}</div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
-            <span>{isAr ? 'المجهري:' : 'Micro:'}</span>
-            <span className="text-cyan-400 font-mono font-medium">${orderBook?.microPrice.toLocaleString() || currentPrice}</span>
-          </div>
-        </div>
-
-        {/* Metric 2: Spread & OBI */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span>{isAr ? 'فرق السعر (Spread)' : 'Spread & OBI'}</span>
-            <Layers className="w-3.5 h-3.5 text-blue-400" />
-          </div>
-          <div className="text-xl font-bold font-mono text-slate-100">
-            ${spread.toFixed(2)}{' '}
-            <span className="text-xs font-normal text-slate-400">({spreadBps.toFixed(1)} bps)</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs mt-1">
-            <span className="text-slate-400">{isAr ? 'اختلال السيولة:' : 'OBI:'}</span>
-            <span
-              className={`font-mono font-bold ${
-                obi > 0.2 ? 'text-emerald-400' : obi < -0.2 ? 'text-rose-400' : 'text-slate-300'
-              }`}
-            >
-              {(obi * 100).toFixed(1)}%
-            </span>
+    <div className={`relative w-full space-y-6 ${reduceMotion ? '' : 'animate-in fade-in slide-in-from-bottom-2 duration-500'}`} dir={isAr ? 'rtl' : 'ltr'}>
+      
+      {/* 1. AlgoCore Top Hero Section (PnL & Algorithm Status) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Total Profits Card */}
+        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-cyan-500/20 rounded-[2rem] p-6 md:p-8 shadow-[0_0_40px_rgba(6,182,212,0.1)] relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-cyan-500/10 transition-all" />
+          <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
+            <h4 className="text-[clamp(8px,2vw,10px)] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'إجمالي الأرباح' : 'TOTAL_PROFITS'}</h4>
+            <div className={`text-[clamp(24px,5vw,36px)] font-black font-mono tracking-tighter ${balance?.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'} truncate w-full`}>
+              {balance?.unrealizedPnl >= 0 ? '+' : ''}${Math.abs(balance?.unrealizedPnl || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </div>
+            <div className="w-full bg-slate-900/50 h-1.5 rounded-full mt-4 overflow-hidden border border-white/5">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: '75%' }}
+                className="h-full bg-gradient-to-r from-cyan-600 to-emerald-500 shadow-[0_0_15px_rgba(6,182,212,0.5)]" 
+              />
+            </div>
           </div>
         </div>
 
-        {/* Metric 3: OU Z-Score */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span>{isAr ? 'انحراف Z-Score (أورنشتاين)' : 'OU Z-Score'}</span>
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-          </div>
-          <div
-            className={`text-xl font-bold font-mono ${
-              zScore <= -1.5 ? 'text-emerald-400' : zScore >= 1.5 ? 'text-rose-400' : 'text-slate-100'
-            }`}
-          >
-            {zScore > 0 ? `+${zScore.toFixed(2)}` : zScore.toFixed(2)}σ
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            <span>{isAr ? 'الهدف التوازني:' : 'Equil μ:'}</span>{' '}
-            <span className="text-amber-300 font-mono">${ouMu.toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* Metric 4: Mean-Reversion Half Life */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span>{isAr ? 'عمر النصف للارتداد (τ)' : 'Half-Life (τ)'}</span>
-            <Clock className="w-3.5 h-3.5 text-indigo-400" />
-          </div>
-          <div className="text-xl font-bold font-mono text-slate-100">
-            {halfLife > 0 ? `${halfLife.toFixed(1)} p` : 'N/A'}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            <span>{isAr ? 'أس هيرست:' : 'Hurst H:'}</span>{' '}
-            <span className="text-indigo-300 font-mono">{features?.hurstExponent || 0.45}</span>
-          </div>
-        </div>
-
-        {/* Metric 5: Total Equity & Margin */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span>{isAr ? 'إجمالي المحفظة' : 'Portfolio Equity'}</span>
-            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-          </div>
-          <div className="text-xl font-bold font-mono text-slate-100">
-            ${balance.totalEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-1">
-            <span>{isAr ? 'الهامش المتاح:' : 'Free Margin:'}</span>
-            <span className="text-slate-200 font-mono">${balance.freeMargin.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-          </div>
-        </div>
-
-        {/* Metric 6: Daily PnL */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span>{isAr ? 'الربح/الخسارة اليومية' : 'Daily PnL'}</span>
-            {balance.dailyPnl >= 0 ? (
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-            ) : (
-              <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
-            )}
-          </div>
-          <div
-            className={`text-xl font-bold font-mono ${
-              balance.dailyPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
-            }`}
-          >
-            {balance.dailyPnl >= 0 ? `+$${balance.dailyPnl.toFixed(2)}` : `-$${Math.abs(balance.dailyPnl).toFixed(2)}`}
-          </div>
-          <div
-            className={`text-xs font-mono font-semibold mt-1 ${
-              balance.dailyPnlPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
-            }`}
-          >
-            {balance.dailyPnlPct >= 0 ? `+${balance.dailyPnlPct.toFixed(2)}%` : `${balance.dailyPnlPct.toFixed(2)}%`}
+        {/* Algorithm Status Card */}
+        <div className="bg-[#0a0f1d]/60 backdrop-blur-xl border border-white/5 rounded-[2rem] p-6 md:p-8 shadow-xl relative overflow-hidden group">
+          <div className={`flex flex-col gap-1 ${isAr ? 'items-start text-right' : 'items-start text-left'}`}>
+            <h4 className="text-[clamp(8px,2vw,10px)] font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'حالة الخوارزمية' : 'ALGO_STATE'}</h4>
+            <div className="flex items-center gap-3 md:gap-4 w-full">
+              <div className={`text-[clamp(24px,5vw,36px)] font-black tracking-tight shrink-0 ${isRunning ? 'text-cyan-400' : 'text-rose-500'}`}>
+                {isRunning ? (isAr ? 'نشط' : 'ACTIVE') : (isAr ? 'متوقف' : 'STOPPED')}
+              </div>
+              <div className={`flex flex-col justify-center min-w-0 ${isAr ? 'items-end' : 'items-start'}`}>
+                <span className="text-[clamp(7px,1.5vw,9px)] font-black text-emerald-400 uppercase tracking-widest truncate">{isAr ? 'سرعة المعالجة' : 'PROCESSING_LOAD'}</span>
+                <span className="text-[clamp(9px,2vw,11px)] font-mono text-slate-500 truncate">{latency.toFixed(2)}ms | {throughput} msg/s</span>
+              </div>
+            </div>
+            <div className="w-full bg-slate-900/50 h-1.5 rounded-full mt-4 overflow-hidden border border-white/5">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: isRunning ? '92%' : '0%' }}
+                className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Main Grid: Chart & OrderBook */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Price Chart & Ornstein-Uhlenbeck Reversion Corridor (8 cols) */}
-        <div className="lg:col-span-8 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                <span>{selectedSymbol}</span>
-                <span className="text-xs text-cyan-400 font-normal">
-                  {isAr ? 'ممر ارتداد أورنشتاين-أولنبيك (OU Corridor)' : 'OU Mean-Reversion Price Corridor'}
-                </span>
+      {/* 2. Main Market Analysis & Execution Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* Market Visualizer (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="bg-[#0a0f1d]/80 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-sm font-black text-slate-100 tracking-[0.3em] uppercase flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_10px_rgba(6,182,212,1)]" />
+                {isAr ? 'تحليل السوق المباشر' : 'LIVE_MARKET_ANALYSIS'}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {isAr
-                  ? 'الممر الإحصائي μ ± 2σ مع إشارات التداول اللحظية'
-                  : 'Stochastic equilibrium envelope (μ ± 2σ) & real-time executions'}
-              </p>
-            </div>
-
-            {/* Signal Indicator Badge */}
-            {latestSignal && (
-              <div
-                className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-semibold ${
-                  latestSignal.type.includes('BUY')
-                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-600/50'
-                    : latestSignal.type.includes('SELL')
-                    ? 'bg-rose-950/80 text-rose-300 border border-rose-600/50'
-                    : 'bg-slate-800 text-slate-300'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>
-                  {latestSignal.type}: {latestSignal.reason}
-                </span>
+              <div className="flex gap-2">
+                <span className="px-3 py-1 rounded-full bg-slate-900 border border-white/5 text-[9px] font-black text-slate-400 uppercase">{selectedSymbol}</span>
+                <span className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[9px] font-black text-cyan-400 uppercase">1m</span>
               </div>
-            )}
+            </div>
+            
+            {/* Modernized Quantum Glow Area Chart */}
+            <div className="h-[280px] md:h-[400px] w-full relative">
+               <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -30, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="qPrice" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.25}/>
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="2 4" stroke="#ffffff" opacity={0.03} vertical={false} />
+                    <XAxis dataKey="time" hide />
+                    <YAxis domain={['auto', 'auto']} hide />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'rgba(2, 4, 10, 0.95)', border: '1px solid rgba(6,182,212,0.3)', borderRadius: '14px', fontSize: '10px', backdropFilter: 'blur(10px)' }}
+                      itemStyle={{ color: '#06b6d4', padding: '2px 0' }}
+                      cursor={{ stroke: '#06b6d4', strokeWidth: 1, strokeDasharray: '4 4' }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="price" 
+                      stroke="#06b6d4" 
+                      strokeWidth={2.5} 
+                      fill="url(#qPrice)" 
+                      isAnimationActive={!reduceMotion}
+                      animationDuration={800}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="upper" 
+                      stroke="#ef4444" 
+                      strokeWidth={1} 
+                      strokeDasharray="3 6" 
+                      dot={false} 
+                      opacity={0.15} 
+                      isAnimationActive={false}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="lower" 
+                      stroke="#10b981" 
+                      strokeWidth={1} 
+                      strokeDasharray="3 6" 
+                      dot={false} 
+                      opacity={0.15} 
+                      isAnimationActive={false}
+                    />
+                  </AreaChart>
+               </ResponsiveContainer>
+            </div>
           </div>
 
-          {/* Recharts Price Area Chart */}
-          <div className="h-[320px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="time" stroke="#64748b" tick={{ fontSize: 11 }} />
-                <YAxis
-                  stroke="#64748b"
-                  domain={['dataMin - 10', 'dataMax + 10']}
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(v) => `$${v}`}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
-                  itemStyle={{ color: '#f8fafc' }}
-                />
-                {/* Upper OU Bound */}
-                <Line type="monotone" dataKey="upperCorridor" stroke="#f43f5e" strokeDasharray="4 4" dot={false} strokeWidth={1.2} name="Upper +2σ" />
-                {/* Equilibrium Mean Mu */}
-                <Line type="monotone" dataKey="mu" stroke="#f59e0b" strokeDasharray="2 2" dot={false} strokeWidth={1.5} name="Equilibrium μ" />
-                {/* Lower OU Bound */}
-                <Line type="monotone" dataKey="lowerCorridor" stroke="#10b981" strokeDasharray="4 4" dot={false} strokeWidth={1.2} name="Lower -2σ" />
-                {/* Actual Price */}
-                <Line type="monotone" dataKey="price" stroke="#06b6d4" strokeWidth={2.5} dot={{ r: 2, fill: '#06b6d4' }} name="Price" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Quick Stats Footnote */}
-          <div className="grid grid-cols-4 gap-2 pt-3 mt-2 border-t border-slate-800/80 text-center text-xs">
-            <div>
-              <span className="text-slate-400 block">{isAr ? 'مؤشر القوة RSI (14)' : 'RSI (14)'}</span>
-              <span className="font-mono font-bold text-slate-200">{features?.rsi14 || 50}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block">{isAr ? 'التقلب المحقق السنوي' : 'Realized Vol'}</span>
-              <span className="font-mono font-bold text-slate-200">{((features?.realizedVolAnn || 0.4) * 100).toFixed(1)}%</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block">{isAr ? 'سرعة الارتداد (θ)' : 'Reversion θ'}</span>
-              <span className="font-mono font-bold text-slate-200">{features?.ouTheta || 0.18}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block">{isAr ? 'انحراف أورنشتاين (σ)' : 'Noise (σ)'}</span>
-              <span className="font-mono font-bold text-slate-200">${features?.ouSigma || 25}</span>
-            </div>
+          {/* AI Decision Stream Ribbon */}
+          <div className="bg-[#0a0f1d]/60 border border-white/5 rounded-[2rem] p-6 shadow-xl">
+             <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4 text-center">
+               {isAr ? 'شريط قرارات الذكاء الاصطناعي' : 'AI_DECISION_STREAM'}
+             </h4>
+             <div className="flex flex-col md:flex-row gap-3">
+                {aiDecisions.map((dec, i) => (
+                  <div key={i} className="flex-1 flex items-center justify-between p-4 bg-slate-900/40 border border-white/5 rounded-2xl group hover:border-cyan-500/30 transition-all">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-mono text-slate-600">[{dec.time}]</span>
+                      <span className="text-[11px] font-bold text-slate-300">{dec.msg}</span>
+                    </div>
+                    <div className={`w-1.5 h-1.5 rounded-full ${dec.type.includes('BUY') ? 'bg-emerald-500' : dec.type.includes('SELL') ? 'bg-rose-500' : 'bg-slate-600'}`} />
+                  </div>
+                ))}
+             </div>
           </div>
         </div>
 
-        {/* L2 OrderBook Ladder Visualizer (4 cols) */}
-        <div className="lg:col-span-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-cyan-400" />
-                <span>{isAr ? 'عمق دفتر الطلبات L2' : 'L2 Order Book Ladder'}</span>
-              </h3>
-              <span className="text-xs font-mono text-slate-400">Seq #{orderBook?.sequence || 1}</span>
-            </div>
-
-            {/* Order Book Table */}
-            <div className="space-y-1 text-xs font-mono">
-              {/* Asks (Red) - Top 5 reversed */}
-              <div className="space-y-0.5">
-                {(orderBook?.asks || []).slice(0, 5).reverse().map((ask, i) => (
-                  <div key={i} className="relative flex items-center justify-between px-2 py-1 rounded overflow-hidden">
-                    <div
-                      className="absolute inset-y-0 right-0 bg-rose-500/15"
-                      style={{ width: `${Math.min(100, (ask.size / 5) * 100)}%` }}
-                    />
-                    <span className="text-rose-400 font-semibold relative z-10">${ask.price.toLocaleString()}</span>
-                    <span className="text-slate-300 relative z-10">{ask.size.toFixed(3)}</span>
-                    <span className="text-slate-400 text-[10px] relative z-10">{ask.total?.toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Spread Divider */}
-              <div className="py-1.5 px-2 my-1 rounded bg-slate-800/80 border border-slate-700/50 flex items-center justify-between text-slate-300">
-                <span className="text-[11px] text-slate-400">{isAr ? 'الفرق السعري:' : 'Spread:'}</span>
-                <span className="font-bold text-cyan-300">${spread.toFixed(2)}</span>
-                <span className="text-[10px] text-slate-400">OBI: {(obi * 100).toFixed(0)}%</span>
-              </div>
-
-              {/* Bids (Green) - Top 5 */}
-              <div className="space-y-0.5">
-                {(orderBook?.bids || []).slice(0, 5).map((bid, i) => (
-                  <div key={i} className="relative flex items-center justify-between px-2 py-1 rounded overflow-hidden">
-                    <div
-                      className="absolute inset-y-0 left-0 bg-emerald-500/15"
-                      style={{ width: `${Math.min(100, (bid.size / 5) * 100)}%` }}
-                    />
-                    <span className="text-emerald-400 font-semibold relative z-10">${bid.price.toLocaleString()}</span>
-                    <span className="text-slate-300 relative z-10">{bid.size.toFixed(3)}</span>
-                    <span className="text-slate-400 text-[10px] relative z-10">{bid.total?.toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Execution & OrderBook Hub (4 cols) */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* L2 Liquidity Ladder */}
+          <div className="bg-[#0a0f1d]/80 border border-white/5 rounded-[2.5rem] p-8 shadow-xl h-[420px] flex flex-col">
+             <div className="flex items-center justify-between mb-6">
+                <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{isAr ? 'عمق السيولة' : 'LIQUIDITY_DEPTH'}</h4>
+                <div className="flex items-center gap-2">
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                   <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Live_Sync</span>
+                </div>
+             </div>
+             <div className="flex-1 overflow-hidden font-mono text-[10px]">
+                <div className="grid grid-cols-3 text-slate-600 font-black pb-3 border-b border-white/5 mb-3 px-2">
+                   <span>PRICE</span>
+                   <span className="text-center">SIZE</span>
+                   <span className="text-right">SUM</span>
+                </div>
+                <div className="space-y-1 overflow-y-auto h-full no-scrollbar pb-10">
+                   {orderBook?.asks.slice(0, 8).reverse().map((ask, i) => (
+                     <div key={i} className="grid grid-cols-3 px-2 py-1.5 relative group">
+                        <div className="absolute inset-y-0 right-0 bg-rose-500/5 transition-all" style={{ width: `${Math.min(100, (ask?.size || 0) * 5)}%` }} />
+                        <span className="text-rose-400 font-bold relative z-10">{(ask?.price || 0).toLocaleString()}</span>
+                        <span className="text-center text-slate-300 relative z-10">{(ask?.size || 0).toFixed(4)}</span>
+                        <span className="text-right text-slate-500 relative z-10">{( (ask?.price || 0) * (ask?.size || 0) ).toFixed(0)}</span>
+                     </div>
+                   ))}
+                   <div className="py-4 my-2 border-y border-white/5 text-center bg-cyan-500/5 font-black text-cyan-400 text-lg tracking-tighter">
+                      {currentPrice.toLocaleString()}
+                   </div>
+                   {orderBook?.bids.slice(0, 8).map((bid, i) => (
+                     <div key={i} className="grid grid-cols-3 px-2 py-1.5 relative group">
+                        <div className="absolute inset-y-0 left-0 bg-emerald-500/5 transition-all" style={{ width: `${Math.min(100, (bid?.size || 0) * 5)}%` }} />
+                        <span className="text-emerald-400 font-bold relative z-10">{(bid?.price || 0).toLocaleString()}</span>
+                        <span className="text-center text-slate-300 relative z-10">{(bid?.size || 0).toFixed(4)}</span>
+                        <span className="text-right text-slate-500 relative z-10">{( (bid?.price || 0) * (bid?.size || 0) ).toFixed(0)}</span>
+                     </div>
+                   ))}
+                </div>
+             </div>
           </div>
 
-          {/* Quick Manual Trade Dispatch Form */}
-          <form onSubmit={handleSubmitOrder} className="mt-4 pt-3 border-t border-slate-800 space-y-2.5">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>{isAr ? 'تنفيذ فوري سريع (SOR)' : 'Smart Order Dispatch'}</span>
-              <span className="font-mono text-cyan-400">{selectedSymbol}</span>
-            </div>
+          {/* Quick Execution Port */}
+          <div className="bg-gradient-to-br from-[#0a0f1d] to-[#0f172a] border border-cyan-500/20 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-cyan-500/10 transition-all" />
+             <h4 className="text-xs font-black text-slate-100 uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
+                <Zap className="w-4 h-4 text-cyan-400" />
+                {isAr ? 'محطة التنفيذ' : 'EXECUTION_PORT'}
+             </h4>
+             
+             <div className="flex gap-2 bg-slate-900/80 p-1.5 rounded-2xl mb-6 border border-white/5">
+                {(['BUY', 'SELL'] as const).map((side) => (
+                  <button
+                    key={side}
+                    onClick={() => setOrderSide(side)}
+                    className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-[0.15em] ${
+                      orderSide === side 
+                        ? (side === 'BUY' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-rose-600 text-white shadow-lg')
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    {isAr ? (side === 'BUY' ? 'شراء' : 'بيع') : side}
+                  </button>
+                ))}
+             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setOrderSide('BUY')}
-                className={`py-1.5 rounded-lg text-xs font-bold transition ${
-                  orderSide === 'BUY'
-                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/30'
-                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {isAr ? 'شراء (BUY)' : 'BUY (Long)'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrderSide('SELL')}
-                className={`py-1.5 rounded-lg text-xs font-bold transition ${
-                  orderSide === 'SELL'
-                    ? 'bg-rose-600 text-white shadow-md shadow-rose-900/30'
-                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {isAr ? 'بيع (SELL)' : 'SELL (Short)'}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-slate-400 block mb-0.5">{isAr ? 'الكمية' : 'Quantity'}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.001"
-                  value={orderQty}
-                  onChange={(e) => setOrderQty(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs font-mono text-slate-100 focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-400 block mb-0.5">{isAr ? 'نوع الأمر' : 'Order Type'}</label>
-                <select
-                  value={orderType}
-                  onChange={(e) => setOrderType(e.target.value as any)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
+             <div className="space-y-6">
+                <div className="relative">
+                   <div className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase tracking-widest">{selectedSymbol.split('/')[0]}</div>
+                   <input 
+                     type="number" 
+                     value={orderQty}
+                     onChange={(e) => setOrderQty(Number(e.target.value))}
+                     className="w-full bg-slate-900/50 border border-white/5 rounded-2xl pl-6 pr-16 py-4 text-sm font-mono text-slate-100 outline-none focus:border-cyan-500/50 transition-all"
+                     placeholder="0.00"
+                   />
+                </div>
+                <button
+                  onClick={() => onManualOrder({ symbol: selectedSymbol, side: orderSide, type: 'MARKET', quantity: orderQty })}
+                  className={`w-full py-5 rounded-2xl font-black text-xs tracking-[0.3em] transition-all flex items-center justify-center gap-3 group ${
+                    orderSide === 'BUY' 
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_30px_rgba(16,185,129,0.3)]' 
+                      : 'bg-rose-600 hover:bg-rose-500 text-white shadow-[0_0_30px_rgba(244,63,94,0.3)]'
+                  }`}
                 >
-                  <option value="MARKET">Market (SOR)</option>
-                  <option value="LIMIT">Limit</option>
-                  <option value="TWAP">TWAP Sliced</option>
-                </select>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-lg shadow-cyan-900/30 transition"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>
-                {isAr
-                  ? `إرسال أمر ${orderSide === 'BUY' ? 'الشراء' : 'البيع'}`
-                  : `Dispatch ${orderSide} Order`}
-              </span>
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Bottom Grid: Positions & Orders Table */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Open Positions (6 cols) */}
-        <div className="lg:col-span-6 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-emerald-400" />
-              <span>{isAr ? 'المراكز المفتوحة وحالة الهامش' : 'Open Positions & Margin'}</span>
-            </h3>
-            <span className="text-xs text-slate-400 font-mono">
-              {positions.length} {isAr ? 'مراكز نشطة' : 'Active'}
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-slate-950/60 text-slate-400 uppercase text-[10px] border-b border-slate-800">
-                <tr>
-                  <th className="py-2 px-3">{isAr ? 'الأصل' : 'Symbol'}</th>
-                  <th className="py-2 px-3">{isAr ? 'الحجم' : 'Size'}</th>
-                  <th className="py-2 px-3">{isAr ? 'سعر الدخول' : 'Entry'}</th>
-                  <th className="py-2 px-3">{isAr ? 'السعر الحالي' : 'Mark'}</th>
-                  <th className="py-2 px-3 text-right">{isAr ? 'الربح غير المحقق' : 'PnL (uPnL)'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {positions.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-6 text-center text-slate-500 italic">
-                      {isAr ? 'لا توجد مراكز مفتوحة حالياً' : 'No active open positions'}
-                    </td>
-                  </tr>
-                ) : (
-                  positions.map((pos, i) => (
-                    <tr key={i} className="hover:bg-slate-800/40">
-                      <td className="py-2.5 px-3 font-bold text-slate-200">{pos.symbol}</td>
-                      <td className={`py-2.5 px-3 font-semibold ${pos.size > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {pos.size > 0 ? `+${pos.size}` : pos.size}
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-300">${pos.entryPrice.toLocaleString()}</td>
-                      <td className="py-2.5 px-3 text-slate-300">${pos.currentPrice.toLocaleString()}</td>
-                      <td
-                        className={`py-2.5 px-3 text-right font-bold ${
-                          pos.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
-                      >
-                        {pos.unrealizedPnl >= 0 ? `+$${pos.unrealizedPnl.toFixed(2)}` : `-$${Math.abs(pos.unrealizedPnl).toFixed(2)}`}{' '}
-                        <span className="text-[10px] font-normal">({pos.unrealizedPnlPct.toFixed(1)}%)</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Live Orders & State Machine FSM (6 cols) */}
-        <div className="lg:col-span-6 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-              <Zap className="w-4 h-4 text-cyan-400" />
-              <span>{isAr ? 'تدفق الأوامر وآلة الحالات (FSM)' : 'Order Lifecycle & Execution FSM'}</span>
-            </h3>
-            <span className="text-xs text-slate-400 font-mono">
-              {orders.slice(0, 10).length} {isAr ? 'أوامر حديثة' : 'Recent'}
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-slate-950/60 text-slate-400 uppercase text-[10px] border-b border-slate-800">
-                <tr>
-                  <th className="py-2 px-3">{isAr ? 'معرف الأمر' : 'Order ID'}</th>
-                  <th className="py-2 px-3">{isAr ? 'النوع / الأصل' : 'Side / Symbol'}</th>
-                  <th className="py-2 px-3">{isAr ? 'الكمية' : 'Qty'}</th>
-                  <th className="py-2 px-3">{isAr ? 'السعر' : 'Price'}</th>
-                  <th className="py-2 px-3 text-right">{isAr ? 'الحالة (FSM)' : 'Status'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {orders.slice(0, 5).map((ord, i) => (
-                  <tr key={i} className="hover:bg-slate-800/40">
-                    <td className="py-2.5 px-3 text-slate-400 font-mono text-[11px]">{ord.id}</td>
-                    <td className="py-2.5 px-3">
-                      <span
-                        className={`font-bold mr-1.5 ${
-                          ord.side === 'BUY' ? 'text-emerald-400' : 'text-rose-400'
-                        }`}
-                      >
-                        {ord.side}
-                      </span>
-                      <span className="text-slate-300">{ord.symbol}</span>
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-200">{ord.quantity}</td>
-                    <td className="py-2.5 px-3 text-slate-300">
-                      ${(ord.avgFillPrice || ord.price).toLocaleString()}
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                          ord.status === 'FILLED'
-                            ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/50'
-                            : ord.status === 'PARTIALLY_FILLED'
-                            ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-700/50'
-                            : ord.status === 'NEW' || ord.status === 'PENDING_NEW'
-                            ? 'bg-amber-950/80 text-amber-300 border border-amber-700/50 animate-pulse'
-                            : 'bg-rose-950/80 text-rose-300 border border-rose-700/50'
-                        }`}
-                      >
-                        {ord.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  <Send className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                  {isAr ? 'تأكيد العملية' : 'CONFIRM_ORDER'}
+                </button>
+             </div>
           </div>
         </div>
       </div>
     </div>
   );
-};
+});
+

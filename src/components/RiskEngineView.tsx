@@ -1,20 +1,15 @@
 /**
- * Basel Quantum Algorithmic Trading System
+ * Basel AlgoCore Trading System
  * Continuous Risk Engine & Multi-Tier KillSwitch Control Station
  */
 
 import React, { useState } from 'react';
 import {
-  AlertOctagon,
-  AlertTriangle,
-  CheckCircle,
   Clock,
   Gauge,
   Lock,
   Percent,
-  RefreshCw,
   RotateCcw,
-  Shield,
   ShieldAlert,
   ShieldCheck,
   TrendingDown,
@@ -32,18 +27,18 @@ interface RiskEngineViewProps {
   onResetKillSwitch: () => void;
   killSwitchHistory: any[];
   lang: 'ar' | 'en';
+  reduceMotion: boolean;
 }
 
 export const RiskEngineView: React.FC<RiskEngineViewProps> = ({
   metrics,
   limits,
-  balance,
-  positions,
   onUpdateLimits,
   onTriggerKillSwitch,
   onResetKillSwitch,
   killSwitchHistory,
   lang,
+  reduceMotion,
 }) => {
   const isAr = lang === 'ar';
   const [maxDDEdit, setMaxDDEdit] = useState<number>(limits.maxDrawdownPct);
@@ -60,74 +55,74 @@ export const RiskEngineView: React.FC<RiskEngineViewProps> = ({
   };
 
   const ddProgress = Math.min(100, (metrics.currentDrawdownPct / Math.max(0.1, limits.maxDrawdownPct)) * 100);
-  const dailyLossProgress = Math.min(100, (metrics.dailyLossPct / Math.max(0.1, limits.maxDailyLossPct)) * 100);
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner: KillSwitch Status */}
+    <div className={`space-y-4 ${reduceMotion ? '' : 'animate-in fade-in duration-500'}`} dir={isAr ? 'rtl' : 'ltr'}>
+      {/* Immersive KillSwitch Banner */}
       <div
-        className={`border rounded-2xl p-5 shadow-sm transition-all ${
+        className={`relative overflow-hidden border-2 rounded-[2rem] p-8 shadow-2xl transition-all duration-500 ${
           metrics.killSwitchActive
-            ? 'bg-rose-950/40 border-rose-600/80 shadow-rose-950/50'
-            : 'bg-slate-900/90 border-slate-800'
+            ? 'bg-rose-950/20 border-rose-500 shadow-rose-500/20'
+            : 'bg-[#0a0f1d]/80 backdrop-blur-xl border-cyan-500/20 shadow-cyan-500/10'
         }`}
       >
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        {/* Background Scanline for Banner */}
+        <div className="absolute inset-0 quantum-scanline opacity-10 pointer-events-none" />
+        
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-8 relative z-10">
+          <div className="flex items-center gap-6">
             <div
-              className={`p-3 rounded-xl ${
-                metrics.killSwitchActive ? 'bg-rose-600 text-white animate-pulse' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+              className={`p-5 rounded-3xl ${
+                metrics.killSwitchActive 
+                  ? 'bg-rose-600 text-white shadow-[0_0_30px_rgba(244,63,94,0.5)]' 
+                  : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_20px_rgba(6,182,212,0.1)]'
               }`}
             >
-              {metrics.killSwitchActive ? <ShieldAlert className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
+              {metrics.killSwitchActive ? <ShieldAlert className="w-8 h-8" /> : <ShieldCheck className="w-8 h-8" />}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-100">
-                  {isAr ? 'محطة إدارة المخاطر وقاطع الدورة (KillSwitch)' : 'Risk Management & Safety Circuit Breaker'}
+              <div className="flex items-center gap-3 mb-1">
+                <h2 className="text-2xl font-black text-slate-100 tracking-tight uppercase">
+                  {isAr ? 'قاطع الدورة الكمي' : 'QUANTUM_CIRCUIT_BREAKER'}
                 </h2>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                    metrics.killSwitchActive
-                      ? 'bg-rose-500 text-white animate-bounce'
-                      : 'bg-emerald-950 text-emerald-300 border border-emerald-700/60'
-                  }`}
-                >
+                <div className={`px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase border ${
+                  metrics.killSwitchActive ? 'bg-rose-500 text-white border-rose-400' : 'bg-cyan-950/50 text-cyan-400 border-cyan-800'
+                }`}>
                   {metrics.killSwitchLevel}
-                </span>
+                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-sm font-medium text-slate-400">
                 {metrics.killSwitchActive
-                  ? `${isAr ? 'سبب التفعيل:' : 'Active Trigger Reason:'} ${metrics.killSwitchReason || 'Manual intervention'}`
+                  ? `${isAr ? 'تم تفعيل الحظر بسبب:' : 'CRITICAL_HALT_REASON:'} ${metrics.killSwitchReason}`
                   : isAr
-                  ? 'كافة معايير السلامة والمخاطر اللحظية ضمن الحدود الآمنة'
-                  : 'All real-time VaR, drawdown, and leverage limits are operating within nominal parameters'}
+                  ? 'الأنظمة تعمل بكفاءة كاملة - المعايير ضمن النطاق الكمي'
+                  : 'SYSTEMS_OPERATIONAL - RISK_VECTORS_WITHIN_NOMINAL_TOLERANCE'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex gap-3">
             {metrics.killSwitchActive ? (
               <button
                 onClick={onResetKillSwitch}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition"
+                className="group flex items-center gap-3 px-8 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs tracking-[0.2em] shadow-xl shadow-emerald-900/30 transition-all uppercase"
               >
-                <RotateCcw className="w-4 h-4" />
-                <span>{isAr ? 'إعادة ضبط واستئناف التداول' : 'Reset & Resume Trading'}</span>
+                <RotateCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                <span>{isAr ? 'إعادة تشغيل المحرك' : 'REBOOT_CORE_ENGINE'}</span>
               </button>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex gap-3">
                 <button
-                  onClick={() => onTriggerKillSwitch('SOFT_HALT', 'Operator triggered Soft Halt')}
-                  className="px-3 py-2 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-800 text-xs font-bold transition"
+                  onClick={() => onTriggerKillSwitch('SOFT_HALT', 'OPERATOR_SOFT_HALT')}
+                  className="px-6 py-4 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[10px] font-black tracking-widest uppercase transition-all"
                 >
-                  {isAr ? 'إيقاف ناعم (Soft Halt)' : 'Soft Halt'}
+                  {isAr ? 'إيقاف مرن' : 'SOFT_HALT'}
                 </button>
                 <button
-                  onClick={() => onTriggerKillSwitch('HARD_HALT', 'Operator triggered Hard Halt')}
-                  className="px-3 py-2 rounded-xl bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-bold transition"
+                  onClick={() => onTriggerKillSwitch('HARD_HALT', 'OPERATOR_HARD_HALT')}
+                  className="px-6 py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-black tracking-widest uppercase shadow-lg shadow-rose-900/30 transition-all"
                 >
-                  {isAr ? 'إيقاف صلب (Hard Halt)' : 'Hard Halt'}
+                  {isAr ? 'إيقاف كلي' : 'HARD_HALT'}
                 </button>
               </div>
             )}
@@ -135,182 +130,142 @@ export const RiskEngineView: React.FC<RiskEngineViewProps> = ({
         </div>
       </div>
 
-      {/* Real-Time Risk Gauges & Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Gauge 1: Max Drawdown */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>{isAr ? 'التراجع اللحظي (Drawdown)' : 'Current Drawdown'}</span>
+      {/* Bento Risk Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Metric 1: Drawdown */}
+        <div className="bg-[#0a0f1d]/80 border border-white/5 p-6 rounded-3xl shadow-xl group">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">{isAr ? 'التراجع' : 'DRAWDOWN_MTD'}</h4>
             <TrendingDown className="w-4 h-4 text-rose-400" />
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-100">
-            {metrics.currentDrawdownPct.toFixed(2)}%
-          </div>
-          <div className="mt-3 space-y-1">
-            <div className="flex justify-between text-[11px] text-slate-400">
-              <span>{isAr ? 'الحد الأقصى المسموح:' : 'Limit Cap:'}</span>
-              <span className="font-mono font-bold text-rose-400">{limits.maxDrawdownPct}%</span>
+          <div className="text-3xl font-mono font-black text-slate-100 mb-4">{metrics.currentDrawdownPct.toFixed(2)}%</div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+              <span>{isAr ? 'سقف الحدود' : 'POLICY_LIMIT'}</span>
+              <span className="text-rose-400">{limits.maxDrawdownPct}%</span>
             </div>
-            <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  ddProgress > 80 ? 'bg-rose-500' : ddProgress > 50 ? 'bg-amber-500' : 'bg-emerald-500'
-                }`}
+            <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all duration-1000 ${ddProgress > 80 ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 'bg-cyan-500'}`}
                 style={{ width: `${ddProgress}%` }}
               />
             </div>
           </div>
         </div>
 
-        {/* Gauge 2: 1-Day VaR (95%) & CVaR */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>{isAr ? 'القيمة المعرضة للخطر (VaR 95%)' : 'Value at Risk (VaR 95%)'}</span>
+        {/* Metric 2: VaR */}
+        <div className="bg-[#0a0f1d]/80 border border-white/5 p-6 rounded-3xl shadow-xl">
+           <div className="flex items-center justify-between mb-4">
+            <h4 className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">{isAr ? 'المخاطرة المتوقعة' : 'VAR_95_QUANTILE'}</h4>
             <Gauge className="w-4 h-4 text-cyan-400" />
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-100">
-            ${metrics.var95.toLocaleString()}
-          </div>
-          <div className="flex items-center justify-between text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800">
-            <span>{isAr ? 'الخسارة المتوقعة CVaR:' : 'Expected Shortfall (CVaR):'}</span>
-            <span className="font-mono font-bold text-amber-300">${metrics.cvar95.toLocaleString()}</span>
+          <div className="text-3xl font-mono font-black text-cyan-400 mb-1">${metrics.var95.toLocaleString()}</div>
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pt-3 border-t border-white/5 mt-3 flex justify-between">
+            <span>CVaR (SHORTFALL):</span>
+            <span className="text-slate-300">${metrics.cvar95.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Gauge 3: Portfolio Leverage */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>{isAr ? 'رافعة المحفظة الفعلية' : 'Effective Leverage'}</span>
+        {/* Metric 3: Leverage */}
+        <div className="bg-[#0a0f1d]/80 border border-white/5 p-6 rounded-3xl shadow-xl">
+           <div className="flex items-center justify-between mb-4">
+            <h4 className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">{isAr ? 'الرافعة الفعلية' : 'ACTIVE_LEVERAGE'}</h4>
             <Zap className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-2xl font-bold font-mono text-slate-100">
-            {metrics.currentLeverage.toFixed(2)}x
-          </div>
-          <div className="flex items-center justify-between text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800">
-            <span>{isAr ? 'سقف الرافعة المسموح:' : 'Max Leverage Cap:'}</span>
-            <span className="font-mono font-bold text-slate-200">{limits.maxPortfolioLeverage.toFixed(1)}x</span>
+          <div className="text-3xl font-mono font-black text-slate-100 mb-1">{metrics.currentLeverage.toFixed(2)}x</div>
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pt-3 border-t border-white/5 mt-3 flex justify-between">
+            <span>{isAr ? 'الحد الأقصى:' : 'MAX_ALLOWABLE:'}</span>
+            <span className="text-slate-300">{limits.maxPortfolioLeverage.toFixed(1)}x</span>
           </div>
         </div>
 
-        {/* Gauge 4: Sharpe & Sortino */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>{isAr ? 'نسب شارب وسورتينو' : 'Sharpe & Sortino Ratios'}</span>
+        {/* Metric 4: Ratios */}
+        <div className="bg-[#0a0f1d]/80 border border-white/5 p-6 rounded-3xl shadow-xl">
+           <div className="flex items-center justify-between mb-4">
+            <h4 className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">{isAr ? 'أداء المخاطر' : 'SHARPE_EFFICIENCY'}</h4>
             <Percent className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-400">
-            {metrics.sharpeRatio.toFixed(2)}
-          </div>
-          <div className="flex items-center justify-between text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800">
-            <span>{isAr ? 'نسبة سورتينو (Sortino):' : 'Sortino (Downside):'}</span>
-            <span className="font-mono font-bold text-emerald-300">{metrics.sortinoRatio.toFixed(2)}</span>
+          <div className="text-3xl font-mono font-black text-emerald-400 mb-1">{metrics.sharpeRatio.toFixed(2)}</div>
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pt-3 border-t border-white/5 mt-3 flex justify-between">
+            <span>{isAr ? 'سورتينو:' : 'SORTINO:'}</span>
+            <span className="text-slate-300">{metrics.sortinoRatio.toFixed(2)}</span>
           </div>
         </div>
       </div>
 
-      {/* Grid: Limits Tuning Form & KillSwitch Audit Log */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Risk Limits Tuning (5 cols) */}
-        <div className="lg:col-span-5 bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
-          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2 mb-4">
-            <Lock className="w-4 h-4 text-cyan-400" />
-            <span>{isAr ? 'ضبط معايير حدود المخاطر الصارمة' : 'Quantitative Risk Policy Tuning'}</span>
-          </h3>
-
-          <form onSubmit={handleSaveLimits} className="space-y-4 text-xs">
-            <div>
-              <label className="text-slate-400 block mb-1">
-                {isAr ? 'الحد الأقصى للتراجع المسموح به (% Max DD):' : 'Max Allowed Drawdown (%):'}
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="1"
-                max="25"
-                value={maxDDEdit}
-                onChange={(e) => setMaxDDEdit(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-slate-400 block mb-1">
-                {isAr ? 'حد الخسارة اليومية (% Daily Loss Cap):' : 'Daily Loss Limit (%):'}
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="1"
-                max="15"
-                value={maxDailyLossEdit}
-                onChange={(e) => setMaxDailyLossEdit(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-slate-400 block mb-1">
-                {isAr ? 'سقف الرافعة المالية (Max Leverage):' : 'Max Portfolio Leverage (x):'}
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="1"
-                max="10"
-                value={maxLeverageEdit}
-                onChange={(e) => setMaxLeverageEdit(Number(e.target.value))}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-slate-100 focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-lg shadow-cyan-900/30 transition"
-            >
-              {isAr ? 'حفظ وتطبيق حدود المخاطر' : 'Save & Enforce Limits'}
-            </button>
-          </form>
-        </div>
-
-        {/* KillSwitch Transition Audit Log (7 cols) */}
-        <div className="lg:col-span-7 bg-slate-900/90 border border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-rose-400" />
-              <span>{isAr ? 'سجل أحداث قاطع الدورة وأمان المحفظة' : 'Circuit Breaker Event Audit Log'}</span>
+      {/* Audit & Configuration Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Audit Log (8 cols) */}
+        <div className="lg:col-span-8 bg-[#0a0f1d]/80 border border-white/5 rounded-[2rem] p-8 shadow-xl">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xs font-black text-slate-100 tracking-[0.2em] uppercase flex items-center gap-3">
+              <Clock className="w-4 h-4 text-rose-500" />
+              {isAr ? 'سجل تدقيق الأمان الفوري' : 'REALTIME_SAFETY_AUDIT_LOG'}
             </h3>
-            <span className="text-xs text-slate-400 font-mono">{killSwitchHistory.length} Events</span>
+            <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">{killSwitchHistory.length} ENTRIES_LOGGED</div>
           </div>
 
-          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+          <div className="space-y-3 max-h-[400px] overflow-y-auto no-scrollbar">
             {killSwitchHistory.length === 0 ? (
-              <div className="text-center py-10 text-slate-500 text-xs italic">
-                {isAr ? 'لم تحدث أي انتهاكات لحدود المخاطر' : 'No risk limit violations recorded. System running in NORMAL state.'}
+              <div className="text-center py-20 bg-slate-900/20 border border-dashed border-white/5 rounded-3xl">
+                 <ShieldCheck className="w-12 h-12 text-slate-800 mx-auto mb-4" />
+                 <p className="text-xs text-slate-600 font-bold uppercase tracking-widest">
+                   {isAr ? 'لا يوجد انتهاكات مسجلة' : 'NO_SECURITY_VIOLATIONS_DETECTED'}
+                 </p>
               </div>
             ) : (
               killSwitchHistory.map((evt, idx) => (
-                <div
-                  key={idx}
-                  className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-start justify-between gap-3 text-xs"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] text-slate-500">
-                        {new Date(evt.timestamp).toLocaleTimeString()}
-                      </span>
-                      <span className="font-bold text-rose-300">
-                        {evt.fromLevel} → {evt.toLevel}
-                      </span>
+                <div key={idx} className="group flex items-center justify-between p-4 bg-slate-900/50 border border-white/5 rounded-2xl hover:bg-slate-900 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="text-[10px] font-mono text-slate-600 group-hover:text-cyan-500 transition-colors">{new Date(evt.timestamp).toLocaleTimeString()}</div>
+                    <div>
+                      <div className="text-xs font-black text-slate-200 flex items-center gap-2">
+                         <span className="text-rose-500">{evt.fromLevel}</span>
+                         <span className="text-slate-600">→</span>
+                         <span className="text-emerald-500 font-black">{evt.toLevel}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">{evt.reason}</div>
                     </div>
-                    <p className="text-slate-300 text-[11px] mt-1">{evt.reason}</p>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 uppercase">
-                    {evt.triggeredBy}
-                  </span>
+                  <div className="px-3 py-1 bg-slate-800 rounded text-[9px] font-black text-slate-400 tracking-tighter uppercase">{evt.triggeredBy}</div>
                 </div>
               ))
             )}
           </div>
+        </div>
+
+        {/* Policy Tuning (4 cols) */}
+        <div className="lg:col-span-4 bg-gradient-to-br from-[#0a0f1d] to-[#0f172a] border border-cyan-500/20 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group">
+           <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover:bg-cyan-500/10 transition-all" />
+           <h3 className="text-xs font-black text-slate-100 tracking-[0.2em] uppercase mb-8 flex items-center gap-3">
+              <Lock className="w-4 h-4 text-cyan-400" />
+              {isAr ? 'تعديل سياسة المخاطر' : 'RISK_POLICY_TUNING'}
+           </h3>
+
+           <form onSubmit={handleSaveLimits} className="space-y-6">
+              {[
+                { label: isAr ? 'أقصى تراجع مسموح' : 'MAX_DRAWDOWN_LIMIT (%)', val: maxDDEdit, set: setMaxDDEdit, step: 0.5 },
+                { label: isAr ? 'حد الخسارة اليومي' : 'DAILY_LOSS_CAP (%)', val: maxDailyLossEdit, set: setMaxDailyLossEdit, step: 0.1 },
+                { label: isAr ? 'سقف الرافعة' : 'MAX_LEVERAGE_CAP (x)', val: maxLeverageEdit, set: setMaxLeverageEdit, step: 0.5 },
+              ].map((field, i) => (
+                <div key={i}>
+                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">{field.label}</label>
+                   <input
+                    type="number"
+                    step={field.step}
+                    value={field.val}
+                    onChange={(e) => field.set(Number(e.target.value))}
+                    className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-5 py-3 text-sm font-mono text-slate-100 outline-none focus:border-cyan-500/50 transition-all"
+                  />
+                </div>
+              ))}
+              <button
+                type="submit"
+                className="w-full py-4 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs tracking-[0.2em] shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all uppercase mt-4"
+              >
+                {isAr ? 'تطبيق السياسات الجديدة' : 'COMMIT_NEW_POLICIES'}
+              </button>
+           </form>
         </div>
       </div>
     </div>

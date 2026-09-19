@@ -20,7 +20,7 @@ export interface RuntimeConfigState {
 }
 
 export const INITIAL_RUNTIME_CONFIG: RuntimeConfigState = {
-  executionMode: 'LIVE_SIMULATION',
+  executionMode: 'TESTNET_EXCHANGE',
   activeSymbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'QNT/USDT'],
   activeSolver: 'QUANTUM_ANNEALING',
   rebalanceIntervalMs: 2500,

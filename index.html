@@ -3,18 +3,63 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Basel Quantum Algorithmic Trading Bot</title>
+    <title>Basel AlgoCore Trading Bot</title>
     <meta name="description" content="Integrated Quantum-Inspired Algorithmic Trading System with QUBO portfolio optimization, QAOA circuits, Ornstein-Uhlenbeck mean-reversion, real-time risk engine, order state machine, and backtesting validation." />
-    <meta property="og:title" content="Basel Quantum Algorithmic Trading Bot" />
+    <meta property="og:title" content="Basel AlgoCore Trading Bot" />
     <meta property="og:description" content="Integrated Quantum-Inspired Algorithmic Trading System with QUBO portfolio optimization, QAOA circuits, Ornstein-Uhlenbeck mean-reversion, real-time risk engine, order state machine, and backtesting validation." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        function showErr(msg) {
+          var errBox = document.getElementById('critical-error-display');
+          var errText = document.getElementById('critical-error-text');
+          var diag = document.getElementById('raw-diagnostic-log');
+          
+          if (errBox) errBox.style.display = 'block';
+          if (errText) errText.textContent += msg + '\n';
+          
+          var critHref = document.getElementById('crit-href');
+          if (critHref) critHref.textContent = window.location.href;
+          
+          var critReady = document.getElementById('crit-ready');
+          if (critReady) critReady.textContent = document.readyState;
+          
+          if (diag) {
+            diag.style.background = '#3b0712';
+            diag.style.color = '#f87171';
+            diag.textContent = '❌ [DIAGNOSTICS CRITICAL ERROR] ' + msg;
+          }
+        }
+
+        window.addEventListener('error', function(e) {
+          if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+            showErr('Failed to load resource (404/MIME/Network): ' + (e.target.src || e.target.href));
+          } else {
+            showErr('Error: ' + e.message + ' at ' + e.filename + ':' + e.lineno + ':' + e.colno + '\n' + (e.error ? e.error.stack : ''));
+          }
+        }, true);
+        
+        window.addEventListener('unhandledrejection', function(e) {
+          showErr('Unhandled Rejection: ' + (e.reason ? (e.reason.stack || e.reason) : 'Unknown reason'));
+        });
+      })();
+    </script>
   </head>
   <body class="bg-[#0b0f19] text-slate-100 font-['Plus_Jakarta_Sans',sans-serif] antialiased selection:bg-cyan-500 selection:text-white">
     <div id="root"></div>
+    
+    <div id="critical-error-display" style="display: none; padding: 24px; background: #1e1111; color: #fca5a5; font-family: monospace; border: 1px solid #ef4444; margin: 24px; border-radius: 12px; max-width: 800px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);">
+      <h3 style="margin-top: 0; color: #ef4444; font-size: 18px; font-weight: bold; border-b: 1px solid rgba(239, 68, 68, 0.2); padding-bottom: 8px;">🚨 Critical Browser Error Caught:</h3>
+      <pre id="critical-error-text" style="white-space: pre-wrap; word-break: break-all; font-size: 12px; margin-top: 12px; line-height: 1.6;"></pre>
+      <div style="margin-top: 16px; font-size: 11px; color: #94a3b8; border-t: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+        HREF: <span id="crit-href"></span> | READY_STATE: <span id="crit-ready"></span>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

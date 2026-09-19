@@ -109,6 +109,49 @@ export class OrderBookBuilder {
     return book;
   }
 
+  public update(symbol: AssetSymbol, rawBids: [string, string][], rawAsks: [string, string][]) {
+    let book = this.books.get(symbol);
+    if (!book) {
+      book = {
+        symbol,
+        timestamp: Date.now(),
+        bids: [],
+        asks: [],
+        sequence: 1,
+        midPrice: 0,
+        spread: 0,
+        microPrice: 0,
+        orderBookImbalance: 0,
+      };
+      this.books.set(symbol, book);
+    }
+
+    let cumBidSize = 0;
+    book.bids = rawBids.slice(0, this.depthLevels).map(b => {
+      const price = parseFloat(b[0]);
+      const size = parseFloat(b[1]);
+      cumBidSize += size;
+      return { price, size, total: Number(cumBidSize.toFixed(3)) };
+    });
+
+    let cumAskSize = 0;
+    book.asks = rawAsks.slice(0, this.depthLevels).map(a => {
+      const price = parseFloat(a[0]);
+      const size = parseFloat(a[1]);
+      cumAskSize += size;
+      return { price, size, total: Number(cumAskSize.toFixed(3)) };
+    });
+
+    if (book.bids[0] && book.asks[0]) {
+      book.midPrice = Number(((book.bids[0].price + book.asks[0].price) / 2).toFixed(4));
+      book.spread = Number((book.asks[0].price - book.bids[0].price).toFixed(4));
+      book.microPrice = this.calculateMicroPrice(book.bids[0], book.asks[0]);
+      book.orderBookImbalance = this.calculateImbalance(book.bids, book.asks);
+    }
+    book.timestamp = Date.now();
+    book.sequence += 1;
+  }
+
   /**
    * Microprice formulation incorporating depth weights:
    * P_micro = (P_ask * V_bid + P_bid * V_ask) / (V_bid + V_ask)

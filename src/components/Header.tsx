@@ -7,15 +7,13 @@ import React from 'react';
 import {
   Activity,
   AlertOctagon,
-  CheckCircle2,
   Cpu,
-  Flame,
   Globe,
   Pause,
   Play,
   RotateCcw,
+  Send,
   ShieldAlert,
-  Sliders,
   Zap,
 } from 'lucide-react';
 import { AssetSymbol, SolverType } from '../domain/types';
@@ -37,6 +35,11 @@ interface HeaderProps {
   activeSymbols: AssetSymbol[];
   selectedSymbol: AssetSymbol;
   setSelectedSymbol: (sym: AssetSymbol) => void;
+  isConnected: boolean;
+  isTelegramEnabled: boolean;
+  onToggleTelegram: () => void;
+  reduceMotion: boolean;
+  onToggleReduceMotion: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -55,190 +58,147 @@ export const Header: React.FC<HeaderProps> = ({
   activeSymbols,
   selectedSymbol,
   setSelectedSymbol,
+  isConnected,
+  isTelegramEnabled,
+  onToggleTelegram,
+  reduceMotion,
+  onToggleReduceMotion,
 }) => {
   const isAr = lang === 'ar';
 
   return (
-    <header className="border-b border-slate-800 bg-[#0d1322]/95 backdrop-blur sticky top-0 z-50">
-      {/* Top Banner with Core Controls */}
-      <div className="max-w-[1680px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-4">
-        {/* Brand & Identity */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-700 shadow-lg shadow-cyan-500/20 text-white font-black text-xl tracking-wider">
-            <span>Ψ</span>
-            <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#0d1322] animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-slate-100 tracking-tight flex items-center gap-2">
-                <span>{isAr ? 'منظومة بازل الكمية' : 'BASEL QUANTUM'}</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-cyan-950/80 text-cyan-400 border border-cyan-800/60">
-                  v2.4.0 MERGED
+    <header className="border-b border-white/5 bg-[#0a0f1d]/90 backdrop-blur-xl sticky top-0 z-50 px-4 md:px-6 py-3 md:py-4">
+      <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
+        {/* Top Row for Mobile (Brand + Master Control) */}
+        <div className="w-full md:w-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="relative flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-cyan-600 to-blue-600 shadow-lg shadow-cyan-500/20 text-white font-black text-xl md:text-2xl tracking-wider transition-transform hover:scale-110 active:scale-95 cursor-pointer">
+                <Zap className="w-5 h-5 md:w-6 md:h-6" />
+                <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 rounded-full bg-emerald-500 border-4 border-[#0a0f1d] ${reduceMotion ? '' : 'animate-pulse'}`} />
+              </div>
+            </div>
+            <div>
+              <h1 className="text-base md:text-xl font-black text-slate-100 tracking-tight flex items-center gap-2 md:gap-3">
+                <span className="truncate max-w-[150px] md:max-w-none font-sans tracking-[0.1em] text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">Basel AlgoCore</span>
+                <span className="hidden xs:inline-block px-2 py-0.5 rounded-lg text-[8px] md:text-[9px] font-black font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase tracking-[0.1em] md:tracking-[0.2em]">
+                  Pro
                 </span>
               </h1>
+              <div className="flex items-center gap-2 md:gap-3 text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                  <span className="hidden sm:inline">{isConnected ? (isAr ? 'المخ متصل' : 'BRAIN_SYNCED') : (isAr ? 'فشل الاتصال' : 'BRAIN_OFFLINE')}</span>
+                </div>
+                <span className="text-slate-700 hidden sm:inline">/</span>
+                <div className="flex items-center gap-1.5">
+                  <Send className={`w-2.5 h-2.5 md:w-3 md:h-3 ${isTelegramEnabled ? 'text-blue-400' : 'text-slate-600'}`} />
+                  <span className="hidden sm:inline">{isTelegramEnabled ? 'TG_ENABLED' : 'TG_DISABLED'}</span>
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-slate-400 hidden sm:block">
-              {isAr
-                ? 'محرك التداول الخوارزمي المستوحى من فيزياء الكم و QUBO'
-                : 'Integrated Quantum-Inspired & QUBO Algorithmic Trading Bot'}
-            </p>
-          </div>
-        </div>
-
-        {/* Global Pipeline Status & KillSwitch Controls */}
-        <div className="flex items-center flex-wrap gap-2 sm:gap-3">
-          {/* Solver Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-xs text-slate-300">
-            <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-slate-400 hidden md:inline">{isAr ? 'المعالج:' : 'Solver:'}</span>
-            <select
-              value={config.activeSolver}
-              onChange={(e) => onConfigChange({ activeSolver: e.target.value as SolverType })}
-              className="bg-transparent text-cyan-300 font-semibold focus:outline-none cursor-pointer text-xs"
-            >
-              <option value="QUANTUM_ANNEALING" className="bg-slate-900 text-slate-200">
-                {isAr ? 'التلدين الكمي (QSA)' : 'Quantum Annealing (QSA)'}
-              </option>
-              <option value="QAOA_CIRCUIT" className="bg-slate-900 text-slate-200">
-                {isAr ? 'دائرة QAOA التغيرية' : 'QAOA Circuit'}
-              </option>
-              <option value="SIMULATED_ANNEALING" className="bg-slate-900 text-slate-200">
-                {isAr ? 'التلدين الحراري (SA)' : 'Simulated Annealing (SA)'}
-              </option>
-              <option value="TABU_SEARCH" className="bg-slate-900 text-slate-200">
-                {isAr ? 'البحث المحظور (Tabu)' : 'Tabu Search'}
-              </option>
-              <option value="CLASSICAL_MARKOWITZ" className="bg-slate-900 text-slate-200">
-                {isAr ? 'ماركويتز الكلاسيكي (QP)' : 'Classical Markowitz'}
-              </option>
-            </select>
           </div>
 
-          {/* Execution Mode */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-xs">
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <select
-              value={config.executionMode}
-              onChange={(e) => onConfigChange({ executionMode: e.target.value as any })}
-              className="bg-transparent text-amber-300 font-semibold focus:outline-none cursor-pointer text-xs"
-            >
-              <option value="LIVE_SIMULATION" className="bg-slate-900 text-slate-200">
-                {isAr ? 'محاكاة حية (Microsecond Feed)' : 'Live Simulation'}
-              </option>
-              <option value="PAPER_TRADING" className="bg-slate-900 text-slate-200">
-                {isAr ? 'تداول تجريبي (Paper)' : 'Paper Trading'}
-              </option>
-              <option value="TESTNET_EXCHANGE" className="bg-slate-900 text-slate-200">
-                {isAr ? 'منصة تجريبية (Testnet Sandbox)' : 'Testnet Sandbox'}
-              </option>
-              <option value="STRESS_TEST" className="bg-slate-900 text-slate-200">
-                {isAr ? 'اختبار ضغط وصدمات' : 'Stress Testing'}
-              </option>
-            </select>
-          </div>
-
-          {/* Master Bot Start/Pause Button */}
+          {/* Master Execution Button for Mobile */}
           <button
             onClick={onToggleRun}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-medium text-xs transition-all shadow-md ${
+            className={`md:hidden flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[9px] tracking-[0.1em] uppercase transition-all shadow-xl ${
               isRunning
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-700/30'
+                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                : 'bg-emerald-600 text-white shadow-emerald-500/20'
             }`}
           >
-            {isRunning ? (
-              <>
-                <Pause className="w-3.5 h-3.5" />
-                <span>{isAr ? 'إيقاف مؤقت' : 'Pause Pipeline'}</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-3.5 h-3.5" />
-                <span>{isAr ? 'إطلاق البوت' : 'Launch Bot'}</span>
-              </>
-            )}
-          </button>
-
-          {/* KillSwitch Emergency Controls */}
-          {killSwitchActive ? (
-            <div className="flex items-center gap-2 bg-rose-950/80 border border-rose-600/80 px-3 py-1 rounded-lg">
-              <ShieldAlert className="w-4 h-4 text-rose-400 animate-pulse" />
-              <span className="text-xs font-bold text-rose-200 uppercase tracking-wider">
-                {killSwitchLevel}
-              </span>
-              <button
-                onClick={onResetKill}
-                className="flex items-center gap-1 text-[11px] bg-rose-800 hover:bg-rose-700 text-white px-2 py-0.5 rounded transition font-medium"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>{isAr ? 'إعادة تشغيل' : 'Reset'}</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={onEmergencyKill}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/60 transition text-xs font-semibold"
-              title={isAr ? 'إيقاف طوارئ فوري لكافة التداولات' : 'Immediate Emergency Kill Switch'}
-            >
-              <AlertOctagon className="w-3.5 h-3.5 text-rose-400" />
-              <span>{isAr ? 'مفتاح الطوارئ' : 'Emergency Kill'}</span>
-            </button>
-          )}
-
-          {/* Language Toggle */}
-          <button
-            onClick={onToggleLang}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 transition"
-          >
-            <Globe className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-bold">{lang === 'ar' ? 'EN' : 'العربية'}</span>
+            {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            {isRunning ? (isAr ? 'إيقاف' : 'PAUSE') : (isAr ? 'بدء' : 'BOOT')}
           </button>
         </div>
-      </div>
 
-      {/* Navigation Tabs & Symbol Selector Bar */}
-      <div className="border-t border-slate-800/80 bg-[#090e18] px-4 sm:px-6">
-        <div className="max-w-[1680px] mx-auto flex flex-wrap items-center justify-between gap-3 py-1.5">
-          {/* Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
-            {[
-              { id: 'dashboard', nameEn: 'Live Operations', nameAr: 'غرفة العمليات الحية' },
-              { id: 'quantum', nameEn: 'Quantum QUBO & QAOA', nameAr: 'المعالج الكمومي و QUBO' },
-              { id: 'risk', nameEn: 'Risk Engine & VaR', nameAr: 'محرك المخاطر والـ VaR' },
-              { id: 'backtest', nameEn: 'Backtest & Validation', nameAr: 'الاختبار التاريخي والمصفوفة' },
-              { id: 'telemetry', nameEn: 'Latency & Event Journal', nameAr: 'زمن الاستجابة وسجل التدقيق' },
-              { id: 'code', nameEn: 'Merged Code & Tests', nameAr: 'الأكواد المدمجة والاختبارات' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                }`}
+        {/* Dynamic Navigation - Scrollable on Mobile */}
+        <div className="w-full md:w-auto flex items-center bg-slate-900/50 p-1 rounded-2xl border border-white/5 overflow-x-auto no-scrollbar">
+          {[
+            { id: 'dashboard', nameEn: 'OPS', nameAr: 'العمليات' },
+            { id: 'quantum', nameEn: 'QUANTUM', nameAr: 'الكم' },
+            { id: 'risk', nameEn: 'RISK', nameAr: 'المخاطر' },
+            { id: 'backtest', nameEn: 'LABS', nameAr: 'المختبر' },
+            { id: 'telemetry', nameEn: 'SYNC', nameAr: 'التزامن' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 md:flex-none px-4 md:px-6 py-2 rounded-xl text-[9px] md:text-[10px] font-black tracking-widest uppercase transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {isAr ? tab.nameAr : tab.nameEn}
+            </button>
+          ))}
+        </div>
+
+        {/* Global Controls Section - Wrap on mobile */}
+        <div className="w-full md:w-auto flex items-center justify-between md:justify-end gap-2 md:gap-3">
+          <div className="flex items-center gap-2">
+            {/* Symbol Selector Pill */}
+            <div className="flex items-center bg-slate-900/50 px-3 py-2 rounded-2xl border border-white/5 gap-2">
+              <span className="hidden xs:inline text-[9px] font-black text-slate-600 uppercase tracking-widest">{isAr ? 'الزوج:' : 'PAIR'}</span>
+              <select
+                value={selectedSymbol}
+                onChange={(e) => setSelectedSymbol(e.target.value as AssetSymbol)}
+                className="bg-transparent text-cyan-400 text-[9px] md:text-[10px] font-black focus:outline-none cursor-pointer uppercase tracking-widest outline-none border-none p-0"
               >
-                {isAr ? tab.nameAr : tab.nameEn}
-              </button>
-            ))}
+                {activeSymbols.map(sym => (
+                  <option key={sym} value={sym} className="bg-slate-900">{sym}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Language & Utilities */}
+            <button
+                onClick={onToggleLang}
+                className="p-2.5 md:p-3 rounded-2xl bg-slate-900/50 text-slate-400 border border-white/5 hover:text-slate-100 transition-all font-black text-[9px]"
+             >
+                {lang === 'ar' ? 'EN' : 'AR'}
+             </button>
           </div>
 
-          {/* Asset Tickers Quick Selection */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-            <span className="text-[11px] text-slate-400 hidden lg:inline">{isAr ? 'الأصل النشط:' : 'Active Pair:'}</span>
-            {activeSymbols.map((sym) => (
+          <div className="flex items-center gap-2">
+            {/* Master Execution Button for Desktop */}
+            <button
+              onClick={onToggleRun}
+              className={`hidden md:flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] tracking-[0.2em] uppercase transition-all shadow-xl ${
+                isRunning
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
+              }`}
+            >
+              {isRunning ? (
+                <><Pause className="w-4 h-4" /> {isAr ? 'إيقاف مؤقت' : 'PAUSE'}</>
+              ) : (
+                <><Play className="w-4 h-4" /> {isAr ? 'تشغيل' : 'BOOT'}</>
+              )}
+            </button>
+
+            {/* System Critical KillSwitch */}
+            {killSwitchActive ? (
               <button
-                key={sym}
-                onClick={() => setSelectedSymbol(sym)}
-                className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition ${
-                  selectedSymbol === sym
-                    ? 'bg-slate-700 text-cyan-300 border border-cyan-500/50'
-                    : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
+                onClick={onResetKill}
+                className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-2xl bg-rose-600 text-white font-black text-[9px] md:text-[10px] tracking-[0.1em] md:tracking-[0.2em] uppercase shadow-lg shadow-rose-500/30 transition-all hover:bg-rose-500"
               >
-                {sym}
+                <RotateCcw className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">{isAr ? 'إعادة الضبط' : 'RECOVERY'}</span>
+                <span className="sm:hidden">{isAr ? 'ضبط' : 'REC'}</span>
               </button>
-            ))}
+            ) : (
+              <button
+                onClick={onEmergencyKill}
+                className="p-2.5 md:p-3 rounded-2xl bg-rose-950/20 hover:bg-rose-950/40 text-rose-500 border border-rose-900/30 transition-all group"
+                title="EMERGENCY_HALT"
+              >
+                <AlertOctagon className="w-4 h-4 md:w-5 md:h-5 group-hover:scale-110 transition-transform" />
+              </button>
+            )}
           </div>
         </div>
       </div>
