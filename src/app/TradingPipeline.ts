@@ -82,11 +82,25 @@ export class TradingPipeline {
 
   constructor(telegramService: TelegramService) {
     this.config = { ...INITIAL_RUNTIME_CONFIG };
+    
+    // Read environment configuration
+    const executionMode = (process.env.EXECUTION_MODE as 'LIVE' | 'TESTNET' | 'PAPER') || 'PAPER';
+    const apiBaseUrl = executionMode === 'TESTNET' 
+      ? 'https://testnet.binancefuture.com' 
+      : 'https://fapi.binance.com';
+
     this.orderBookBuilder = new OrderBookBuilder(10);
     this.marketData = new ExchangeMarketData(this.orderBookBuilder);
     this.featureEngine = new FeatureEngine();
     this.userDataStream = new UserDataStream(0); // Start with 0, will be updated by fetchInitialAccountData
-    this.orderGateway = new OrderGateway(this.userDataStream, this.orderBookBuilder);
+    
+    this.orderGateway = new OrderGateway(this.userDataStream, this.orderBookBuilder, {
+      executionMode,
+      apiKey: process.env.EXCHANGE_API_KEY,
+      apiSecret: process.env.EXCHANGE_API_SECRET,
+      apiBaseUrl: apiBaseUrl,
+    });
+
     this.riskEngine = new RiskEngine({ maxDrawdownPct: this.config.maxDrawdownCapPct, maxPortfolioLeverage: this.config.maxLeverage });
     this.killSwitch = new KillSwitch();
     this.eventJournal = new EventJournal(1000);
@@ -126,7 +140,7 @@ export class TradingPipeline {
         try {
           this.correlationRiskManager.calculateCorrelationMatrix();
           const balance = this.userDataStream.getBalance();
-          this.db.saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
+          await this.db.saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
         } catch (error) {
           console.error('Error in maintenance tasks:', error);
         }
@@ -170,7 +184,7 @@ export class TradingPipeline {
       if (!book || currentPrice === 0) continue;
 
       // Get latest features for this symbol
-      const features = this.featureEngine.getLatestFeatures(symbol);
+      const features = this.lastFeatures.get(symbol);
       if (!features) continue;
 
       // 3. Strategy Evaluation
@@ -180,28 +194,38 @@ export class TradingPipeline {
         // Only trade if signal is strong enough
         if (signal.strength > 0.7) {
            // 4. Risk Validation
-           const riskCheck = this.riskEngine.validateSignal(signal, this.userDataStream.getBalance());
+           const riskCheck = this.riskEngine.validateOrder(
+             { symbol, side: signal.type === 'BUY' ? 'BUY' : 'SELL', quantity: 0.01, price: currentPrice },
+             this.userDataStream.getBalance(),
+             this.userDataStream.getPositions()
+           );
            
-           if (riskCheck.isAllowed) {
+           if (riskCheck.allowed) {
               // Rate limiting - 1 order per symbol per 10 seconds for safety in trial
               const lastTime = this.lastOrderTime.get(symbol) || 0;
               if (Date.now() - lastTime > 10000) {
                  console.log(`🎯 Executing real-time signal for ${symbol}: ${signal.type} @ ${currentPrice}`);
                  
                  // Execute order
-                 await this.orderGateway.executeSignal(signal);
+                 const order = this.orderGateway.submitOrder({
+                   symbol,
+                   side: signal.type === 'BUY' ? 'BUY' : 'SELL',
+                   type: 'MARKET',
+                   quantity: 0.01,
+                   strategyId: 'MeanReversion'
+                 });
                  
                  // Update tracking
                  this.lastOrderTime.set(symbol, Date.now());
                  this.lastSignals.set(symbol, signal);
                  
                  // Notify UI
-                 this.eventJournal.log({
-                   type: 'ORDER_EXECUTED',
-                   symbol,
-                   data: signal,
-                   timestamp: Date.now()
-                 });
+                 this.eventJournal.record(
+                   'ORDER',
+                   'STRATEGY',
+                   `Order executed for ${symbol}: ${signal.type}`,
+                   { signal, orderId: order.id }
+                 );
 
                  await this.telegramService.sendMessage(`🎯 <b>Signal Executed</b>\n\nSymbol: ${symbol}\nType: ${signal.type}\nPrice: ${currentPrice}\nReason: ${signal.reason}`);
               }
@@ -268,7 +292,7 @@ export class TradingPipeline {
 
     // 3. Evaluate signals & execute if auto trading is enabled
     if (this.config.autoTradingEnabled) {
-      this.evaluateSignalAndExecute(symbol, features, book);
+      await this.evaluateSignalAndExecute(symbol, features, book);
     }
   }
 
@@ -329,7 +353,7 @@ export class TradingPipeline {
     });
   }
 
-  private evaluateSignalAndExecute(symbol: AssetSymbol, features: any, book?: OrderBook) {
+  private async evaluateSignalAndExecute(symbol: AssetSymbol, features: any, book?: OrderBook) {
     const { zScore, ouMu, ouSigma, halfLifePeriods, hurstExponent, rsi14, orderFlowImbalance } = features;
 
     // Check if mean-reversion signal condition is met
@@ -397,7 +421,7 @@ export class TradingPipeline {
         );
 
         // 💾 Save Signal to database
-        this.db.saveSignal({
+        await this.db.saveSignal({
           id: sig.id,
           timestamp: sig.timestamp,
           symbol,
@@ -419,7 +443,7 @@ export class TradingPipeline {
           });
 
           // 💾 Save Trade to database
-          this.db.saveTrade({
+          await this.db.saveTrade({
             id: ord.id,
             timestamp: Date.now(),
             symbol,
@@ -550,16 +574,16 @@ export class TradingPipeline {
 
         // 2. مقارنة الرصيد
         const realEquity = parseFloat(accountData.totalWalletBalance);
-        const dbState = this.db.getState<{equity: number, timestamp: number}>('last_balance');
+        const dbState = await this.db.getState<{equity: number, timestamp: number}>('last_balance');
         
         if (dbState && Math.abs(realEquity - dbState.equity) > 1) {
             console.warn(`⚠️ Balance mismatch! Real: ${realEquity}, DB: ${dbState.equity}. Updating DB.`);
-            this.db.saveState('last_balance', { equity: realEquity, timestamp: Date.now() });
+            await this.db.saveState('last_balance', { equity: realEquity, timestamp: Date.now() });
         }
 
         // 3. مقارنة الصفقات المفتوحة
         const realOpenPositions = positionsData.filter((p: any) => parseFloat(p.positionAmt) !== 0);
-        const dbOpenTrades = this.db.getOpenTrades();
+        const dbOpenTrades = await this.db.getOpenTrades();
 
         if (realOpenPositions.length !== dbOpenTrades.length) {
             console.error(` CRITICAL: Position mismatch! Real: ${realOpenPositions.length}, DB: ${dbOpenTrades.length}`);
@@ -577,6 +601,11 @@ export class TradingPipeline {
 
   public getLastHealth() {
     return this.healthMonitor.getHealth();
+  }
+
+  public setDatabase(database: DatabaseService) {
+    this.db = database;
+    console.log("🗄️ Trading Pipeline linked to new Database Storage");
   }
 
   public getDatabase(): DatabaseService {

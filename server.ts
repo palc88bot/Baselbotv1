@@ -4,20 +4,22 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { WebSocketServer, WebSocket } from "ws";
 import { TradingPipeline } from "./src/app/TradingPipeline";
-import { SqlDatabaseStore } from "./src/storage/SqlDatabase";
 import { TelegramService } from "./src/services/TelegramService";
 import { BacktestEngine } from "./src/backtest/BacktestEngine";
+import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
+import { getOrCreateUser } from "./src/db/users.ts";
+import { CloudDatabaseService } from "./src/storage/CloudDatabaseService.ts";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   app.use(express.json());
 
-  // CORS Middleware to allow iframe/cross-origin access safely
+  // CORS Middleware
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE");
@@ -29,31 +31,12 @@ async function startServer() {
     }
   });
 
-  // 1. Initialize Permanent SQL Database Storage Engine
-  const sqlDb = new SqlDatabaseStore();
-
-  // Initialize Telegram Alert Service
+  // Initialize Services
   const telegramService = new TelegramService();
-
-  // 2. Initialize Trading Brain Pipeline
   const pipeline = new TradingPipeline(telegramService);
-  console.log("🚀 Initializing Basel Quantum Trading Pipeline (The Brain)...");
-  pipeline.start();
-
-  // Persist executed/updated trades to permanent SQL database
-  pipeline.getOrderGateway().subscribeOrders((order) => {
-    if (order.status === 'FILLED' || order.status === 'PARTIALLY_FILLED' || order.status === 'NEW') {
-      sqlDb.saveTrade({
-        id: order.id,
-        symbol: order.symbol,
-        side: order.side,
-        price: order.avgFillPrice || order.price,
-        quantity: order.filledQuantity || order.quantity,
-        timestamp: order.timestamp,
-        status: order.status,
-      });
-    }
-  });
+  
+  // Shared Cloud DB Service (will be linked after user sync)
+  let cloudDb: CloudDatabaseService | null = null;
 
   // API Routes
   app.get("/api/health", (req, res) => {
@@ -64,26 +47,34 @@ async function startServer() {
         active: pipeline.getKillSwitch().isActive(),
         level: pipeline.getKillSwitch().getLevel(),
       },
-      sqlStorage: "Connected (Permanent SQLite / Cloud Run Persistent Volume)",
+      cloudStorage: cloudDb ? "Connected (Cloud SQL + Firestore)" : "Disconnected (Waiting for Auth)",
     });
   });
 
-  // Telegram Alert Service API
-  app.get("/api/telegram/status", (req, res) => {
-    res.json({ success: true, ...telegramService.getConfigStatus() });
-  });
-
-  app.post("/api/telegram/config", (req, res) => {
+  // User Sync & Auth Initialization
+  app.post("/api/auth/sync", requireAuth, async (req: AuthRequest, res) => {
     try {
-      const { chatId, isEnabled } = req.body;
-      telegramService.updateConfig(chatId, isEnabled);
-      res.json({ success: true, ...telegramService.getConfigStatus() });
+      const user = await getOrCreateUser(req.user!.uid, req.user!.email!);
+      
+      // Initialize Cloud DB for this user
+      cloudDb = new CloudDatabaseService(req.user!.uid);
+      await cloudDb.setUserId(user.id, user.uid);
+      
+      // Inject cloud database into pipeline
+      pipeline.setDatabase(cloudDb as any);
+      
+      console.log(`👤 User synchronized: ${user.email} (${user.uid})`);
+      res.json({ success: true, user });
     } catch (error: any) {
+      console.error("Auth sync error:", error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
 
-  app.post("/api/toggle-trading", (req, res) => {
+  // Protected routes below
+  app.use("/api/protected", requireAuth);
+
+  app.post("/api/protected/toggle-trading", async (req: AuthRequest, res) => {
     const { running } = req.body;
     if (running) {
       pipeline.startAutonomousTrading();
@@ -93,38 +84,59 @@ async function startServer() {
     res.json({ success: true, isRunning: running });
   });
 
-  app.post("/api/run-optimization", async (req, res) => {
+  app.post("/api/protected/manual-order", async (req: AuthRequest, res) => {
+    try {
+      const order = pipeline.getOrderGateway().submitOrder(req.body);
+      res.json({ success: true, order });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/protected/run-optimization", async (req: AuthRequest, res) => {
     try {
       const { assets, constraints } = req.body;
       const db = pipeline.getDatabase();
-      const solver = new QuantumInspiredSolver();
       
-      // Get historical data for the requested assets
-      const historicalReturns = [];
+      const pricesMap: Record<string, number[]> = {};
       for (const symbol of assets) {
-        const prices = await db.getPriceHistory(symbol, 100);
-        if (prices.length > 1) {
-          const returns = [];
-          for (let i = 1; i < prices.length; i++) {
-            returns.push((prices[i].price - prices[i-1].price) / prices[i-1].price);
-          }
-          historicalReturns.push(returns);
+        const history = await db.getPriceHistory(symbol, 30);
+        if (history.length >= 2) {
+          pricesMap[symbol] = history.map(h => h.price);
         }
       }
 
-      if (historicalReturns.length === 0) {
+      const validAssets = Object.keys(pricesMap);
+      if (validAssets.length === 0) {
         return res.status(400).json({ error: "Insufficient historical data for optimization" });
       }
 
-      // Run real solver
-      const solution = solver.solve(historicalReturns, constraints?.riskAversion || 0.5);
+      // Simplified Portfolio Optimization: Equal weights for valid assets
+      const weights = assets.map((sym: string) => validAssets.includes(sym) ? 1 / validAssets.length : 0);
       
+      // Calculate basic metrics
+      let expectedReturn = 0;
+      let totalRisk = 0;
+      
+      validAssets.forEach((sym, i) => {
+        const prices = pricesMap[sym];
+        const returns = [];
+        for (let j = 1; j < prices.length; j++) {
+          returns.push((prices[j] - prices[j-1]) / prices[j-1]);
+        }
+        const avgRet = returns.reduce((a, b) => a + b, 0) / returns.length;
+        const variance = returns.reduce((a, b) => a + Math.pow(b - avgRet, 2), 0) / returns.length;
+        
+        expectedReturn += avgRet * (1 / validAssets.length);
+        totalRisk += Math.sqrt(variance) * (1 / validAssets.length);
+      });
+
       res.json({
         success: true,
-        weights: solution.weights,
-        expectedReturn: solution.expectedReturn,
-        risk: solution.risk,
-        sharpeRatio: solution.sharpeRatio,
+        weights,
+        expectedReturn: expectedReturn * 252, // Annualized
+        risk: totalRisk * Math.sqrt(252), // Annualized
+        sharpeRatio: totalRisk > 0 ? (expectedReturn / totalRisk) * Math.sqrt(252) : 0,
         timestamp: Date.now()
       });
     } catch (error: any) {
@@ -132,12 +144,19 @@ async function startServer() {
     }
   });
 
-  app.get("/api/metrics", (req, res) => {
-    res.json({
-      performance: pipeline.getLastHealth(),
-      activePositions: pipeline.getUserDataStream().getPositions().length,
-      uptime: process.uptime()
-    });
+  app.get("/api/protected/metrics", async (req: AuthRequest, res) => {
+    try {
+      const db = pipeline.getDatabase();
+      const metrics = await db.getPerformanceMetrics();
+      res.json({
+        success: true,
+        performance: metrics,
+        activePositions: pipeline.getUserDataStream().getPositions().length,
+        uptime: process.uptime()
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
   });
 
   // Start Autonomous Trading
@@ -154,8 +173,9 @@ async function startServer() {
 ✅ Autonomous Trading System is now operational!
   `);
 
-  app.get("/api/system-health", (req, res) => {
-    const trades = sqlDb.getPerformanceMetrics();
+  app.get("/api/protected/system-health", async (req: AuthRequest, res) => {
+    const db = pipeline.getDatabase();
+    const metrics = await db.getPerformanceMetrics();
     const rateLimiter = pipeline.getOrderGateway().getRateLimiter();
     const orderStatus = rateLimiter.getRateLimitStatus('/fapi/v1/order');
 
@@ -166,60 +186,21 @@ async function startServer() {
             used: orderStatus.used, 
             limit: orderStatus.limit 
         }, 
-        db: { totalTrades: trades.totalTrades, winRate: trades.winRate }
+        db: { totalTrades: metrics?.totalTrades || 0, winRate: metrics?.winRate || 0 }
     });
   });
 
-  app.get("/api/trades", (req, res) => {
+  app.get("/api/protected/trades", async (req: AuthRequest, res) => {
     try {
-      const trades = sqlDb.getTrades(100);
-      res.json({ success: true, count: trades.length, trades });
+      const db = pipeline.getDatabase();
+      const openTrades = await db.getOpenTrades();
+      res.json({ success: true, count: openTrades.length, trades: openTrades });
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to fetch persistent trades" });
+      res.status(500).json({ error: error.message || "Failed to fetch trades" });
     }
   });
 
-  app.post("/api/manual-order", (req, res) => {
-    try {
-      const { symbol, side, type, quantity, price } = req.body;
-      const order = pipeline.getOrderGateway().submitOrder({
-        symbol: symbol || 'BTC/USDT',
-        side: side || 'BUY',
-        type: type || 'LIMIT',
-        quantity: quantity || 0.1,
-        price: price || 90000,
-        strategyId: 'MANUAL_UI',
-      });
-
-      // Save to SQL database immediately
-      sqlDb.saveTrade({
-        id: order.id,
-        symbol: order.symbol,
-        side: order.side,
-        price: order.price,
-        quantity: order.quantity,
-        timestamp: order.timestamp,
-        status: order.status,
-      });
-
-      res.json({ success: true, message: "Manual order submitted and saved to SQL permanently", order });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to submit manual order" });
-    }
-  });
-
-  // --- Telegram Alerts API Endpoints ---
-  app.post('/api/telegram/config', (req, res) => {
-    try {
-      const { chatId, isEnabled } = req.body;
-      telegramService.updateConfig(chatId, isEnabled);
-      res.json({ success: true, status: telegramService.getConfigStatus() });
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  app.post('/api/telegram/test', async (req, res) => {
+  app.post("/api/protected/telegram/test", async (req: AuthRequest, res) => {
     try {
       const success = await telegramService.sendMessage(
         '🟢 <b>Baselbot Test</b>\n\n✅ تم الاتصال بنجاح! البوت جاهز لإرسال التنبيهات التلقائية والتنفيذية.'
@@ -239,7 +220,7 @@ async function startServer() {
   });
 
   // --- Backtesting API Endpoint ---
-  app.post('/api/backtest/run', async (req, res) => {
+  app.post('/api/protected/backtest/run', async (req: AuthRequest, res) => {
     try {
       const config = req.body || {
         symbols: ['BTC/USDT', 'ETH/USDT'],
@@ -260,7 +241,7 @@ async function startServer() {
   });
 
   // --- Correlation and Risk Reports ---
-  app.get('/api/correlation-report', (req, res) => {
+  app.get('/api/protected/correlation-report', async (req: AuthRequest, res) => {
     try {
       const report = pipeline.getCorrelationReport();
       res.json({ success: true, report });
@@ -269,7 +250,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/rate-limit-status', (req, res) => {
+  app.get('/api/protected/rate-limit-status', async (req: AuthRequest, res) => {
     try {
       const report = pipeline.getOrderGateway().getRateLimiter().getFullReport();
       res.json({ success: true, report });
@@ -293,7 +274,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/bot-status', (req, res) => {
+  app.get('/api/protected/bot-status', async (req: AuthRequest, res) => {
     try {
       const status = {
         isRunning: pipeline.getIsRunning(),
@@ -322,12 +303,13 @@ async function startServer() {
   // 3. Setup WebSocket Server for Real-Time UI Telemetry on /ws
   const wss = new WebSocketServer({ noServer: true });
 
-  wss.on("connection", (ws: WebSocket) => {
+  wss.on("connection", async (ws: WebSocket) => {
     console.log("✅ Frontend UI connected to Trading Brain WebSocket (/ws)");
 
     // Send initial state including SQL persisted trades
     try {
-      const persistentTrades = sqlDb.getTrades(50);
+      const db = pipeline.getDatabase();
+      const persistentTrades = await db.getOpenTrades();
       const activeSymbols = pipeline.getConfig().activeSymbols;
       
       const candlesDict: Record<string, any> = {};
@@ -469,7 +451,7 @@ async function startServer() {
 
     // 3. Save final database snapshots
     const balance = pipeline.getUserDataStream().getBalance();
-    pipeline.getDatabase().saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
+    await pipeline.getDatabase().saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
     console.log("💾 Final balance snapshots persisted.");
 
     // 4. Close Server

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, Shield, Database } from 'lucide-react';
+import { fetchWithAuth } from '../lib/api.ts';
 
 export default function SystemHealthPanel({ lang }: { lang: 'ar' | 'en' }) {
     const [health, setHealth] = useState<any>(null);
@@ -8,8 +9,7 @@ export default function SystemHealthPanel({ lang }: { lang: 'ar' | 'en' }) {
     useEffect(() => {
         const fetchHealth = async () => {
             try {
-                const res = await fetch('/api/system-health');
-                const data = await res.json();
+                const data = await fetchWithAuth('/api/protected/system-health');
                 setHealth(data);
             } catch (e) { console.error(e); }
         };

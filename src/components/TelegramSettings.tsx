@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Send, ShieldCheck, Bell, BellOff, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { fetchWithAuth } from '../lib/api.ts';
 
 export default function TelegramSettings({ lang }: { lang: 'ar' | 'en' }) {
     const [chatId, setChatId] = useState('');
@@ -15,8 +16,7 @@ export default function TelegramSettings({ lang }: { lang: 'ar' | 'en' }) {
 
     useEffect(() => {
         // Fetch current configuration status on mount
-        fetch('/api/telegram/status')
-            .then(res => res.json())
+        fetchWithAuth('/api/telegram/status')
             .then(data => {
                 setIsEnabled(data.isEnabled);
                 setMaskedId(data.maskedChatId);
@@ -28,14 +28,12 @@ export default function TelegramSettings({ lang }: { lang: 'ar' | 'en' }) {
         setStatus('loading');
         setMessage('');
         try {
-            const res = await fetch('/api/telegram/config', {
+            const data = await fetchWithAuth('/api/telegram/config', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chatId, isEnabled })
             });
-            const data = await res.json();
             if (data.success) {
-                setMaskedId(data.status.maskedChatId);
+                setMaskedId(data.status?.maskedChatId || data.maskedChatId);
                 setChatId(''); // Clear input for security
                 setStatus('success');
                 setMessage(isAr ? 'تم الحفظ بنجاح!' : 'Saved successfully!');
@@ -54,8 +52,7 @@ export default function TelegramSettings({ lang }: { lang: 'ar' | 'en' }) {
         setStatus('loading');
         setMessage('');
         try {
-            const res = await fetch('/api/telegram/test', { method: 'POST' });
-            const data = await res.json();
+            const data = await fetchWithAuth('/api/protected/telegram/test', { method: 'POST' });
             setStatus(data.success ? 'success' : 'error');
             setMessage(data.message || (data.success ? 'Test message sent!' : 'Failed to send'));
         } catch (err) {

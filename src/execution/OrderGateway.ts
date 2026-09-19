@@ -18,7 +18,7 @@ export interface GatewayConfig {
   apiKey?: string;
   apiSecret?: string;
   apiBaseUrl?: string;
-  executionMode?: 'LIVE' | 'PAPER';
+  executionMode?: 'LIVE' | 'TESTNET' | 'PAPER';
 }
 
 export class OrderGateway {
@@ -34,7 +34,7 @@ export class OrderGateway {
   private apiKey: string = '';
   private apiSecret: string = '';
   private apiBaseUrl: string = 'https://fapi.binance.com';
-  private executionMode: 'LIVE' | 'PAPER' = 'PAPER';
+  private executionMode: 'LIVE' | 'TESTNET' | 'PAPER' = 'PAPER';
 
   constructor(
     userDataStream: UserDataStream,
@@ -50,12 +50,21 @@ export class OrderGateway {
       takerFeeBps: 3.5,
       simulatedLatencyMs: 15,
       commissionAsset: 'USDT',
+      executionMode: 'PAPER',
       ...config,
     };
-    this.apiKey = this.config.apiKey || '';
-    this.apiSecret = this.config.apiSecret || '';
-    this.apiBaseUrl = this.config.apiBaseUrl || 'https://fapi.binance.com';
+
+    this.apiKey = this.config.apiKey || process.env.EXCHANGE_API_KEY || '';
+    this.apiSecret = this.config.apiSecret || process.env.EXCHANGE_API_SECRET || '';
     this.executionMode = this.config.executionMode || 'PAPER';
+    
+    if (this.config.apiBaseUrl) {
+      this.apiBaseUrl = this.config.apiBaseUrl;
+    } else {
+      this.apiBaseUrl = this.executionMode === 'TESTNET' 
+        ? 'https://testnet.binancefuture.com' 
+        : 'https://fapi.binance.com';
+    }
   }
 
   public getRateLimiter(): RateLimiter {

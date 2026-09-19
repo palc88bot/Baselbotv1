@@ -34,6 +34,7 @@ import {
   OrderBook,
   Position,
   TradingSignal,
+  SystemHealth,
 } from '../domain/types';
 
 interface DashboardProps {

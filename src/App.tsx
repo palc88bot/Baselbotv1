@@ -28,10 +28,14 @@ import { RiskEngineView } from './components/RiskEngineView';
 import { BacktestWorkbench } from './components/BacktestWorkbench';
 import { TelemetryJournalView } from './components/TelemetryJournalView';
 import SystemHealthPanel from './components/SystemHealthPanel';
+import { LoginView } from './components/LoginView';
+import { useAuth } from './contexts/AuthContext';
 
 export default function App() {
+  const { user, loading, getToken } = useAuth();
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [isSynced, setIsSynced] = useState<boolean>(false);
 
   // React State
   const [isRunning, setIsRunning] = useState<boolean>(true);
@@ -116,6 +120,31 @@ export default function App() {
 
   const selectedSymbolRef = useRef<AssetSymbol>('BTC/USDT');
 
+  // Sync user with backend
+  useEffect(() => {
+    if (user && !isSynced) {
+      const syncUser = async () => {
+        try {
+          const token = await getToken();
+          const res = await fetch('/api/auth/sync', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          if (res.ok) {
+            setIsSynced(true);
+            console.log('✅ User synced with cloud database');
+          }
+        } catch (err) {
+          console.error('Failed to sync user:', err);
+        }
+      };
+      syncUser();
+    }
+  }, [user, isSynced, getToken]);
+
   // Fetch Telegram status
   useEffect(() => {
     fetch('/api/telegram/status')
@@ -130,9 +159,13 @@ export default function App() {
   // Toggle Telegram
   const handleToggleTelegram = async () => {
     try {
+      const token = await getToken();
       const response = await fetch('/api/telegram/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ chatId: '123456789', isEnabled: !isTelegramEnabled }), // Dummy chatId for now
       });
       const data = await response.json();
@@ -149,6 +182,8 @@ export default function App() {
 
   // Connect to Backend WebSocket Brain with Exponential Backoff
   useEffect(() => {
+    if (!user || !isSynced) return;
+
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = import.meta.env.VITE_BRAIN_WS_URL || `${wsProtocol}//${window.location.host}/ws`;
 
@@ -249,9 +284,13 @@ export default function App() {
   const handleToggleRun = async () => {
     const newState = !isRunning;
     try {
-      const res = await fetch('/api/toggle-trading', {
+      const token = await getToken();
+      const res = await fetch('/api/protected/toggle-trading', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ running: newState })
       });
       if (res.ok) {
@@ -287,9 +326,13 @@ export default function App() {
     price?: number;
   }) => {
     try {
-      await fetch('/api/manual-order', {
+      const token = await getToken();
+      await fetch('/api/protected/manual-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(params),
       });
     } catch (err) {
@@ -300,9 +343,13 @@ export default function App() {
   // Re-run quantum optimization
   const handleRunOptimization = async () => {
     try {
-      const res = await fetch('/api/run-optimization', {
+      const token = await getToken();
+      const res = await fetch('/api/protected/run-optimization', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ 
           assets: config.activeSymbols,
           constraints: { riskAversion: 0.5 }
@@ -314,8 +361,8 @@ export default function App() {
         setLastSolution({
           binaryVector: config.activeSymbols.map((_, i) => (data.weights[i] > 0.01 ? 1 : 0)),
           energy: -data.sharpeRatio,
-          rawAllocations: config.activeSymbols.reduce((acc, sym, i) => ({ ...acc, [sym]: data.weights[i] }), {}),
-          normalizedWeights: config.activeSymbols.reduce((acc, sym, i) => ({ ...acc, [sym]: data.weights[i] }), {}),
+          rawAllocations: config.activeSymbols.reduce((acc, sym, i) => ({ ...acc, [sym]: data.weights[i] }), {} as Record<AssetSymbol, number>),
+          normalizedWeights: config.activeSymbols.reduce((acc, sym, i) => ({ ...acc, [sym]: data.weights[i] }), {} as Record<AssetSymbol, number>),
           expectedReturn: data.expectedReturn,
           portfolioVariance: data.risk * data.risk,
           sharpeRatio: data.sharpeRatio,
@@ -336,6 +383,9 @@ export default function App() {
   };
 
   const isAr = lang === 'ar';
+
+  if (loading) return null;
+  if (!user || !isSynced) return <LoginView lang={lang} />;
 
   return (
     <div

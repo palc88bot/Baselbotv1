@@ -32,12 +32,19 @@ export interface BalanceSnapshot {
     unrealized_pnl: number;
 }
 
+export interface PriceRecord {
+    timestamp: number;
+    symbol: string;
+    price: number;
+}
+
 export class DatabaseService {
     private filePath: string;
     private data: {
         trades: Record<string, TradeRecord>;
         signals: SignalRecord[];
         balanceSnapshots: BalanceSnapshot[];
+        prices: Record<string, PriceRecord[]>;
         botState: Record<string, any>;
     };
 
@@ -47,6 +54,7 @@ export class DatabaseService {
             trades: {},
             signals: [],
             balanceSnapshots: [],
+            prices: {},
             botState: {}
         };
         this.load();
@@ -66,6 +74,7 @@ export class DatabaseService {
                     trades: parsed.trades || {},
                     signals: parsed.signals || [],
                     balanceSnapshots: parsed.balanceSnapshots || [],
+                    prices: parsed.prices || {},
                     botState: parsed.botState || {}
                 };
             }
@@ -73,6 +82,8 @@ export class DatabaseService {
             console.error('Error loading persistent database:', err);
         }
     }
+
+    // ... (rest of save method remains similar)
 
     private save() {
         try {
@@ -86,13 +97,36 @@ export class DatabaseService {
         }
     }
 
+    // --- Prices ---
+    public async savePrice(symbol: string, price: number) {
+        if (!this.data.prices[symbol]) {
+            this.data.prices[symbol] = [];
+        }
+        this.data.prices[symbol].push({
+            timestamp: Date.now(),
+            symbol,
+            price
+        });
+        
+        // Keep last 1000 prices per symbol
+        if (this.data.prices[symbol].length > 1000) {
+            this.data.prices[symbol].shift();
+        }
+        this.save();
+    }
+
+    public async getPriceHistory(symbol: string, limit: number = 100): Promise<PriceRecord[]> {
+        const history = this.data.prices[symbol] || [];
+        return history.slice(-limit);
+    }
+
     // --- Trades ---
-    public saveTrade(trade: TradeRecord) {
+    public async saveTrade(trade: TradeRecord) {
         this.data.trades[trade.id] = trade;
         this.save();
     }
 
-    public getOpenTrades(symbol?: string): TradeRecord[] {
+    public async getOpenTrades(symbol?: string): Promise<TradeRecord[]> {
         const list = Object.values(this.data.trades).filter(t => t.status === 'OPEN');
         if (symbol) {
             return list.filter(t => t.symbol === symbol);
@@ -100,7 +134,7 @@ export class DatabaseService {
         return list;
     }
 
-    public closeTrade(id: string, pnl: number) {
+    public async closeTrade(id: string, pnl: number) {
         if (this.data.trades[id]) {
             this.data.trades[id].status = 'CLOSED';
             this.data.trades[id].pnl = pnl;
@@ -109,7 +143,7 @@ export class DatabaseService {
     }
 
     // --- Signals ---
-    public saveSignal(signal: SignalRecord) {
+    public async saveSignal(signal: SignalRecord) {
         this.data.signals.push(signal);
         if (this.data.signals.length > 500) {
             this.data.signals.shift();
@@ -118,7 +152,7 @@ export class DatabaseService {
     }
 
     // --- Balance Snapshots ---
-    public saveBalanceSnapshot(equity: number, freeMargin: number, unrealizedPnl: number) {
+    public async saveBalanceSnapshot(equity: number, freeMargin: number, unrealizedPnl: number) {
         this.data.balanceSnapshots.push({
             timestamp: Date.now(),
             total_equity: equity,
@@ -132,12 +166,12 @@ export class DatabaseService {
     }
 
     // --- Bot State (Recovery) ---
-    public saveState(key: string, value: any) {
+    public async saveState(key: string, value: any) {
         this.data.botState[key] = value;
         this.save();
     }
 
-    public getState<T>(key: string): T | null {
+    public async getState<T>(key: string): Promise<T | null> {
         const val = this.data.botState[key];
         return val !== undefined ? (val as T) : null;
     }

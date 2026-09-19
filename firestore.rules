@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+
+    // 2. Validation Blueprints
+    function isValidTradingSignal(data) {
+      return data.keys().hasAll(['symbol', 'type', 'strength', 'timestamp'])
+        && data.keys().hasOnly(['symbol', 'type', 'strength', 'timestamp', 'reason'])
+        && data.symbol is string && data.symbol.size() <= 16
+        && data.type in ['BUY', 'SELL']
+        && data.strength is number && data.strength >= 0 && data.strength <= 1
+        && data.timestamp is number;
+    }
+
+    function isValidBotState(data) {
+      return data.keys().hasAll(['isRunning', 'lastHeartbeat'])
+        && data.keys().hasOnly(['isRunning', 'lastHeartbeat', 'activeSymbols'])
+        && data.isRunning is bool
+        && data.lastHeartbeat is number
+        && (!data.keys().contains('activeSymbols') || (data.activeSymbols is list && data.activeSymbols.size() <= 20));
+    }
+
+    // Match blocks
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      
+      match /signals/{signalId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidTradingSignal(incoming());
+        allow update: if false; // Signals are immutable once sent
+        allow delete: if isOwner(userId);
+      }
+
+      match /state/current {
+        allow get: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidBotState(incoming());
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
