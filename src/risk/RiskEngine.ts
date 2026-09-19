@@ -18,8 +18,8 @@ export const DEFAULT_RISK_LIMITS: RiskLimits = {
 
 export class RiskEngine {
   private limits: RiskLimits;
-  private peakEquity: number = 100000;
-  private dailyStartEquity: number = 100000;
+  private peakEquity: number = 0;
+  private dailyStartEquity: number = 0;
   private returnsHistory: number[] = [];
 
   constructor(limits: Partial<RiskLimits> = {}) {
@@ -35,6 +35,7 @@ export class RiskEngine {
   }
 
   public setDailyStartEquity(equity: number) {
+    if (equity <= 0) return;
     this.dailyStartEquity = equity;
     if (equity > this.peakEquity) this.peakEquity = equity;
   }
@@ -50,15 +51,23 @@ export class RiskEngine {
     currentKillSwitchLevel: KillSwitchLevel = 'NORMAL'
   ): { metrics: RiskMetrics; violation: boolean; violationReason?: string; recommendedKillLevel?: KillSwitchLevel } {
     const totalEquity = balance.totalEquity;
-    if (totalEquity > this.peakEquity) {
-      this.peakEquity = totalEquity;
+    
+    // Initialize peak/daily start on first positive equity
+    if (totalEquity > 0) {
+        if (this.peakEquity === 0) this.peakEquity = totalEquity;
+        if (this.dailyStartEquity === 0) this.dailyStartEquity = totalEquity;
+        if (totalEquity > this.peakEquity) this.peakEquity = totalEquity;
     }
 
-    // 1. Current Drawdown Calculation
-    const currentDrawdownPct = this.peakEquity > 0 ? ((this.peakEquity - totalEquity) / this.peakEquity) * 100 : 0;
+    // 1. Current Drawdown Calculation (only if we have a valid peak)
+    const currentDrawdownPct = this.peakEquity > 0 && totalEquity > 0 
+        ? ((this.peakEquity - totalEquity) / this.peakEquity) * 100 
+        : 0;
 
     // 2. Daily Loss Calculation
-    const dailyLossPct = this.dailyStartEquity > 0 ? Math.max(0, ((this.dailyStartEquity - totalEquity) / this.dailyStartEquity) * 100) : 0;
+    const dailyLossPct = this.dailyStartEquity > 0 && totalEquity > 0
+        ? Math.max(0, ((this.dailyStartEquity - totalEquity) / this.dailyStartEquity) * 100) 
+        : 0;
 
     // 3. Current Portfolio Leverage
     const totalExposure = positions.reduce((acc, p) => acc + Math.abs(p.size * p.currentPrice), 0);

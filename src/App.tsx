@@ -36,6 +36,7 @@ export default function App() {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isSynced, setIsSynced] = useState<boolean>(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // React State
   const [isRunning, setIsRunning] = useState<boolean>(true);
@@ -135,10 +136,15 @@ export default function App() {
           });
           if (res.ok) {
             setIsSynced(true);
+            setSyncError(null);
             console.log('✅ User synced with cloud database');
+          } else {
+            const data = await res.json();
+            setSyncError(data.error || 'Failed to communicate with sync endpoint');
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('Failed to sync user:', err);
+          setSyncError(err.message || 'Network error during synchronization');
         }
       };
       syncUser();
@@ -384,8 +390,39 @@ export default function App() {
 
   const isAr = lang === 'ar';
 
-  if (loading) return null;
-  if (!user || !isSynced) return <LoginView lang={lang} />;
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#02040a] text-cyan-500 font-black gap-4">
+        <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+        <div className="animate-pulse tracking-[0.3em]">BOOTING_CORE...</div>
+      </div>
+    );
+  }
+
+  if (!user) return <LoginView lang={lang} />;
+
+  if (!isSynced) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#02040a] text-slate-100 font-bold gap-6 p-6 text-center">
+        <div className="relative">
+            <div className="w-20 h-20 border-4 border-cyan-500/10 border-t-cyan-500 rounded-full animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-10 h-10 bg-cyan-500/20 rounded-full animate-ping" />
+            </div>
+        </div>
+        <div className="space-y-2">
+            <h2 className="text-xl tracking-tight">Synchronizing Intelligence...</h2>
+            <p className="text-sm text-slate-500 max-w-xs mx-auto">Establishing secure connection with Basel AlgoCore quantum backend...</p>
+        </div>
+        {syncError && (
+          <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs font-mono max-w-md">
+            [SYNC_ERROR]: {syncError}
+            <button onClick={() => window.location.reload()} className="block mt-2 underline opacity-80 hover:opacity-100">Retry Synchronization</button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

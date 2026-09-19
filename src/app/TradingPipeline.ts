@@ -606,15 +606,26 @@ export class TradingPipeline {
         const accountRes = await fetch(`${baseUrl}/fapi/v2/account`, {
             headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() }
         });
-        const accountData = await accountRes.json();
 
         const positionsRes = await fetch(`${this.orderGateway.getApiBaseUrl()}/fapi/v2/positionRisk`, {
             headers: { 'X-MBX-APIKEY': this.orderGateway.getApiKey() }
         });
+
+        if (!accountRes.ok || !positionsRes.ok) {
+            console.warn('⚠️ Reconciliation skipped: Exchange API returned error or was unreachable.');
+            return;
+        }
+
+        const accountData = await accountRes.json();
         const positionsData = await positionsRes.json();
 
         // 2. مقارنة الرصيد
         const realEquity = parseFloat(accountData.totalWalletBalance);
+        if (isNaN(realEquity)) {
+            console.warn('⚠️ Reconciliation skipped: Invalid account data received.');
+            return;
+        }
+
         const dbState = await this.db.getState<{equity: number, timestamp: number}>('last_balance');
         
         if (dbState && Math.abs(realEquity - dbState.equity) > 1) {
@@ -623,14 +634,21 @@ export class TradingPipeline {
         }
 
         // 3. مقارنة الصفقات المفتوحة
+        if (!Array.isArray(positionsData)) {
+            console.warn('⚠️ Reconciliation skipped: Invalid positions data received.');
+            return;
+        }
+
         const realOpenPositions = positionsData.filter((p: any) => parseFloat(p.positionAmt) !== 0);
         const dbOpenTrades = await this.db.getOpenTrades();
 
         if (realOpenPositions.length !== dbOpenTrades.length) {
             console.error(` CRITICAL: Position mismatch! Real: ${realOpenPositions.length}, DB: ${dbOpenTrades.length}`);
-            // هنا يمكنك إرسال تنبيه Telegram حرج وإيقاف البوت تلقائياً
-            await this.telegramService.sendMessage(`🚨 <b>Reconciliation Failed</b>\nPositions mismatch detected. Bot halted.`);
-            this.killSwitch.trigger('HARD_HALT', 'State mismatch');
+            // Only halt if we have a real mismatch in a live environment
+            if (this.config.executionMode !== 'PAPER_TRADING') {
+                await this.telegramService.sendMessage(`🚨 <b>Reconciliation Failed</b>\nPositions mismatch detected. Bot halted.`);
+                this.killSwitch.trigger('HARD_HALT', 'State mismatch');
+            }
             return;
         }
 

@@ -55,16 +55,27 @@ async function startServer() {
   // User Sync & Auth Initialization
   app.post("/api/auth/sync", requireAuth, async (req: AuthRequest, res) => {
     try {
-      const user = await getOrCreateUser(req.user!.uid, req.user!.email!);
+      let user;
+      try {
+        user = await getOrCreateUser(req.user!.uid, req.user!.email!);
+        
+        // Initialize Cloud DB for this user
+        cloudDb = new CloudDatabaseService(req.user!.uid);
+        await cloudDb.setUserId(user.id, user.uid);
+        
+        // Inject cloud database into pipeline
+        pipeline.setDatabase(cloudDb as any);
+        console.log(`👤 User synchronized: ${user.email} (${user.uid})`);
+      } catch (sqlError) {
+        console.warn("⚠️ Cloud SQL sync failed, falling back to local storage session:", sqlError);
+        user = {
+          id: 0,
+          uid: req.user!.uid,
+          email: req.user!.email,
+          isMock: true
+        };
+      }
       
-      // Initialize Cloud DB for this user
-      cloudDb = new CloudDatabaseService(req.user!.uid);
-      await cloudDb.setUserId(user.id, user.uid);
-      
-      // Inject cloud database into pipeline
-      pipeline.setDatabase(cloudDb as any);
-      
-      console.log(`👤 User synchronized: ${user.email} (${user.uid})`);
       res.json({ success: true, user });
     } catch (error: any) {
       console.error("Auth sync error:", error);
