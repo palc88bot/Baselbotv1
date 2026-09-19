@@ -78,30 +78,90 @@ export class OrderGateway {
    * إرسال أوامر الحماية (Stop Loss & Take Profit) فور تنفيذ صفقة
    */
   public async sendProtectiveOrders(symbol: string, side: 'BUY' | 'SELL', quantity: number, entryPrice: number, slPrice: number, tpPrice: number) {
-    if (this.executionMode === 'PAPER') return;
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return;
 
-    const cleanSymbol = symbol.replace('/', '');
-    const endpoint = '/fapi/v1/order';
-    const timestamp = Date.now();
+    try {
+      const cleanSymbol = symbol.replace('/', '');
+      const endpoint = '/fapi/v1/order';
+      const timestamp = Date.now();
 
-    // 1. Stop Loss Order
-    const slSide = side === 'BUY' ? 'SELL' : 'BUY';
-    const slParams = `symbol=${cleanSymbol}&side=${slSide}&type=STOP_MARKET&stopPrice=${slPrice}&quantity=${quantity}&reduceOnly=true&closePosition=true&timestamp=${timestamp}`;
-    const slSig = crypto.createHmac('sha256', this.apiSecret).update(slParams).digest('hex');
-    
-    // 2. Take Profit Order
-    const tpParams = `symbol=${cleanSymbol}&side=${slSide}&type=TAKE_PROFIT_MARKET&stopPrice=${tpPrice}&quantity=${quantity}&reduceOnly=true&closePosition=true&timestamp=${timestamp + 1}`;
-    const tpSig = crypto.createHmac('sha256', this.apiSecret).update(tpParams).digest('hex');
+      const slSide = side === 'BUY' ? 'SELL' : 'BUY';
+      const formattedSl = Number(slPrice.toFixed(2));
+      const formattedTp = Number(tpPrice.toFixed(2));
 
-    // إرسال الأوامر بالتوازي
-    const headers = { 'X-MBX-APIKEY': this.apiKey, 'Content-Type': 'application/json' };
-    
-    await Promise.all([
-        fetch(`${this.apiBaseUrl}${endpoint}?${slParams}&signature=${slSig}`, { method: 'POST', headers }),
-        fetch(`${this.apiBaseUrl}${endpoint}?${tpParams}&signature=${tpSig}`, { method: 'POST', headers })
-    ]);
+      // 1. Stop Loss Order
+      const slParams = `symbol=${cleanSymbol}&side=${slSide}&type=STOP_MARKET&stopPrice=${formattedSl}&closePosition=true&timestamp=${timestamp}`;
+      const slSig = crypto.createHmac('sha256', this.apiSecret).update(slParams).digest('hex');
+      
+      // 2. Take Profit Order
+      const tpParams = `symbol=${cleanSymbol}&side=${slSide}&type=TAKE_PROFIT_MARKET&stopPrice=${formattedTp}&closePosition=true&timestamp=${timestamp + 100}`;
+      const tpSig = crypto.createHmac('sha256', this.apiSecret).update(tpParams).digest('hex');
 
-    console.log(`🛡️ Protective Orders (SL: ${slPrice}, TP: ${tpPrice}) set for ${cleanSymbol}`);
+      const headers = { 'X-MBX-APIKEY': this.apiKey };
+      
+      await Promise.all([
+          fetch(`${this.apiBaseUrl}${endpoint}?${slParams}&signature=${slSig}`, { method: 'POST', headers }),
+          fetch(`${this.apiBaseUrl}${endpoint}?${tpParams}&signature=${tpSig}`, { method: 'POST', headers })
+      ]);
+
+      console.log(`🛡️ Protective Orders (SL: ${formattedSl}, TP: ${formattedTp}) submitted to Binance for ${cleanSymbol}`);
+    } catch (err) {
+      console.error('❌ Failed to set protective orders on Binance:', err);
+    }
+  }
+
+  /**
+   * Submit real order REST request to Binance Futures API
+   */
+  private async sendOrderToBinance(order: Order, params: {
+    symbol: AssetSymbol;
+    side: OrderSide;
+    type: OrderType;
+    quantity: number;
+    price?: number;
+    timeInForce?: TimeInForce;
+  }) {
+    if (!this.apiKey || !this.apiSecret) return;
+
+    try {
+      const cleanSymbol = params.symbol.replace('/', '');
+      const timestamp = Date.now();
+      const endpoint = '/fapi/v1/order';
+
+      let queryStr = `symbol=${cleanSymbol}&side=${params.side}&type=${params.type}&quantity=${params.quantity}&timestamp=${timestamp}`;
+      if (params.type === 'LIMIT' && params.price) {
+        queryStr += `&price=${params.price}&timeInForce=${params.timeInForce || 'GTC'}`;
+      }
+
+      const signature = crypto.createHmac('sha256', this.apiSecret).update(queryStr).digest('hex');
+      const url = `${this.apiBaseUrl}${endpoint}?${queryStr}&signature=${signature}`;
+
+      console.log(`🌐 Submitting order to Binance Futures [${this.executionMode}]: ${params.side} ${params.quantity} ${cleanSymbol}...`);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-MBX-APIKEY': this.apiKey,
+        },
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('❌ Binance Futures REST Order Rejected:', data);
+        order.status = 'REJECTED';
+        order.errorMessage = data.msg || 'Binance REST API Rejected';
+        this.notifyOrder(order);
+      } else {
+        console.log(`✅ Binance Futures Order Executed [ID: ${data.orderId}]: ${data.symbol} ${data.side} status=${data.status}`);
+        order.status = data.status === 'FILLED' ? 'FILLED' : data.status === 'NEW' ? 'NEW' : 'PARTIALLY_FILLED';
+        if (data.avgPrice && parseFloat(data.avgPrice) > 0) {
+          order.avgFillPrice = parseFloat(data.avgPrice);
+        }
+        this.notifyOrder(order);
+      }
+    } catch (err) {
+      console.error('❌ Error sending order to Binance Futures:', err);
+    }
   }
 
   public getOrders(): Order[] {
@@ -127,7 +187,7 @@ export class OrderGateway {
     strategyId?: string;
     executionTag?: string;
   }): Order {
-    // Check and record rate limit usage asynchronously to prevent blocking execution
+    // Check and record rate limit usage
     this.rateLimiter.checkRateLimit('/fapi/v1/order').catch(err => console.error("RateLimiter error:", err));
 
     this.orderCounter += 1;
@@ -160,10 +220,19 @@ export class OrderGateway {
     this.orders.set(orderId, order);
     this.notifyOrder(order);
 
-    // Simulate async network wire latency and exchange ACK
-    setTimeout(() => {
-      this.acknowledgeAndExecute(orderId);
-    }, this.config.simulatedLatencyMs);
+    if (this.executionMode !== 'PAPER' && this.apiKey && this.apiSecret) {
+      // Send real order to Binance Testnet or Live
+      this.sendOrderToBinance(order, params);
+      // Also trigger local paper state sync as fallback
+      setTimeout(() => {
+        this.acknowledgeAndExecute(orderId);
+      }, this.config.simulatedLatencyMs);
+    } else {
+      // Simulate async network wire latency and exchange ACK in PAPER mode
+      setTimeout(() => {
+        this.acknowledgeAndExecute(orderId);
+      }, this.config.simulatedLatencyMs);
+    }
 
     return order;
   }

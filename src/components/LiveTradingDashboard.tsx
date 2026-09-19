@@ -280,6 +280,66 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
                 ))}
              </div>
           </div>
+
+          {/* Active Open Positions & Orders Monitor */}
+          <div className="bg-[#0a0f1d]/80 border border-cyan-500/20 rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden">
+             <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                   <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+                   <h4 className="text-xs font-black text-slate-100 uppercase tracking-[0.2em]">
+                      {isAr ? 'المراكز المفتوحة والأوامر النشطة' : 'ACTIVE_OPEN_POSITIONS_AND_ORDERS'}
+                   </h4>
+                </div>
+                <div className="px-3 py-1 bg-cyan-500/10 rounded-full border border-cyan-500/20 text-[10px] font-mono text-cyan-400 font-bold">
+                   {positions.length} {isAr ? 'صفقة مفتوحة' : 'OPEN'}
+                </div>
+             </div>
+
+             {positions.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-xs font-mono">
+                   {isAr ? 'لا توجد صفقات مفتوحة حالياً في المحفظة.' : 'NO_OPEN_POSITIONS_CURRENTLY_ACTIVE'}
+                </div>
+             ) : (
+                <div className="overflow-x-auto no-scrollbar">
+                   <table className="w-full text-left font-mono text-xs">
+                      <thead>
+                         <tr className="text-[10px] text-slate-500 border-b border-white/5 uppercase">
+                            <th className="pb-3 font-black">{isAr ? 'الأصل' : 'ASSET'}</th>
+                            <th className="pb-3 font-black">{isAr ? 'النوع' : 'SIDE'}</th>
+                            <th className="pb-3 font-black">{isAr ? 'الحجم' : 'SIZE'}</th>
+                            <th className="pb-3 font-black">{isAr ? 'سعر الدخول' : 'ENTRY_PRICE'}</th>
+                            <th className="pb-3 font-black">{isAr ? 'السعر الحالي' : 'MARK_PRICE'}</th>
+                            <th className="pb-3 font-black">{isAr ? 'الربح/الخسارة غير المحققة' : 'UPNL'}</th>
+                            <th className="pb-3 font-black text-right">{isAr ? 'الرافع المالية' : 'LEVERAGE'}</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                         {positions.map((pos, idx) => {
+                            const isLong = pos.size > 0;
+                            const pnl = pos.unrealizedPnl || 0;
+                            return (
+                               <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                  <td className="py-3 font-bold text-slate-200">{pos.symbol}</td>
+                                  <td className="py-3">
+                                     <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${isLong ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+                                        {isLong ? (isAr ? 'شراء LONG' : 'LONG') : (isAr ? 'بيع SHORT' : 'SHORT')}
+                                     </span>
+                                  </td>
+                                  <td className="py-3 font-bold text-slate-300">{Math.abs(pos.size)}</td>
+                                  <td className="py-3 text-slate-400">${(pos.entryPrice || 0).toLocaleString()}</td>
+                                  <td className="py-3 text-cyan-400 font-bold">${(pos.currentPrice || currentPrice).toLocaleString()}</td>
+                                  <td className={`py-3 font-bold ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                     {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                                  </td>
+                                  <td className="py-3 text-right text-purple-400 font-black">{pos.leverage || 20}x</td>
+                               </tr>
+                            );
+                         })}
+                      </tbody>
+                   </table>
+                </div>
+             )}
+          </div>
         </div>
 
         {/* Execution & OrderBook Hub (4 cols) */}
