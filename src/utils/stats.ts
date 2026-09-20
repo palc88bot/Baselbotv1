@@ -81,6 +81,98 @@ export function hurstRS(series: number[], minChunk: number = 8): number {
 }
 
 /**
+ * Detrended Fluctuation Analysis (DFA) for robust Hurst Exponent calculation
+ */
+export function calculateHurstDFA(series: number[], minScale: number = 8, maxScale: number = 64): number {
+  if (!series || series.length < 32) return 0.5;
+
+  const n = series.length;
+  // 1. Calculate cumulative sum of deviations from mean (profile)
+  const mean = series.reduce((a, b) => a + b, 0) / n;
+  const profile = new Float64Array(n);
+  let cum = 0;
+  for (let i = 0; i < n; i++) {
+    cum += series[i] - mean;
+    profile[i] = cum;
+  }
+
+  // 2. Compute fluctuation function F(s) for multiple scales
+  const scales: number[] = [];
+  const maxS = Math.min(maxScale, Math.floor(n / 4));
+  for (let s = minScale; s <= maxS; s = Math.floor(s * 1.4) + 1) {
+    scales.push(s);
+  }
+
+  if (scales.length < 2) return hurstRS(series);
+
+  const logScales: number[] = [];
+  const logF: number[] = [];
+
+  for (const s of scales) {
+    const numSegments = Math.floor(n / s);
+    if (numSegments === 0) continue;
+
+    let totalVariance = 0;
+
+    for (let seg = 0; seg < numSegments; seg++) {
+      const offset = seg * s;
+      // Linear regression trend fit within segment
+      let sumX = 0;
+      let sumY = 0;
+      let sumXY = 0;
+      let sumXX = 0;
+
+      for (let i = 0; i < s; i++) {
+        const x = i;
+        const y = profile[offset + i];
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumXX += x * x;
+      }
+
+      const meanX = sumX / s;
+      const meanY = sumY / s;
+      const slope = (sumXY - s * meanX * meanY) / (sumXX - s * meanX * meanX || 1);
+      const intercept = meanY - slope * meanX;
+
+      // Calculate mean square error (detrended variance)
+      let segVar = 0;
+      for (let i = 0; i < s; i++) {
+        const trend = intercept + slope * i;
+        const diff = profile[offset + i] - trend;
+        segVar += diff * diff;
+      }
+      totalVariance += segVar / s;
+    }
+
+    const rms = Math.sqrt(totalVariance / numSegments);
+    if (rms > 0) {
+      logScales.push(Math.log(s));
+      logF.push(Math.log(rms));
+    }
+  }
+
+  if (logScales.length < 2) return 0.5;
+
+  // Linear regression of log(F(s)) against log(s)
+  const meanX = logScales.reduce((a, b) => a + b, 0) / logScales.length;
+  const meanY = logF.reduce((a, b) => a + b, 0) / logF.length;
+
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < logScales.length; i++) {
+    const dx = logScales[i] - meanX;
+    const dy = logF[i] - meanY;
+    num += dx * dy;
+    den += dx * dx;
+  }
+
+  const alpha = den !== 0 ? num / den : 0.5;
+  return Math.max(0.01, Math.min(0.99, Number(alpha.toFixed(3))));
+}
+
+/**
  * Sigmoid function
  */
 export function sigmoid(x: number, k: number = 12): number {

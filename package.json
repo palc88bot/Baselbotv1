@@ -9,6 +9,7 @@
     "start": "node dist/server.cjs",
     "data:fetch": "tsx scripts/fetch-historical-data.ts",
     "data:wfo": "tsx scripts/run-wfo.ts",
+    "test:parity": "tsx scripts/parity-test.ts",
     "backtest:full": "tsx scripts/comprehensive-backtest.ts",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"
