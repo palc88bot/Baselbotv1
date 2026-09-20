@@ -23,7 +23,7 @@ export const INITIAL_RUNTIME_CONFIG: RuntimeConfigState = {
   executionMode: 'TESTNET_EXCHANGE',
   activeSymbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'QNT/USDT'],
   activeSolver: 'QUANTUM_ANNEALING',
-  rebalanceIntervalMs: 2500,
+  rebalanceIntervalMs: 4 * 60 * 60 * 1000, // 4 ساعات (تحسين أداء QUBO وتقليل التردد العالي)
   autoTradingEnabled: true,
   qaoaLayers: 3,
   riskAversionLambda: 0.5,

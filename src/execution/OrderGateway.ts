@@ -259,12 +259,14 @@ export class OrderGateway {
         return {};
       }
 
-      // 1. Stop Loss Order (reduceOnly, MARK_PRICE)
-      const slParams = `symbol=${cleanSymbol}&side=${slSide}&type=STOP_MARKET&stopPrice=${formattedSl}&quantity=${formattedQty}&reduceOnly=true&workingType=MARK_PRICE&timestamp=${timestamp}`;
+      // 1. Stop Loss Order (reduceOnly, MARK_PRICE, priceProtect)
+      const slClientOrderId = localOrderId ? `BASEL_PROT_SL_${localOrderId}`.substring(0, 32) : `BASEL_SL_${timestamp}`;
+      const slParams = `symbol=${cleanSymbol}&side=${slSide}&type=STOP_MARKET&stopPrice=${formattedSl}&quantity=${formattedQty}&reduceOnly=true&workingType=MARK_PRICE&priceProtect=true&newClientOrderId=${slClientOrderId}&timestamp=${timestamp}`;
       const slSig = crypto.createHmac('sha256', this.apiSecret).update(slParams).digest('hex');
       
-      // 2. Take Profit Order (reduceOnly, MARK_PRICE)
-      const tpParams = `symbol=${cleanSymbol}&side=${slSide}&type=TAKE_PROFIT_MARKET&stopPrice=${formattedTp}&quantity=${formattedQty}&reduceOnly=true&workingType=MARK_PRICE&timestamp=${timestamp + 100}`;
+      // 2. Take Profit Order (reduceOnly, MARK_PRICE, priceProtect)
+      const tpClientOrderId = localOrderId ? `BASEL_PROT_TP_${localOrderId}`.substring(0, 32) : `BASEL_TP_${timestamp + 100}`;
+      const tpParams = `symbol=${cleanSymbol}&side=${slSide}&type=TAKE_PROFIT_MARKET&stopPrice=${formattedTp}&quantity=${formattedQty}&reduceOnly=true&workingType=MARK_PRICE&priceProtect=true&newClientOrderId=${tpClientOrderId}&timestamp=${timestamp + 100}`;
       const tpSig = crypto.createHmac('sha256', this.apiSecret).update(tpParams).digest('hex');
 
       const headers = { 'X-MBX-APIKEY': this.apiKey };

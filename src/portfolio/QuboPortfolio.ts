@@ -208,4 +208,58 @@ export class QuboPortfolio {
       feasible: totalRaw > 0.2 && totalRaw < 2.5,
     };
   }
+
+  /**
+   * Calculates dynamic empirical covariance matrix from asset return series
+   */
+  public static calculateDynamicCovariance(assets: AssetSymbol[], returnsMap: Map<AssetSymbol, number[]>): number[][] {
+    const n = assets.length;
+    const matrix: number[][] = Array(n).fill(0).map(() => Array(n).fill(0));
+
+    for (let i = 0; i < n; i++) {
+      const symA = assets[i];
+      const retsA = returnsMap.get(symA) || [];
+      const meanA = retsA.length > 0 ? retsA.reduce((a, b) => a + b, 0) / retsA.length : 0;
+
+      for (let j = 0; j < n; j++) {
+        const symB = assets[j];
+        const retsB = returnsMap.get(symB) || [];
+        const meanB = retsB.length > 0 ? retsB.reduce((a, b) => a + b, 0) / retsB.length : 0;
+
+        const len = Math.min(retsA.length, retsB.length);
+        if (len < 10) {
+          matrix[i][j] = i === j ? 0.04 : 0.01;
+          continue;
+        }
+
+        let covSum = 0;
+        for (let k = 0; k < len; k++) {
+          covSum += (retsA[k] - meanA) * (retsB[k] - meanB);
+        }
+        // Annualized covariance (assuming 1m returns: 365*24*60 periods)
+        const annualizedFactor = 525600;
+        matrix[i][j] = Number(((covSum / (len - 1)) * annualizedFactor).toFixed(6));
+      }
+    }
+    return matrix;
+  }
+
+  /**
+   * Calculates dynamic expected annualized returns from historical returns
+   */
+  public static calculateDynamicReturns(assets: AssetSymbol[], returnsMap: Map<AssetSymbol, number[]>): Record<AssetSymbol, number> {
+    const result: Record<AssetSymbol, number> = {} as any;
+    const annualizedFactor = 525600;
+
+    for (const sym of assets) {
+      const rets = returnsMap.get(sym) || [];
+      if (rets.length < 10) {
+        result[sym] = 0.10;
+        continue;
+      }
+      const mean1m = rets.reduce((a, b) => a + b, 0) / rets.length;
+      result[sym] = Number(Math.max(-0.5, Math.min(1.5, mean1m * annualizedFactor)).toFixed(4));
+    }
+    return result;
+  }
 }

@@ -430,6 +430,13 @@ export class TradingPipeline {
   }
 
   private async evaluateSignalAndExecute(symbol: AssetSymbol, features: any, book?: OrderBook, regime?: any) {
+    // Strict Stale Market Data Check (منع التداول على بيانات قديمة أو ميتة)
+    const dataAge = Date.now() - this.marketData.getLastUpdateTime(symbol);
+    if (dataAge > 3000) {
+      console.warn(`⚠️ [${symbol}] Stale market data detected (${dataAge}ms). Execution aborted.`);
+      return;
+    }
+
     // 0. Dynamic Risk Check
     const lastDecision = this.dynamicRiskManager.getLastDecision();
     if (lastDecision?.action === 'STOP' || lastDecision?.action === 'PAUSE') {
@@ -682,18 +689,18 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
   }
 
   /**
-   * Triggers Quantum Portfolio Optimization rebalance cycle
+   * Triggers Quantum Portfolio Optimization rebalance cycle with dynamic empirical covariance
    */
   public runQuantumOptimization(): QuboSolution {
     const t0 = performance.now();
     const assets = this.config.activeSymbols;
 
-    // Filter covariance matrix for active assets
-    const allSymbols: AssetSymbol[] = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'QNT/USDT', 'NVDA/USD', 'AAPL/USD'];
-    const activeIndices = assets.map((a) => allSymbols.indexOf(a)).filter((idx) => idx !== -1);
-    const subCov = activeIndices.map((i) => activeIndices.map((j) => this.covarianceMatrix[i][j]));
+    // Calculate dynamic covariance & expected returns from real market returns
+    const returnsMap = this.correlationRiskManager.getReturnsMap();
+    const dynamicCov = QuboPortfolio.calculateDynamicCovariance(assets, returnsMap);
+    const dynamicReturns = QuboPortfolio.calculateDynamicReturns(assets, returnsMap);
 
-    const qubo = QuboPortfolio.buildQuboMatrix(assets, this.expectedReturns, subCov, {
+    const qubo = QuboPortfolio.buildQuboMatrix(assets, dynamicReturns, dynamicCov, {
       assets,
       riskAversion: this.config.riskAversionLambda,
       budgetPenalty: this.config.budgetPenaltyGamma,
@@ -706,17 +713,17 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
 
     switch (this.config.activeSolver) {
       case 'QUANTUM_ANNEALING':
-        solution = QuantumInspiredSolver.solveQuantumAnnealing(assets, qubo, this.expectedReturns, subCov, { numSweeps: 350 });
+        solution = QuantumInspiredSolver.solveQuantumAnnealing(assets, qubo, dynamicReturns, dynamicCov, { numSweeps: 350 });
         break;
       case 'SIMULATED_ANNEALING':
-        solution = QuantumInspiredSolver.solveSimulatedAnnealing(assets, qubo, this.expectedReturns, subCov, { numSweeps: 400 });
+        solution = QuantumInspiredSolver.solveSimulatedAnnealing(assets, qubo, dynamicReturns, dynamicCov, { numSweeps: 400 });
         break;
       case 'TABU_SEARCH':
-        solution = QuantumInspiredSolver.solveTabuSearch(assets, qubo, this.expectedReturns, subCov, { numSweeps: 250 });
+        solution = QuantumInspiredSolver.solveTabuSearch(assets, qubo, dynamicReturns, dynamicCov, { numSweeps: 250 });
         break;
       case 'CLASSICAL_MARKOWITZ':
       default:
-        solution = ClassicalBaseline.solveMarkowitz(assets, this.expectedReturns, subCov, this.config.riskAversionLambda);
+        solution = ClassicalBaseline.solveMarkowitz(assets, dynamicReturns, dynamicCov, this.config.riskAversionLambda);
         break;
     }
 

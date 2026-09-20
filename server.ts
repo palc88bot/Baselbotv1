@@ -58,6 +58,11 @@ async function startServer() {
   // Initialize Services
   const telegramService = new TelegramService();
   const pipeline = new TradingPipeline(telegramService);
+
+  // Auto-start autonomous trading pipeline immediately on server boot
+  pipeline.startAutonomousTrading().catch(err => {
+    console.error("❌ Failed to auto-start pipeline on boot:", err);
+  });
   
   // Shared Cloud DB Service (will be linked after user sync)
   let cloudDb: CloudDatabaseService | null = null;
@@ -539,6 +544,14 @@ async function startServer() {
         console.warn("⛔ Brain WebSocket rejected: Invalid token -", err.message);
         ws.close(1008, "Invalid token");
         return;
+      }
+    } else if (token) {
+      // Optional verification if token provided even without ADMIN_EMAILS
+      try {
+        const { adminAuth } = await import("./src/lib/firebase-admin.ts");
+        await adminAuth.verifyIdToken(token);
+      } catch (e) {
+        // Ignore optional token failure if allowlist is not enforced
       }
     }
 

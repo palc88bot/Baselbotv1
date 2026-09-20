@@ -1,5 +1,5 @@
 import { Candle } from '../domain/types';
-import { hurstRS, sigmoid, clamp } from '../utils/stats';
+import { calculateHurstDFA, sigmoid, clamp } from '../utils/stats';
 
 export interface RegimeAnalysis {
   volatilityRegime: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
@@ -141,7 +141,7 @@ export class RegimeDetector {
 
   private calculateHurstExponent(): number {
     if (this.returnsHistory.length < 32) return 0.5;
-    return hurstRS(this.returnsHistory);
+    return calculateHurstDFA(this.returnsHistory, 8, 32);
   }
 
   private calculateTrendStrength(): number {

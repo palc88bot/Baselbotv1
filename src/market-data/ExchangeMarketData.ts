@@ -77,6 +77,7 @@ export const DEFAULT_SYMBOLS: Record<AssetSymbol, SymbolConfig> = {
 
 export class ExchangeMarketData extends EventEmitter {
   private currentPrices: Map<AssetSymbol, number> = new Map();
+  private lastUpdateTimes: Map<AssetSymbol, number> = new Map();
   private hawkesIntensity: Map<AssetSymbol, number> = new Map();
   private candleHistory: Map<AssetSymbol, Candle[]> = new Map();
   private orderBookBuilder: OrderBookBuilder;
@@ -142,6 +143,10 @@ export class ExchangeMarketData extends EventEmitter {
 
   public getPrice(symbol: AssetSymbol): number {
     return this.currentPrices.get(symbol) || DEFAULT_SYMBOLS[symbol].basePrice;
+  }
+
+  public getLastUpdateTime(symbol: AssetSymbol): number {
+    return this.lastUpdateTimes.get(symbol) || Date.now();
   }
 
   public getAllPrices(): Record<AssetSymbol, number> {
@@ -302,6 +307,7 @@ export class ExchangeMarketData extends EventEmitter {
       const side = data.m ? 'sell' : 'buy';
 
       this.currentPrices.set(symbol, tickPrice);
+      this.lastUpdateTimes.set(symbol, Date.now());
 
       const tick: Tick = {
         symbol,

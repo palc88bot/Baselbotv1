@@ -44,6 +44,21 @@ export class CorrelationRiskManager {
     }
 
     /**
+     * Get computed return series for assets
+     */
+    public getReturnsMap(): Map<string, number[]> {
+        const returnsMap = new Map<string, number[]>();
+        for (const [sym, prices] of this.priceHistory.entries()) {
+            const rets: number[] = [];
+            for (let i = 1; i < prices.length; i++) {
+                rets.push((prices[i] - prices[i - 1]) / (prices[i - 1] || 1));
+            }
+            returnsMap.set(sym, rets);
+        }
+        return returnsMap;
+    }
+
+    /**
      * Calculate correlation matrix
      */
     public calculateCorrelationMatrix(): CorrelationMatrix {

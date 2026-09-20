@@ -4,7 +4,7 @@
  */
 
 import { AssetSymbol, Candle, OrderBook } from '../domain/types';
-import { hurstRS } from '../utils/stats';
+import { calculateHurstDFA } from '../utils/stats';
 
 export interface CalculatedFeatures {
   symbol: AssetSymbol;
@@ -130,7 +130,11 @@ export class FeatureEngine {
     const n = prices.length;
     if (n < 16) return 0.45; // Default slightly mean-reverting
 
-    return hurstRS(prices);
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+      returns.push((prices[i] - prices[i - 1]) / (prices[i - 1] || 1));
+    }
+    return calculateHurstDFA(returns, 8, 32);
   }
 
   public calculateRSI(prices: number[], period: number = 14): number {
