@@ -156,7 +156,7 @@ export default function App() {
     }
   }, [user, isSynced, getToken]);
 
-  // Fetch Telegram status
+  // Fetch Telegram status and initial live status
   useEffect(() => {
     fetch('/api/telegram/status')
       .then(res => res.json())
@@ -165,6 +165,35 @@ export default function App() {
         setTelegramMaskedId(data.maskedChatId);
       })
       .catch(err => console.error('Failed to fetch telegram status:', err));
+
+    fetch('/api/live-status')
+      .then(res => res.json())
+      .then(data => {
+        if (!data) return;
+        latestDataRef.current = data;
+        React.startTransition(() => {
+          if (typeof data.isRunning === 'boolean') setIsRunning(data.isRunning);
+          if (data.balance) setBalance(data.balance);
+          if (data.positions) setPositions(data.positions);
+          if (data.orders) setOrders(data.orders);
+          if (data.health) setHealth(data.health);
+          if (data.regime) setRegime(data.regime);
+          if (data.riskDecision) setRiskDecision(data.riskDecision);
+          if (data.killSwitch) {
+            setKillSwitchActive(data.killSwitch.active);
+            setKillSwitchLevel(data.killSwitch.level);
+          }
+          if (data.signals && data.signals.length > 0) {
+            setLatestSignal(data.signals[data.signals.length - 1]);
+            setSignalHistory(data.signals.slice(-5).reverse());
+          }
+          const currentSym = selectedSymbolRef.current;
+          if (data.candles && data.candles[currentSym]) setCandles([...data.candles[currentSym]]);
+          if (data.orderBooks && data.orderBooks[currentSym]) setOrderBook({ ...data.orderBooks[currentSym] });
+          if (data.features && data.features[currentSym]) setFeatures({ ...data.features[currentSym] });
+        });
+      })
+      .catch(err => console.error('Failed to fetch live-status:', err));
   }, []);
 
   // Toggle Telegram
@@ -252,6 +281,7 @@ export default function App() {
             pendingData = null;
 
             React.startTransition(() => {
+              if (typeof data.isRunning === 'boolean') setIsRunning(data.isRunning);
               if (data.balance) setBalance(data.balance);
               if (data.positions) setPositions(data.positions);
               if (data.orders) setOrders(data.orders);

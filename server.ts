@@ -518,6 +518,53 @@ async function startServer() {
     }
   });
 
+  // Fast read-only live status endpoint for instantaneous UI loading
+  app.get('/api/live-status', (req, res) => {
+    try {
+      const activeSymbols = pipeline.getConfig().activeSymbols;
+      const candlesDict: Record<string, any> = {};
+      const orderBooksDict: Record<string, any> = {};
+      const featuresDict: Record<string, any> = {};
+
+      for (const symbol of activeSymbols) {
+        candlesDict[symbol] = pipeline.getMarketData().getCandles(symbol);
+        orderBooksDict[symbol] = pipeline.getOrderBookBuilder().getBook(symbol);
+        featuresDict[symbol] = pipeline.getLastFeatures().get(symbol);
+      }
+
+      const defaultSymbol = activeSymbols[0] || 'BTC/USDT';
+      const defaultCandles = candlesDict[defaultSymbol] || [];
+      if (defaultCandles.length > 0) {
+        pipeline.getRegimeDetector().update(defaultCandles);
+      }
+      const regime = pipeline.getRegimeDetector().analyze();
+      const riskDecision = pipeline.getDynamicRiskManager().getLastDecision();
+
+      res.json({
+        isRunning: pipeline.getIsRunning(),
+        balance: pipeline.getUserDataStream().getBalance(),
+        positions: pipeline.getUserDataStream().getPositions(),
+        orders: pipeline.getOrderGateway().getOrders(),
+        signals: Array.from(pipeline.getLastSignals().values()),
+        health: pipeline.getHealthMonitor().getHealth(),
+        killSwitch: {
+          active: pipeline.getKillSwitch().isActive(),
+          level: pipeline.getKillSwitch().getLevel(),
+          reason: pipeline.getKillSwitch().getHistory()[0]?.reason || 'Normal',
+        },
+        candles: candlesDict,
+        orderBooks: orderBooksDict,
+        features: featuresDict,
+        regime,
+        riskDecision,
+        portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
+        qualifiedAssets: pipeline.getAssetScreener().getReport(),
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to get live status' });
+    }
+  });
+
   // Create HTTP Server
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Baselbot Brain Server running on http://0.0.0.0:${PORT}`);
@@ -526,13 +573,13 @@ async function startServer() {
   // 3. Setup WebSocket Server for Real-Time UI Telemetry on /brain-ws
   app.ws("/brain-ws", async (ws: any, req) => {
     const adminEmailsEnv = process.env.ADMIN_EMAILS || '';
-    const requiresAuth = adminEmailsEnv.trim().length > 0;
+    const hasAdminList = adminEmailsEnv.trim().length > 0;
 
     const verifyToken = async (tok: string): Promise<boolean> => {
       try {
         const { adminAuth } = await import("./src/lib/firebase-admin.ts");
         const decodedToken = await adminAuth.verifyIdToken(tok);
-        if (requiresAuth) {
+        if (hasAdminList) {
           const allowedList = adminEmailsEnv.split(',').map((e) => e.trim().toLowerCase());
           const userEmail = (decodedToken.email || '').toLowerCase();
           return allowedList.includes(userEmail);
@@ -568,13 +615,16 @@ async function startServer() {
         ws.send(JSON.stringify({
           type: "INIT_STATE",
           data: {
+            isRunning: pipeline.getIsRunning(),
             balance: pipeline.getUserDataStream().getBalance(),
             positions: pipeline.getUserDataStream().getPositions(),
             orders: pipeline.getOrderGateway().getOrders(),
+            signals: Array.from(pipeline.getLastSignals().values()),
             health: pipeline.getHealthMonitor().getHealth(),
             killSwitch: {
               active: pipeline.getKillSwitch().isActive(),
               level: pipeline.getKillSwitch().getLevel(),
+              reason: pipeline.getKillSwitch().getHistory()[0]?.reason || 'Normal',
             },
             candles: candlesDict,
             orderBooks: orderBooksDict,
@@ -590,36 +640,21 @@ async function startServer() {
       }
     };
 
-    // Check optional URL query token (for backwards compatibility)
+    // Check optional URL query token
     const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const queryToken = urlObj.searchParams.get("token");
 
-    ws.isAuthorized = !requiresAuth;
+    ws.isOperator = false;
 
     if (queryToken) {
       const valid = await verifyToken(queryToken);
       if (valid) {
-        ws.isAuthorized = true;
-      } else if (requiresAuth) {
-        ws.close(1008, "Invalid token");
-        return;
+        ws.isOperator = true;
       }
     }
 
-    let authTimeout: NodeJS.Timeout | null = null;
-    if (requiresAuth && !ws.isAuthorized) {
-      authTimeout = setTimeout(() => {
-        if (!ws.isAuthorized) {
-          console.warn("⛔ Brain WebSocket auth timeout: No valid AUTH message received within 5s");
-          ws.close(1008, "Auth timeout");
-        }
-      }, 5000);
-    }
-
-    if (ws.isAuthorized) {
-      console.log("✅ Brain WebSocket Connected and Authorized via express-ws");
-      sendInitialState();
-    }
+    console.log("✅ Brain WebSocket Connected via express-ws");
+    sendInitialState();
 
     ws.on("message", async (msgStr: string) => {
       try {
@@ -627,15 +662,11 @@ async function startServer() {
         if (msg.type === "AUTH" && msg.token) {
           const valid = await verifyToken(msg.token);
           if (valid) {
-            ws.isAuthorized = true;
-            if (authTimeout) {
-              clearTimeout(authTimeout);
-              authTimeout = null;
-            }
-            console.log("✅ Brain WebSocket Authorized via message payload");
-            sendInitialState();
+            ws.isOperator = true;
+            console.log("✅ Brain WebSocket Operator Authenticated");
+            ws.send(JSON.stringify({ type: "AUTH_SUCCESS", isOperator: true }));
           } else {
-            ws.close(1008, "Invalid token");
+            ws.send(JSON.stringify({ type: "AUTH_FAILED", error: "Not an authorized admin" }));
           }
         }
       } catch (e) {
@@ -644,10 +675,6 @@ async function startServer() {
     });
 
     ws.on("close", () => {
-      if (authTimeout) {
-        clearTimeout(authTimeout);
-        authTimeout = null;
-      }
       console.log("❌ Brain WebSocket Disconnected");
     });
   });
@@ -677,6 +704,7 @@ async function startServer() {
       const statePayload = JSON.stringify({
         type: "STATE_UPDATE",
         data: {
+          isRunning: pipeline.getIsRunning(),
           balance: pipeline.getUserDataStream().getBalance(),
           positions: pipeline.getUserDataStream().getPositions(),
           orders: pipeline.getOrderGateway().getOrders(),
@@ -706,7 +734,7 @@ async function startServer() {
 
       const wss = expressWsInstance.getWss();
       wss.clients.forEach((client: any) => {
-        if (client.readyState === 1 && client.isAuthorized !== false) { // OPEN and authorized
+        if (client.readyState === 1) { // OPEN
           client.send(statePayload);
         }
       });

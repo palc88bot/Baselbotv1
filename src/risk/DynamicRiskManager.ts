@@ -101,20 +101,11 @@ export class DynamicRiskManager extends EventEmitter {
 
     // 0. Regime Filter Check
     if (!this.metrics.tradingAllowed) {
-      reasons.push(`Critical: Market regime is TRENDING (Hurst: ${this.metrics.hurstExponent?.toFixed(3)}, ADX: ${this.metrics.adx?.toFixed(1)})`);
-      reasons.push(`Mean Reversion strategy is not suitable for trending markets`);
-      leverageMultiplier = 0.0;
-      positionSizeMultiplier = 0.0;
-      action = 'STOP';
-      
-      return {
-        timestamp: Date.now(),
-        leverageMultiplier,
-        positionSizeMultiplier,
-        action,
-        reasons,
-        metrics: { ...this.metrics },
-      };
+      reasons.push(`Advisory: Market regime is TRENDING (Hurst: ${this.metrics.hurstExponent?.toFixed(3)}, ADX: ${this.metrics.adx?.toFixed(1)})`);
+      reasons.push(`Downscaling size: Individual symbols must meet strict mean-reversion criterion`);
+      leverageMultiplier = 0.5;
+      positionSizeMultiplier = 0.5;
+      action = 'REDUCE_SIZE';
     }
 
     // Volatile regime reduction

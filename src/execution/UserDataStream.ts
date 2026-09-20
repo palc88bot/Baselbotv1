@@ -86,7 +86,23 @@ export class UserDataStream {
   }
 
   public getBalance(): AccountBalance {
-    return { ...this.balance };
+    const rawBal = this.balance;
+    const totalEq = Number.isFinite(rawBal.totalEquity) ? rawBal.totalEquity : (Number.isFinite(rawBal.availableCash) ? rawBal.availableCash : 10000);
+    const availCash = Number.isFinite(rawBal.availableCash) ? rawBal.availableCash : totalEq;
+    const unPnl = Number.isFinite(rawBal.unrealizedPnl) ? rawBal.unrealizedPnl : 0;
+    
+    return {
+      totalEquity: Number(totalEq.toFixed(2)),
+      availableCash: Number(availCash.toFixed(2)),
+      usedMargin: Number((Number.isFinite(rawBal.usedMargin) ? rawBal.usedMargin : 0).toFixed(2)),
+      marginLevel: Number((Number.isFinite(rawBal.marginLevel) ? rawBal.marginLevel : 999).toFixed(2)),
+      freeMargin: Number((Number.isFinite(rawBal.freeMargin) ? rawBal.freeMargin : availCash).toFixed(2)),
+      unrealizedPnl: Number(unPnl.toFixed(2)),
+      realizedPnl: Number((Number.isFinite(rawBal.realizedPnl) ? rawBal.realizedPnl : 0).toFixed(2)),
+      dailyPnl: Number((Number.isFinite(rawBal.dailyPnl) ? rawBal.dailyPnl : 0).toFixed(2)),
+      dailyPnlPct: Number((Number.isFinite(rawBal.dailyPnlPct) ? rawBal.dailyPnlPct : 0).toFixed(2)),
+      currency: rawBal.currency || 'USDT',
+    };
   }
 
   public getPositions(): Position[] {
@@ -188,19 +204,19 @@ export class UserDataStream {
       const accountInfo = await res.json();
       console.log('✅ UserDataStream: Fetched initial account information from Binance Futures.');
 
-      const wb = parseFloat(accountInfo.totalWalletBalance || '0');
-      const up = parseFloat(accountInfo.totalUnrealizedProfit || '0');
-      const available = parseFloat(accountInfo.availableBalance || '0');
+      const wb = parseFloat(accountInfo.totalWalletBalance || '0') || 0;
+      const up = parseFloat(accountInfo.totalUnrealizedProfit || '0') || 0;
+      const available = parseFloat(accountInfo.availableBalance || '0') || 0;
+      const usedMargin = parseFloat(accountInfo.totalInitialMargin || '0') || 0;
+      const maintMargin = parseFloat(accountInfo.totalMaintMargin || '0') || 0;
       
       this.balance = {
-        totalEquity: wb + up,
-        availableCash: available,
-        usedMargin: parseFloat(accountInfo.totalInitialMargin || '0'),
-        marginLevel: parseFloat(accountInfo.totalMaintMargin || '0') > 0 
-          ? (wb + up) / parseFloat(accountInfo.totalMaintMargin) 
-          : 999.0,
-        freeMargin: available,
-        unrealizedPnl: up,
+        totalEquity: Number((wb + up).toFixed(2)),
+        availableCash: Number(available.toFixed(2)),
+        usedMargin: Number(usedMargin.toFixed(2)),
+        marginLevel: maintMargin > 0 ? Number(((wb + up) / maintMargin).toFixed(2)) : 999.0,
+        freeMargin: Number(available.toFixed(2)),
+        unrealizedPnl: Number(up.toFixed(2)),
         realizedPnl: 0,
         dailyPnl: 0,
         dailyPnlPct: 0,
@@ -282,40 +298,28 @@ export class UserDataStream {
 
   private handleMessage(msg: any) {
     if (msg.e === 'ACCOUNT_UPDATE') {
-      const balances = msg.a.B;
-      const positions = msg.a.P;
-
-      if (balances) {
-        const usdtBalance = balances.find((b: any) => b.a === 'USDT');
-        if (usdtBalance) {
-          const wb = parseFloat(usdtBalance.wb);
-          const up = parseFloat(usdtBalance.up);
-          this.balance.availableCash = wb;
-          this.balance.unrealizedPnl = up;
-          this.balance.totalEquity = wb + up;
-          this.balance.freeMargin = wb;
-          
-          for (const l of this.balanceListeners) l(this.getBalance());
-          if (this.onEvent) this.onEvent('balance_update', this.balance);
-        }
-      }
+      const balances = msg.a?.B;
+      const positions = msg.a?.P;
 
       if (positions) {
         positions.forEach((pos: any) => {
-          const amount = parseFloat(pos.pa);
-          const symbol = pos.s.includes('/') ? pos.s : `${pos.s.replace('USDT', '')}/USDT`;
+          const amount = parseFloat(pos.pa || '0') || 0;
+          const symbol = pos.s?.includes('/') ? pos.s : `${(pos.s || '').replace('USDT', '')}/USDT`;
           if (amount !== 0) {
+            const ep = parseFloat(pos.ep || '0') || 0;
+            const up = parseFloat(pos.up || '0') || 0;
+            const lev = parseFloat(pos.leverage || '20') || 20;
             this.positions.set(symbol as AssetSymbol, {
               symbol: symbol as AssetSymbol,
               size: amount,
-              entryPrice: parseFloat(pos.ep),
-              currentPrice: parseFloat(pos.ep),
-              unrealizedPnl: parseFloat(pos.up),
+              entryPrice: ep,
+              currentPrice: ep,
+              unrealizedPnl: up,
               unrealizedPnlPct: 0,
               realizedPnl: 0,
-              marginUsed: Math.abs(amount * parseFloat(pos.ep)) / 20,
-              liquidationPrice: parseFloat(pos.sl || '0'),
-              leverage: 20,
+              marginUsed: Math.abs(amount * ep) / lev,
+              liquidationPrice: parseFloat(pos.sl || '0') || 0,
+              leverage: lev,
               updatedAt: Date.now(),
             });
           } else {
@@ -329,6 +333,26 @@ export class UserDataStream {
           }
         });
         if (this.onEvent) this.onEvent('position_update', this.getPositions());
+      }
+
+      const totalUnrealized = Array.from(this.positions.values()).reduce((sum, p) => sum + (p.unrealizedPnl || 0), 0);
+
+      if (balances) {
+        const usdtBalance = balances.find((b: any) => b.a === 'USDT');
+        if (usdtBalance) {
+          const wb = parseFloat(usdtBalance.wb || '0') || 0;
+          this.balance.availableCash = wb;
+          this.balance.unrealizedPnl = totalUnrealized;
+          this.balance.totalEquity = wb + totalUnrealized;
+          this.balance.freeMargin = wb;
+          
+          for (const l of this.balanceListeners) l(this.getBalance());
+          if (this.onEvent) this.onEvent('balance_update', this.getBalance());
+        }
+      } else {
+        this.balance.unrealizedPnl = totalUnrealized;
+        this.balance.totalEquity = this.balance.availableCash + totalUnrealized;
+        for (const l of this.balanceListeners) l(this.getBalance());
       }
     }
 
