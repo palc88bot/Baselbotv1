@@ -85,6 +85,10 @@ export class CloudDatabaseService {
       quantity: trade.quantity,
       status: trade.status,
       strategyId: trade.strategy,
+      pnl: trade.pnl ?? null,
+      exitPrice: trade.exitPrice ?? null,
+      fee: trade.fee ?? null,
+      closedAt: trade.closedAt ? new Date(trade.closedAt) : null,
       timestamp: new Date(trade.timestamp)
     });
   }
@@ -109,14 +113,24 @@ export class CloudDatabaseService {
       quantity: r.quantity,
       price: r.price,
       strategy: r.strategyId,
+      pnl: r.pnl ?? undefined,
+      exitPrice: r.exitPrice ?? undefined,
+      fee: r.fee ?? undefined,
+      closedAt: r.closedAt ? r.closedAt.getTime() : undefined,
       status: r.status as 'OPEN' | 'CLOSED' | 'CANCELLED'
     }));
   }
 
-  public async closeTrade(id: string, pnl: number) {
+  public async closeTrade(id: string, pnl: number, exitPrice?: number, fee?: number) {
     if (!this.userId) return;
     await pgDb.update(trades)
-      .set({ status: 'CLOSED', price: 0 /* This would need actual exit price in real scenario */ })
+      .set({ 
+        status: 'CLOSED', 
+        pnl,
+        exitPrice: exitPrice ?? null,
+        fee: fee ?? null,
+        closedAt: new Date()
+      })
       .where(and(eq(trades.id, parseInt(id)), eq(trades.userId, this.userId)));
   }
 

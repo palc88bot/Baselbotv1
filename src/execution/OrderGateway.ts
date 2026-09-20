@@ -493,12 +493,19 @@ export class OrderGateway {
         }
         this.exchangeIdMap.set(String(data.orderId), order.id);
 
-        order.status = data.status === 'FILLED' ? 'FILLED' : data.status === 'NEW' ? 'NEW' : 'PARTIALLY_FILLED';
+        order.status = 'PENDING_NEW'; // initial state
+        const targetStatus: OrderStatus = data.status === 'FILLED' ? 'FILLED' : data.status === 'NEW' ? 'NEW' : 'PARTIALLY_FILLED';
         if (data.avgPrice && parseFloat(data.avgPrice) > 0) {
           order.avgFillPrice = parseFloat(data.avgPrice);
         }
         order.filledQuantity = parseFloat(data.executedQty) || (data.status === 'FILLED' ? formattedQty : 0);
         order.remainingQuantity = Math.max(0, formattedQty - order.filledQuantity);
+
+        if (this.fsm.canTransition(order.status, targetStatus)) {
+          this.fsm.transition(order, targetStatus);
+        } else {
+          order.status = targetStatus;
+        }
 
         if (data.status === 'FILLED') {
           this.executeFill(order, order.filledQuantity, true);
@@ -507,8 +514,12 @@ export class OrderGateway {
       }
     } catch (err) {
       console.error('❌ Error sending order to Binance Futures:', err);
-      order.status = 'REJECTED';
-      order.errorMessage = String(err);
+      if (this.fsm.canTransition(order.status, 'REJECTED')) {
+        this.fsm.transition(order, 'REJECTED', String(err));
+      } else {
+        order.status = 'REJECTED';
+        order.errorMessage = String(err);
+      }
       this.notifyOrder(order);
     }
   }
@@ -534,8 +545,9 @@ export class OrderGateway {
     if (cumQty > 0) order.filledQuantity = cumQty;
     order.remainingQuantity = Math.max(0, order.quantity - order.filledQuantity);
 
+    let targetStatus: OrderStatus = order.status;
     if (binanceStatus === 'FILLED') {
-      order.status = 'FILLED';
+      targetStatus = 'FILLED';
       this.userDataStream.processFill({
         fillId: `EX_FILL-${exchangeOrderId}-${Date.now()}`,
         orderId: order.id,
@@ -549,13 +561,19 @@ export class OrderGateway {
         isMaker: eventOrder.m || false,
       }, order.avgFillPrice || order.price);
     } else if (binanceStatus === 'PARTIALLY_FILLED') {
-      order.status = 'PARTIALLY_FILLED';
+      targetStatus = 'PARTIALLY_FILLED';
     } else if (binanceStatus === 'CANCELED' || binanceStatus === 'EXPIRED') {
-      order.status = 'CANCELLED';
+      targetStatus = 'CANCELLED';
     } else if (binanceStatus === 'REJECTED') {
-      order.status = 'REJECTED';
+      targetStatus = 'REJECTED';
     } else if (binanceStatus === 'NEW') {
-      order.status = 'NEW';
+      targetStatus = 'NEW';
+    }
+
+    if (this.fsm.canTransition(order.status, targetStatus)) {
+      this.fsm.transition(order, targetStatus);
+    } else {
+      order.status = targetStatus;
     }
 
     this.notifyOrder(order);

@@ -33,6 +33,8 @@ export class OrderStateMachine {
   }
 
   public transition(order: Order, newStatus: OrderStatus, reason?: string): Order {
+    if (order.status === newStatus) return order;
+
     if (!this.canTransition(order.status, newStatus)) {
       throw new Error(`Illegal order state transition from ${order.status} to ${newStatus} for order ${order.id}`);
     }

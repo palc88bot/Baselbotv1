@@ -12,6 +12,9 @@ export interface TradeRecord {
     price: number;
     strategy: string;
     pnl?: number;
+    exitPrice?: number;
+    closedAt?: number;
+    fee?: number;
     status: 'OPEN' | 'CLOSED' | 'CANCELLED';
 }
 
@@ -134,10 +137,13 @@ export class DatabaseService {
         return list;
     }
 
-    public async closeTrade(id: string, pnl: number) {
+    public async closeTrade(id: string, pnl: number, exitPrice?: number, fee?: number) {
         if (this.data.trades[id]) {
             this.data.trades[id].status = 'CLOSED';
             this.data.trades[id].pnl = pnl;
+            this.data.trades[id].closedAt = Date.now();
+            if (exitPrice !== undefined) this.data.trades[id].exitPrice = exitPrice;
+            if (fee !== undefined) this.data.trades[id].fee = fee;
             this.save();
         }
     }

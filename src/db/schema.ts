@@ -17,6 +17,10 @@ export const trades = pgTable('trades', {
   quantity: doublePrecision('quantity').notNull(),
   status: text('status').notNull(), // FILLED, CANCELED, etc.
   strategyId: text('strategy_id').notNull(),
+  pnl: doublePrecision('pnl'),
+  exitPrice: doublePrecision('exit_price'),
+  fee: doublePrecision('fee'),
+  closedAt: timestamp('closed_at'),
   timestamp: timestamp('timestamp').defaultNow().notNull(),
 });
 

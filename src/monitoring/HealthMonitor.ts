@@ -58,14 +58,25 @@ export class HealthMonitor {
     }
 
     const uptimeSeconds = Math.floor((now - this.startTime) / 1000);
+    const mem = process.memoryUsage ? process.memoryUsage() : { heapUsed: 142 * 1024 * 1024 };
+    const memoryUsageMb = Number((mem.heapUsed / (1024 * 1024)).toFixed(1));
+
+    // Calculate approximate CPU usage from process.cpuUsage if available
+    let cpuUsagePct = 0;
+    if (process.cpuUsage) {
+      const cpu = process.cpuUsage();
+      const totalMicros = (cpu.user + cpu.system);
+      const elapsedMicros = Math.max(1, (now - this.startTime) * 1000);
+      cpuUsagePct = Number(Math.min(100, Math.max(0, (totalMicros / elapsedMicros) * 100)).toFixed(1));
+    }
 
     return {
       status: 'OPTIMAL',
       uptimeSeconds,
-      cpuUsagePct: Number((Math.random() * 8 + 12).toFixed(1)),
-      memoryUsageMb: Number((142 + (uptimeSeconds % 30) * 0.4).toFixed(1)),
+      cpuUsagePct,
+      memoryUsageMb,
       activeFeedsCount: 6,
-      messagesPerSecond: Math.max(18, this.messagesPerSec),
+      messagesPerSecond: this.messagesPerSec,
       ordersPerSecond: this.ordersPerSec,
       pipelineLatency: { ...this.pipelineLatency },
       lastHeartbeat: now,

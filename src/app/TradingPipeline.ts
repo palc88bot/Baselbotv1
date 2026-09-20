@@ -106,7 +106,7 @@ export class TradingPipeline {
     'AAPL/USD': 0.075,
   };
 
-  constructor(telegramService: TelegramService) {
+  constructor(telegramService?: TelegramService) {
     this.config = { ...INITIAL_RUNTIME_CONFIG };
     
     // Read environment configuration
@@ -141,7 +141,7 @@ export class TradingPipeline {
     this.healthMonitor = new HealthMonitor();
     this.db = new DatabaseService();
     this.correlationRiskManager = new CorrelationRiskManager();
-    this.telegramService = telegramService;
+    this.telegramService = telegramService || new TelegramService();
     this.strategy = new MeanReversionStrategy();
     this.decisionEngine = new DecisionEngine();
 
@@ -188,8 +188,13 @@ export class TradingPipeline {
       
       // 2. Start Market Data & User Data Streams
       console.log('🌐 Connecting to Market Data & User Data Streams...');
+      try {
+        await this.marketData.backfillRealCandles(this.config.activeSymbols);
+      } catch (e: any) {
+        console.warn('⚠️ Non-blocking candle backfill notice:', e.message);
+      }
       await this.userDataStream.start();
-      this.marketData.startStreaming(300);
+      this.marketData.startStreaming(300, this.config.activeSymbols);
 
       // 3. Start Optimization
       this.runQuantumOptimization();
@@ -216,11 +221,15 @@ export class TradingPipeline {
       };
       this.lastSignals.set(this.config.activeSymbols[0], initSignal);
 
-      await this.telegramService.sendMessage('🚀 <b>Basel AlgoCore Started</b>\n\nAutonomous Trading System is now active.');
+      if (this.telegramService) {
+        await this.telegramService.sendMessage('🚀 <b>Basel AlgoCore Started</b>\n\nAutonomous Trading System is now active.').catch(() => {});
+      }
     } catch (error: any) {
       this.isRunning = false;
       console.error('❌ Failed to start autonomous trading:', error);
-      await this.telegramService.sendMessage(`🚨 <b>Critical Startup Error</b>\n\n${error.message}`);
+      if (this.telegramService) {
+        await this.telegramService.sendMessage(`🚨 <b>Critical Startup Error</b>\n\n${error.message}`).catch(() => {});
+      }
     }
   }
 
@@ -296,14 +305,27 @@ export class TradingPipeline {
       this.orderGateway.applyExchangeUpdate(binanceOrder);
     });
 
-    // 2. Position closed listener to clean up zombie positions (البند 4)
-    this.userDataStream.onPositionClosed((closedSymbol) => {
+    // 2. Position closed listener to clean up zombie positions & record trade metrics in DB (البند 4)
+    this.userDataStream.onPositionClosed(async (closedSymbol) => {
       console.log(`🧹 TradingPipeline: Position for ${closedSymbol} closed on Binance. Cleaning up local tracking.`);
       this.partialProfitManager.removeBySymbol(closedSymbol);
       this.scaleInManager.removeBySymbol(closedSymbol);
+
+      // Close open trade in db
+      try {
+        const openTrades = await this.db.getOpenTrades(closedSymbol);
+        const lastCandle = this.marketData.getCandles(closedSymbol).slice(-1)[0];
+        const exitPrice = lastCandle ? lastCandle.close : undefined;
+        for (const t of openTrades) {
+          const pnl = exitPrice ? (t.side === 'BUY' ? (exitPrice - t.price) * t.quantity : (t.price - exitPrice) * t.quantity) : 0;
+          await this.db.closeTrade(t.id, pnl, exitPrice);
+        }
+      } catch (err) {
+        console.warn('Failed to update closed trade in DB:', err);
+      }
     });
 
-    // Forward KillSwitch events to journal
+    // Forward KillSwitch events to journal & persist to DB
     this.killSwitch.subscribe((evt) => {
       this.eventJournal.record(
         evt.toLevel === 'NORMAL' ? 'INFO' : 'CRITICAL',
@@ -311,6 +333,14 @@ export class TradingPipeline {
         `KillSwitch transitioned to [${evt.toLevel}]: ${evt.reason}`,
         { ...evt }
       );
+
+      // Persist killswitch state to DB
+      this.db.saveState('killswitch_state', {
+        level: evt.toLevel,
+        active: evt.toLevel !== 'NORMAL',
+        reason: evt.reason,
+        timestamp: evt.timestamp,
+      }).catch((e) => console.warn('Failed to save killswitch state to DB:', e));
 
       // Auto cancel active orders on non-normal states
       if (evt.toLevel !== 'NORMAL') {
@@ -337,7 +367,8 @@ export class TradingPipeline {
               ord.filledQuantity,
               fill,
               sl,
-              pending.ouMu
+              pending.ouMu,
+              ord.id
             );
             this.pendingProtection.delete(ord.id);
           }
@@ -503,10 +534,10 @@ export class TradingPipeline {
       // 3. Portfolio Sizer calculation with 1% Risk-Based Sizing (البند 6 و 8)
       const balance = this.userDataStream.getBalance();
       const positionSizing = this.portfolioSizer.calculatePositionSize(
-        strength,
         features.currentPrice,
+        sig.stopLoss,
         balance.totalEquity,
-        sig.stopLoss
+        0.01
       );
 
       let qty = positionSizing.quantity;
@@ -745,6 +776,13 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
     console.log('🔄 Starting State Reconciliation...');
     
     try {
+      // Restore persistent KillSwitch state if previously triggered
+      const savedKs = await this.db.getState<{ level: KillSwitchLevel; active: boolean; reason: string }>('killswitch_state');
+      if (savedKs && savedKs.active && savedKs.level !== 'NORMAL') {
+        console.warn(`🚨 Restoring persisted KillSwitch state: [${savedKs.level}] - ${savedKs.reason}`);
+        this.killSwitch.trigger(savedKs.level, `Restored from persistent state: ${savedKs.reason}`, 'AUTO_RISK_ENGINE');
+      }
+
       const apiKey = this.orderGateway.getApiKey();
       const apiSecret = this.orderGateway.getApiSecret();
       const baseUrl = this.orderGateway.getApiBaseUrl();
@@ -878,11 +916,21 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
 
     this.scaleInManager.updateTier(currentTier);
 
-    const recentEvents = this.eventJournal.getEvents();
-    const fills = recentEvents.filter((e: any) => e.type === 'FILL');
+    const metrics = this.db.getPerformanceMetrics();
+    const winRate = metrics && metrics.totalTrades > 0 ? (metrics.winningTrades / metrics.totalTrades) : 0.6;
     
-    const winRate = fills.length > 0 ? fills.filter((f: any) => (f.metadata?.pnl || 0) > 0).length / fills.length : 0.6;
-    const sharpe = 1.2;
+    // Calculate dynamic Sharpe from trade history if available, else standard baseline
+    const fills = this.userDataStream.getFills();
+    let sharpe = 1.2;
+    if (fills.length >= 5) {
+      const returns = fills.map(f => (f.side === 'BUY' ? -f.commission : -f.commission));
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      const std = Math.sqrt(variance);
+      if (std > 0) {
+        sharpe = Number(((mean / std) * Math.sqrt(252)).toFixed(2));
+      }
+    }
     
     const drawdown = balance.totalEquity > 0 ? (10000 - balance.totalEquity) / 10000 : 0;
 

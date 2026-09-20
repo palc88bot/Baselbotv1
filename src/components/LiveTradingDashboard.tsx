@@ -78,7 +78,8 @@ export const LiveTradingDashboard: React.FC<DashboardProps> = React.memo(({
   const [orderSide, setOrderSide] = useState<'BUY' | 'SELL'>('BUY');
   const [orderQty, setOrderQty] = useState<number>(0.1);
 
-  const currentPrice = orderBook?.midPrice || 0;
+  const latestCandlePrice = candles && candles.length > 0 ? candles[candles.length - 1]?.close : 0;
+  const currentPrice = (orderBook?.midPrice && orderBook.midPrice > 0) ? orderBook.midPrice : latestCandlePrice;
   const spread = orderBook?.spread || 0;
   
   // Real-time metrics from health object

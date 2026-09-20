@@ -49,6 +49,8 @@ export class DynamicRiskManager extends EventEmitter {
     this.wfoParameters = wfoParameters;
     this.currentParameters = { ...wfoParameters };
     this.metrics = this.initializeMetrics();
+    // Pre-evaluate baseline risk decision so getLastDecision is never null
+    this.decisions.push(this.evaluateRisk());
   }
 
   public setCurrentParameters(p: any) {

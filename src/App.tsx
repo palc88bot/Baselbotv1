@@ -187,8 +187,24 @@ export default function App() {
     }
   };
 
+  const latestDataRef = useRef<any>(null);
+
   useEffect(() => {
     selectedSymbolRef.current = selectedSymbol;
+    if (latestDataRef.current) {
+      const data = latestDataRef.current;
+      React.startTransition(() => {
+        if (data.candles && data.candles[selectedSymbol]) {
+          setCandles([...data.candles[selectedSymbol]]);
+        }
+        if (data.orderBooks && data.orderBooks[selectedSymbol]) {
+          setOrderBook({ ...data.orderBooks[selectedSymbol] });
+        }
+        if (data.features && data.features[selectedSymbol]) {
+          setFeatures({ ...data.features[selectedSymbol] });
+        }
+      });
+    }
   }, [selectedSymbol]);
 
   // Connect to Backend WebSocket Brain with Exponential Backoff
@@ -206,12 +222,16 @@ export default function App() {
       if (isUnmounted) return;
       try {
         const token = await getToken();
-        const fullWsUrl = token ? `${wsUrl}?token=${encodeURIComponent(token)}` : wsUrl;
         console.log(`🔌 Attempting Brain WebSocket connection: ${wsUrl}`);
-        wsRef.current = new WebSocket(fullWsUrl);
+        wsRef.current = new WebSocket(wsUrl);
 
         wsRef.current.onopen = () => {
           console.log('✅ Connected to Baselbot Brain WebSocket');
+          if (token) {
+            try {
+              wsRef.current?.send(JSON.stringify({ type: 'AUTH', token }));
+            } catch (e) {}
+          }
           setIsConnected(true);
           setIsRunning(true);
           reconnectAttempt = 0; // reset on success
@@ -228,6 +248,7 @@ export default function App() {
             updateScheduled = false;
             if (!pendingData) return;
             const data = pendingData;
+            latestDataRef.current = data;
             pendingData = null;
 
             React.startTransition(() => {
@@ -253,13 +274,16 @@ export default function App() {
               // Extract and set live market data for current active symbol
               const currentSym = selectedSymbolRef.current;
               if (data.candles && data.candles[currentSym]) {
-                setCandles(data.candles[currentSym]);
+                const newCandles = data.candles[currentSym];
+                setCandles([...newCandles]);
               }
               if (data.orderBooks && data.orderBooks[currentSym]) {
-                setOrderBook(data.orderBooks[currentSym]);
+                const newBook = data.orderBooks[currentSym];
+                setOrderBook({ ...newBook });
               }
               if (data.features && data.features[currentSym]) {
-                setFeatures(data.features[currentSym]);
+                const newFeatures = data.features[currentSym];
+                setFeatures({ ...newFeatures });
               }
             });
           });

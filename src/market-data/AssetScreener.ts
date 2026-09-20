@@ -117,15 +117,20 @@ export class AssetScreener {
         
         if (!ticker) continue;
 
-        // عمق دفتر الأوامر
-        let depth = { bidDepth: 100000, askDepth: 100000, spread: 0.05 };
-        if (qualifiedCount < 30) {
-          try {
-            depth = await this.fetchOrderBookDepth(symbolInfo.symbol);
-          } catch (e) {
-            // استخدام قيم أمان افتراضية للعمق في حال تعذر الاتصال بالسوق
+        // عمق دفتر الأوامر وتقدير السبريد من بيانات التيكر اللحظية دون حظر الإقلاع
+        let spread = 0.05;
+        if (ticker.bidPrice && ticker.askPrice) {
+          const bp = parseFloat(ticker.bidPrice);
+          const ap = parseFloat(ticker.askPrice);
+          if (bp > 0 && ap >= bp) {
+            spread = ((ap - bp) / bp) * 100;
           }
         }
+        const depth = {
+          bidDepth: Math.max(50000, parseFloat(ticker.quoteVolume || '1000000') * 0.02),
+          askDepth: Math.max(50000, parseFloat(ticker.quoteVolume || '1000000') * 0.02),
+          spread
+        };
 
         const metrics = this.calculateMetrics(symbolInfo, ticker, depth);
         this.applyFilters(metrics);

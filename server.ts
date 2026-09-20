@@ -43,9 +43,15 @@ async function startServer() {
 
   app.use(express.json());
 
-  // CORS Middleware
+  // CORS Middleware - Secured Origin Handling
   app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    } else {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE");
     res.setHeader("Access-Control-Allow-Headers", "X-Requested-With,content-type,Authorization");
     if (req.method === "OPTIONS") {
@@ -518,91 +524,130 @@ async function startServer() {
   });
 
   // 3. Setup WebSocket Server for Real-Time UI Telemetry on /brain-ws
-  app.ws("/brain-ws", async (ws, req) => {
-    // Authenticate WebSocket connection if configured
-    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    const token = urlObj.searchParams.get("token");
-
+  app.ws("/brain-ws", async (ws: any, req) => {
     const adminEmailsEnv = process.env.ADMIN_EMAILS || '';
-    if (adminEmailsEnv.trim().length > 0) {
-      if (!token) {
-        console.warn("⛔ Brain WebSocket rejected: Missing authorization token");
-        ws.close(1008, "Token required");
-        return;
-      }
+    const requiresAuth = adminEmailsEnv.trim().length > 0;
+
+    const verifyToken = async (tok: string): Promise<boolean> => {
       try {
         const { adminAuth } = await import("./src/lib/firebase-admin.ts");
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        const allowedList = adminEmailsEnv.split(',').map((e) => e.trim().toLowerCase());
-        const userEmail = (decodedToken.email || '').toLowerCase();
-        if (!allowedList.includes(userEmail)) {
-          console.warn(`⛔ Brain WebSocket rejected: User ${userEmail} not in allowlist`);
-          ws.close(1008, "Unauthorized operator");
-          return;
+        const decodedToken = await adminAuth.verifyIdToken(tok);
+        if (requiresAuth) {
+          const allowedList = adminEmailsEnv.split(',').map((e) => e.trim().toLowerCase());
+          const userEmail = (decodedToken.email || '').toLowerCase();
+          return allowedList.includes(userEmail);
         }
+        return true;
       } catch (err: any) {
-        console.warn("⛔ Brain WebSocket rejected: Invalid token -", err.message);
+        console.warn("⛔ Brain WebSocket auth check failed:", err.message);
+        return false;
+      }
+    };
+
+    const sendInitialState = () => {
+      try {
+        const activeSymbols = pipeline.getConfig().activeSymbols;
+        const candlesDict: Record<string, any> = {};
+        const orderBooksDict: Record<string, any> = {};
+        const featuresDict: Record<string, any> = {};
+
+        for (const symbol of activeSymbols) {
+          candlesDict[symbol] = pipeline.getMarketData().getCandles(symbol);
+          orderBooksDict[symbol] = pipeline.getOrderBookBuilder().getBook(symbol);
+          featuresDict[symbol] = pipeline.getLastFeatures().get(symbol);
+        }
+
+        const defaultSymbol = activeSymbols[0] || 'BTC/USDT';
+        const defaultCandles = candlesDict[defaultSymbol] || [];
+        if (defaultCandles.length > 0) {
+          pipeline.getRegimeDetector().update(defaultCandles);
+        }
+        const regime = pipeline.getRegimeDetector().analyze();
+        const riskDecision = pipeline.getDynamicRiskManager().getLastDecision();
+
+        ws.send(JSON.stringify({
+          type: "INIT_STATE",
+          data: {
+            balance: pipeline.getUserDataStream().getBalance(),
+            positions: pipeline.getUserDataStream().getPositions(),
+            orders: pipeline.getOrderGateway().getOrders(),
+            health: pipeline.getHealthMonitor().getHealth(),
+            killSwitch: {
+              active: pipeline.getKillSwitch().isActive(),
+              level: pipeline.getKillSwitch().getLevel(),
+            },
+            candles: candlesDict,
+            orderBooks: orderBooksDict,
+            features: featuresDict,
+            regime,
+            riskDecision,
+            portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
+            qualifiedAssets: pipeline.getAssetScreener().getReport(),
+          },
+        }));
+      } catch (err) {
+        console.error("Error sending initial WS state:", err);
+      }
+    };
+
+    // Check optional URL query token (for backwards compatibility)
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const queryToken = urlObj.searchParams.get("token");
+
+    ws.isAuthorized = !requiresAuth;
+
+    if (queryToken) {
+      const valid = await verifyToken(queryToken);
+      if (valid) {
+        ws.isAuthorized = true;
+      } else if (requiresAuth) {
         ws.close(1008, "Invalid token");
         return;
       }
-    } else if (token) {
-      // Optional verification if token provided even without ADMIN_EMAILS
+    }
+
+    let authTimeout: NodeJS.Timeout | null = null;
+    if (requiresAuth && !ws.isAuthorized) {
+      authTimeout = setTimeout(() => {
+        if (!ws.isAuthorized) {
+          console.warn("⛔ Brain WebSocket auth timeout: No valid AUTH message received within 5s");
+          ws.close(1008, "Auth timeout");
+        }
+      }, 5000);
+    }
+
+    if (ws.isAuthorized) {
+      console.log("✅ Brain WebSocket Connected and Authorized via express-ws");
+      sendInitialState();
+    }
+
+    ws.on("message", async (msgStr: string) => {
       try {
-        const { adminAuth } = await import("./src/lib/firebase-admin.ts");
-        await adminAuth.verifyIdToken(token);
+        const msg = JSON.parse(msgStr.toString());
+        if (msg.type === "AUTH" && msg.token) {
+          const valid = await verifyToken(msg.token);
+          if (valid) {
+            ws.isAuthorized = true;
+            if (authTimeout) {
+              clearTimeout(authTimeout);
+              authTimeout = null;
+            }
+            console.log("✅ Brain WebSocket Authorized via message payload");
+            sendInitialState();
+          } else {
+            ws.close(1008, "Invalid token");
+          }
+        }
       } catch (e) {
-        // Ignore optional token failure if allowlist is not enforced
+        // Non-JSON or ping
       }
-    }
-
-    console.log("✅ Brain WebSocket Connected and Authorized via express-ws");
-
-    // Send initial state
-    try {
-      const activeSymbols = pipeline.getConfig().activeSymbols;
-      const candlesDict: Record<string, any> = {};
-      const orderBooksDict: Record<string, any> = {};
-      const featuresDict: Record<string, any> = {};
-
-      for (const symbol of activeSymbols) {
-        candlesDict[symbol] = pipeline.getMarketData().getCandles(symbol);
-        orderBooksDict[symbol] = pipeline.getOrderBookBuilder().getBook(symbol);
-        featuresDict[symbol] = pipeline.getLastFeatures().get(symbol);
-      }
-
-      const defaultSymbol = activeSymbols[0] || 'BTC/USDT';
-      const defaultCandles = candlesDict[defaultSymbol] || [];
-      if (defaultCandles.length > 0) {
-        pipeline.getRegimeDetector().update(defaultCandles);
-      }
-      const regime = pipeline.getRegimeDetector().analyze();
-      const riskDecision = pipeline.getDynamicRiskManager().getLastDecision();
-
-      ws.send(JSON.stringify({
-        type: "INIT_STATE",
-        data: {
-          balance: pipeline.getUserDataStream().getBalance(),
-          positions: pipeline.getUserDataStream().getPositions(),
-          orders: pipeline.getOrderGateway().getOrders(),
-          health: pipeline.getHealthMonitor().getHealth(),
-          killSwitch: {
-            active: pipeline.getKillSwitch().isActive(),
-            level: pipeline.getKillSwitch().getLevel(),
-          },
-          candles: candlesDict,
-          orderBooks: orderBooksDict,
-          features: featuresDict,
-          regime,
-          riskDecision,
-          portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
-          qualifiedAssets: pipeline.getAssetScreener().getReport(),
-        },
-      }));
-    } catch (err) {
-      console.error("Error sending initial WS state:", err);
-    }
+    });
 
     ws.on("close", () => {
+      if (authTimeout) {
+        clearTimeout(authTimeout);
+        authTimeout = null;
+      }
       console.log("❌ Brain WebSocket Disconnected");
     });
   });
@@ -661,7 +706,7 @@ async function startServer() {
 
       const wss = expressWsInstance.getWss();
       wss.clients.forEach((client: any) => {
-        if (client.readyState === 1) { // OPEN
+        if (client.readyState === 1 && client.isAuthorized !== false) { // OPEN and authorized
           client.send(statePayload);
         }
       });
@@ -709,12 +754,14 @@ async function startServer() {
     }
 
     // 2. Stop pipeline rebalance timers and processes
+    clearInterval(broadcastInterval);
     pipeline.stop();
     console.log("⏹️ Trading Pipeline stopped.");
 
     // 3. Save final database snapshots
     const balance = pipeline.getUserDataStream().getBalance();
     await pipeline.getDatabase().saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
+    pipeline.getDatabase().close();
     console.log("💾 Final balance snapshots persisted.");
 
     // 4. Close Server

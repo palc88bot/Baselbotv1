@@ -21,37 +21,37 @@ export interface SymbolConfig {
 export const DEFAULT_SYMBOLS: Record<AssetSymbol, SymbolConfig> = {
   'BTC/USDT': {
     symbol: 'BTC/USDT',
-    basePrice: 91450.0,
+    basePrice: 80800.0,
     volatilityDaily: 0.045,
     meanReversionSpeed: 0.18,
-    equilibriumMean: 91200.0,
+    equilibriumMean: 80800.0,
     tickSize: 0.1,
     lotSize: 0.001,
   },
   'ETH/USDT': {
     symbol: 'ETH/USDT',
-    basePrice: 3420.5,
+    basePrice: 2150.0,
     volatilityDaily: 0.055,
     meanReversionSpeed: 0.22,
-    equilibriumMean: 3400.0,
+    equilibriumMean: 2150.0,
     tickSize: 0.01,
     lotSize: 0.01,
   },
   'SOL/USDT': {
     symbol: 'SOL/USDT',
-    basePrice: 198.4,
+    basePrice: 135.0,
     volatilityDaily: 0.075,
     meanReversionSpeed: 0.30,
-    equilibriumMean: 195.0,
+    equilibriumMean: 135.0,
     tickSize: 0.01,
     lotSize: 0.1,
   },
   'QNT/USDT': {
     symbol: 'QNT/USDT',
-    basePrice: 112.3,
+    basePrice: 64.0,
     volatilityDaily: 0.060,
     meanReversionSpeed: 0.25,
-    equilibriumMean: 110.0,
+    equilibriumMean: 64.0,
     tickSize: 0.01,
     lotSize: 0.1,
   },
@@ -83,23 +83,26 @@ export class ExchangeMarketData extends EventEmitter {
   private orderBookBuilder: OrderBookBuilder;
   private tickListeners: Set<(tick: Tick) => void> = new Set();
   
-  // Simulated streaming timer
+  // Simulated streaming timer fallback
   private intervalId: any = null;
   private isRunning: boolean = false;
   private tradeCounter: number = 0;
 
   // Live WebSocket variables
-  private ws: WebSocket | null = null;
+  private marketWs: WebSocket | null = null;
+  private depthWs: WebSocket | null = null;
   private executionMode: string;
-  private wsUrl: string;
+  private activeCryptoSymbols: AssetSymbol[] = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'QNT/USDT'];
   private reconnectTimer: NodeJS.Timeout | null = null;
 
-  constructor(orderBookBuilder?: OrderBookBuilder) {
+  constructor(orderBookBuilder?: OrderBookBuilder, activeSymbols?: AssetSymbol[]) {
     super();
     this.orderBookBuilder = orderBookBuilder || new OrderBookBuilder(10);
     const hasApiKey = !!process.env.EXCHANGE_API_KEY;
     this.executionMode = normalizeExecutionMode(process.env.EXECUTION_MODE, hasApiKey);
-    this.wsUrl = `${getBinanceWsUrl(this.executionMode as ExecutionMode)}/stream?streams=`;
+    if (activeSymbols && activeSymbols.length > 0) {
+      this.activeCryptoSymbols = activeSymbols.filter(s => s.endsWith('/USDT'));
+    }
     this.initializeState();
   }
 
@@ -166,19 +169,75 @@ export class ExchangeMarketData extends EventEmitter {
     return () => this.tickListeners.delete(listener);
   }
 
-  public startStreaming(tickRateMs: number = 300) {
+  public async backfillRealCandles(symbols?: AssetSymbol[]): Promise<void> {
+    const targetSymbols = (symbols && symbols.length > 0 ? symbols : this.activeCryptoSymbols)
+      .filter(s => s.endsWith('/USDT'));
+    const baseUrl = this.executionMode === 'TESTNET' ? 'https://testnet.binancefuture.com' : 'https://fapi.binance.com';
+
+    const primarySymbols = targetSymbols.slice(0, 8);
+    console.log(`📥 ExchangeMarketData: Backfilling real historical candles for ${primarySymbols.join(', ')}...`);
+
+    await Promise.all(primarySymbols.map(async (sym) => {
+      const binanceSym = sym.replace('/', '').toUpperCase();
+      try {
+        const res = await fetch(`${baseUrl}/fapi/v1/klines?symbol=${binanceSym}&interval=1m&limit=100`);
+        if (!res.ok) {
+          console.warn(`⚠️ ExchangeMarketData: Could not fetch candles for ${sym}: HTTP ${res.status}`);
+          return;
+        }
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const candles: Candle[] = data.map((k: any) => ({
+            timestamp: Number(k[0]),
+            open: parseFloat(k[1]),
+            high: parseFloat(k[2]),
+            low: parseFloat(k[3]),
+            close: parseFloat(k[4]),
+            volume: parseFloat(k[5]),
+            vwap: parseFloat(k[7]) > 0 && parseFloat(k[5]) > 0 ? parseFloat(k[7]) / parseFloat(k[5]) : parseFloat(k[4])
+          }));
+          this.candleHistory.set(sym, candles);
+          const latestPrice = candles[candles.length - 1].close;
+          this.currentPrices.set(sym, latestPrice);
+          this.lastUpdateTimes.set(sym, Date.now());
+          this.orderBookBuilder.initialize(sym, latestPrice);
+          this.emit('market_update', sym);
+          console.log(`✅ ExchangeMarketData: Loaded ${candles.length} real candles for ${sym} (Latest Price: $${latestPrice})`);
+        }
+      } catch (err: any) {
+        console.warn(`⚠️ ExchangeMarketData: Failed to backfill candles for ${sym}:`, err.message);
+      }
+    }));
+  }
+
+  public startStreaming(tickRateMs: number = 300, activeSymbols?: AssetSymbol[]) {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    if (this.executionMode === 'PAPER') {
-      console.log('📝 ExchangeMarketData: Running in PAPER simulation mode.');
-      this.intervalId = setInterval(() => {
-        this.generateNextTicks();
-      }, tickRateMs);
-    } else {
-      console.log(`🌐 ExchangeMarketData: Connecting to live streams via WebSocket (${this.executionMode})...`);
-      this.startWebSocketStreaming();
+    if (activeSymbols && activeSymbols.length > 0) {
+      this.activeCryptoSymbols = activeSymbols.filter(s => s.endsWith('/USDT'));
     }
+
+    console.log(`🌐 ExchangeMarketData: Connecting to live Binance WebSocket market data streams for ${this.activeCryptoSymbols.join(', ')}...`);
+    this.startWebSocketStreaming();
+
+    // Fallback heartbeat timer: keeps system health metrics and any non-crypto assets alive
+    this.intervalId = setInterval(() => {
+      // Check if market data is stale (> 10 seconds since last live update)
+      const now = Date.now();
+      let hasLiveFeed = false;
+      for (const sym of this.activeCryptoSymbols) {
+        const lastUp = this.lastUpdateTimes.get(sym) || 0;
+        if (now - lastUp < 10000) {
+          hasLiveFeed = true;
+          break;
+        }
+      }
+      // If live feed is disconnected or in offline sandbox, run gentle fallback ticks
+      if (!hasLiveFeed) {
+        this.generateNextTicks();
+      }
+    }, tickRateMs);
   }
 
   public stopStreaming() {
@@ -187,9 +246,13 @@ export class ExchangeMarketData extends EventEmitter {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    if (this.marketWs) {
+      this.marketWs.close();
+      this.marketWs = null;
+    }
+    if (this.depthWs) {
+      this.depthWs.close();
+      this.depthWs = null;
     }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -198,53 +261,97 @@ export class ExchangeMarketData extends EventEmitter {
     console.log('🔴 ExchangeMarketData: Stopped.');
   }
 
-  // --- Binance Live WebSocket Stream Integration ---
+  // --- Binance Live Multi-Stream Integration ---
   private startWebSocketStreaming() {
-    // Map system symbols to lowercase for Binance stream format (e.g. BTC/USDT -> btcusdt)
-    const symbols = Object.keys(DEFAULT_SYMBOLS);
-    const activeSymbols = symbols.map(s => s.replace('/', '').toLowerCase());
-    
-    // Build multi-stream URL
-    const streams = activeSymbols.flatMap(symbol => [
-      `${symbol}@depth20@100ms`, // Orderbook (20 levels, 100ms updates)
-      `${symbol}@kline_1m`,      // Candles (1m interval)
-      `${symbol}@aggTrade`       // Ticks / Aggregate Trades
-    ]).join('/');
+    const rawPairs = this.activeCryptoSymbols.map(s => s.replace('/', '').toLowerCase());
+    if (rawPairs.length === 0) return;
 
-    const url = `${this.wsUrl}${streams}`;
-    console.log(`📡 ExchangeMarketData: Connecting to streams: ${url}`);
-    
-    this.connectWebSocket(url);
+    const baseWsHost = this.executionMode === 'TESTNET' ? 'wss://fstream.binancefuture.com' : 'wss://fstream.binance.com';
+
+    // 1. Regular market data streams: aggTrade & kline_1m (routed through /market/)
+    const marketStreams = rawPairs.flatMap(symbol => [
+      `${symbol}@aggTrade`,
+      `${symbol}@kline_1m`
+    ]).join('/');
+    const marketUrl = `${baseWsHost}/market/stream?streams=${marketStreams}`;
+
+    // 2. High-frequency OrderBook depth stream: depth10@100ms (routed through /public/)
+    const depthStreams = rawPairs.map(symbol => `${symbol}@depth10@100ms`).join('/');
+    const depthUrl = `${baseWsHost}/public/stream?streams=${depthStreams}`;
+
+    this.connectMarketWs(marketUrl);
+    this.connectDepthWs(depthUrl);
   }
 
-  private connectWebSocket(url: string) {
-    if (this.ws) this.ws.close();
+  private connectMarketWs(url: string) {
+    if (this.marketWs) {
+      try { this.marketWs.close(); } catch (e) {}
+    }
 
-    this.ws = new WebSocket(url);
+    try {
+      this.marketWs = new WebSocket(url);
 
-    this.ws.on('open', () => {
-      console.log('✅ ExchangeMarketData: WebSocket connected to Binance Futures ' + this.executionMode);
-    });
+      this.marketWs.on('open', () => {
+        console.log(`✅ ExchangeMarketData: Connected to Binance Futures live trade & kline stream`);
+      });
 
-    this.ws.on('message', (data: any) => {
-      try {
-        const msg = JSON.parse(data.toString());
-        this.handleWebSocketMessage(msg);
-      } catch (e) {
-        console.error('❌ ExchangeMarketData: Error parsing message', e);
-      }
-    });
+      this.marketWs.on('message', (data: any) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          this.handleWebSocketMessage(msg);
+        } catch (e) {
+          console.error('❌ ExchangeMarketData: Error parsing market message', e);
+        }
+      });
 
-    this.ws.on('close', () => {
-      console.log('⚠️ ExchangeMarketData: WebSocket connection closed.');
-      if (this.isRunning) {
-        this.scheduleReconnect(url);
-      }
-    });
+      this.marketWs.on('close', () => {
+        if (this.isRunning) {
+          console.log('⚠️ ExchangeMarketData: Market WebSocket closed. Reconnecting in 5s...');
+          this.scheduleReconnect();
+        }
+      });
 
-    this.ws.on('error', (err) => {
-      console.error('❌ ExchangeMarketData: WebSocket error', err);
-    });
+      this.marketWs.on('error', (err) => {
+        console.warn('⚠️ ExchangeMarketData: Market WebSocket warning:', err.message);
+      });
+    } catch (err: any) {
+      console.warn('⚠️ ExchangeMarketData: Could not open market WS:', err.message);
+    }
+  }
+
+  private connectDepthWs(url: string) {
+    if (this.depthWs) {
+      try { this.depthWs.close(); } catch (e) {}
+    }
+
+    try {
+      this.depthWs = new WebSocket(url);
+
+      this.depthWs.on('open', () => {
+        console.log(`✅ ExchangeMarketData: Connected to Binance Futures live L2 depth stream`);
+      });
+
+      this.depthWs.on('message', (data: any) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          this.handleWebSocketMessage(msg);
+        } catch (e) {
+          console.error('❌ ExchangeMarketData: Error parsing depth message', e);
+        }
+      });
+
+      this.depthWs.on('close', () => {
+        if (this.isRunning) {
+          this.scheduleReconnect();
+        }
+      });
+
+      this.depthWs.on('error', (err) => {
+        console.warn('⚠️ ExchangeMarketData: Depth WebSocket warning:', err.message);
+      });
+    } catch (err: any) {
+      console.warn('⚠️ ExchangeMarketData: Could not open depth WS:', err.message);
+    }
   }
 
   private handleWebSocketMessage(msg: any) {
@@ -258,16 +365,18 @@ export class ExchangeMarketData extends EventEmitter {
     if (!rawSym) return;
     const symbol = this.toSystemSymbol(rawSym);
 
-    // 1. OrderBook Update
+    // 1. OrderBook L2 Depth Update
     if (stream.includes('@depth')) {
-      if (data.b && data.a) {
-        this.orderBookBuilder.update(symbol, data.b, data.a);
+      const bids = data.b || data.bids;
+      const asks = data.a || data.asks;
+      if (bids && asks) {
+        this.orderBookBuilder.update(symbol, bids, asks);
         this.emit('market_update', symbol);
       }
     }
 
-    // 2. Candlestick Update
-    if (stream.includes('@kline')) {
+    // 2. Candlestick Kline Update
+    if (stream.includes('@kline') && data.k) {
       const candle: Candle = {
         timestamp: data.k.t,
         open: parseFloat(data.k.o),
@@ -275,7 +384,9 @@ export class ExchangeMarketData extends EventEmitter {
         low: parseFloat(data.k.l),
         close: parseFloat(data.k.c),
         volume: parseFloat(data.k.v),
-        vwap: parseFloat(data.k.V) || parseFloat(data.k.c)
+        vwap: parseFloat(data.k.V) > 0 && parseFloat(data.k.v) > 0 
+          ? parseFloat(data.k.V) / parseFloat(data.k.v) 
+          : parseFloat(data.k.c)
       };
 
       if (!this.candleHistory.has(symbol)) {
@@ -291,8 +402,8 @@ export class ExchangeMarketData extends EventEmitter {
         if (candlesArr.length > 120) candlesArr.shift();
       }
 
-      // Update last price map too
       this.currentPrices.set(symbol, candle.close);
+      this.lastUpdateTimes.set(symbol, Date.now());
       
       this.emit('market_update', symbol);
       if (data.k.x) {
@@ -315,10 +426,10 @@ export class ExchangeMarketData extends EventEmitter {
         size: tickSize,
         side,
         timestamp: data.T,
-        tradeId: data.a.toString()
+        tradeId: data.a ? data.a.toString() : `TICK-${Date.now()}`
       };
 
-      // Reconstruct orderbook from tick to keep simulation active for UI
+      // Reconstruct orderbook from tick
       this.orderBookBuilder.processTick(tick);
 
       // Trigger listeners
@@ -333,18 +444,22 @@ export class ExchangeMarketData extends EventEmitter {
     if (upper.endsWith('USDT')) {
       return `${upper.slice(0, -4)}/USDT` as AssetSymbol;
     }
+    if (upper.endsWith('BUSD')) {
+      return `${upper.slice(0, -4)}/BUSD` as AssetSymbol;
+    }
     if (upper.endsWith('USD')) {
       return `${upper.slice(0, -3)}/USD` as AssetSymbol;
     }
     return upper as AssetSymbol;
   }
 
-  private scheduleReconnect(url: string) {
+  private scheduleReconnect() {
     if (this.reconnectTimer) return;
-    console.log('⏳ ExchangeMarketData: Reconnecting in 5 seconds...');
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.connectWebSocket(url);
+      if (this.isRunning) {
+        this.startWebSocketStreaming();
+      }
     }, 5000);
   }
 
