@@ -366,10 +366,7 @@ export type ExecutionMode = 'LIVE' | 'TESTNET' | 'PAPER';
 export function normalizeExecutionMode(mode?: string, hasApiKey: boolean = false): ExecutionMode {
   const m = (mode || '').trim().toUpperCase();
   if (m === 'LIVE' || m === 'PRODUCTION') return 'LIVE';
-  if (m === 'TESTNET' || m === 'TEST' || m === 'TESTNET_EXCHANGE') return 'TESTNET';
-  if (m === 'PAPER' || m === 'PAPER_TRADING' || m === 'SIMULATION' || m === 'MOCK') return 'PAPER';
-  if (hasApiKey) return 'TESTNET';
-  return 'PAPER';
+  return 'TESTNET';
 }
 
 export function getBinanceBaseUrl(mode: ExecutionMode): string {

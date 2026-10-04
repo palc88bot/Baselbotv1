@@ -74,7 +74,7 @@ export default function CyberPulseNexusApp() {
 
   const [activeTab, setActiveTab] = useState<'matrix' | 'terminal' | 'history' | 'strategies' | 'risk'>('matrix');
   const [isRunning, setIsRunning] = useState<boolean>(true);
-  const [executionMode, setExecutionMode] = useState<'PAPER' | 'LIVE'>('PAPER');
+  const [executionMode, setExecutionMode] = useState<'TESTNET' | 'LIVE'>('TESTNET');
   const [markets, setMarkets] = useState<HolographicAsset[]>(INITIAL_MARKETS);
   const [selectedAsset, setSelectedAsset] = useState<HolographicAsset>(INITIAL_MARKETS[0]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -617,10 +617,10 @@ export default function CyberPulseNexusApp() {
             type="button"
             onClick={() => {
               playHoloTone(950, 0.08);
-              setExecutionMode(executionMode === 'PAPER' ? 'LIVE' : 'PAPER');
+              setExecutionMode(executionMode === 'TESTNET' ? 'LIVE' : 'TESTNET');
             }}
             className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
-              executionMode === 'PAPER'
+              executionMode === 'TESTNET'
                 ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
                 : 'bg-emerald-500/15 border-emerald-500/50 text-[var(--lime)] shadow-[0_0_12px_rgba(0,255,102,0.3)]'
             }`}

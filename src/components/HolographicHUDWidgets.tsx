@@ -33,7 +33,7 @@ interface HolographicHUDWidgetsProps {
   dailyProfit: number;
   dailyProfitPct: number;
   openPositionsCount: number;
-  executionMode: 'PAPER' | 'LIVE';
+  executionMode: 'TESTNET' | 'LIVE';
   isRunning: boolean;
   onToggleBot: () => void;
   onExecuteTrade: (side: 'BUY' | 'SELL') => void;

@@ -108,7 +108,7 @@ export const BotActionsToolbar: React.FC<BotActionsToolbarProps> = React.memo(({
         
         {/* Execution Mode Selector */}
         <div className="flex items-center p-0.5 rounded-xl bg-black/50 border border-[var(--stroke)] font-mono text-[9px] sm:text-[10px]">
-          {(['PAPER', 'TESTNET', 'LIVE'] as ExecutionMode[]).map((mode) => {
+          {(['TESTNET', 'LIVE'] as ExecutionMode[]).map((mode) => {
             const isCurrent = executionMode === mode;
             return (
               <button

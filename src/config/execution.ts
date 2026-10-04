@@ -1,12 +1,10 @@
 // src/config/execution.ts
-
-export type ExecutionMode = 'LIVE' | 'TESTNET' | 'PAPER';
+export type ExecutionMode = 'LIVE' | 'TESTNET';
 
 function readExecutionMode(): ExecutionMode {
   const envMode = process.env.EXECUTION_MODE?.toUpperCase() || process.env.VITE_EXECUTION_MODE?.toUpperCase();
-  if (envMode === 'LIVE') return 'LIVE';
-  if (envMode === 'TESTNET') return 'TESTNET';
-  return 'PAPER';
+  if (envMode === 'LIVE' || envMode === 'PRODUCTION') return 'LIVE';
+  return 'TESTNET';
 }
 
 const mode = readExecutionMode();
