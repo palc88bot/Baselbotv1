@@ -59,13 +59,13 @@ export class PortfolioSizer {
   private tierConfigs: Record<PortfolioTier, TierConfig> = {
     MICRO: {
       tier: 'MICRO',
-      maxConcurrentPositions: 1,
-      minLeverage: 2,
-      maxLeverage: 2,
-      minTradeValue: 5,
-      maxTradePercentage: 0.50,
+      maxConcurrentPositions: 1, // مركز واحد فقط في نفس الوقت للمحافظ الصغيرة للحفاظ على الهامش
+      minLeverage: 3,            // رافعة 3x تتيح صفقة بقيمة 5.5$ بهامش 1.83$ فقط
+      maxLeverage: 5,            // رافعة 5x تتيح صفقة بقيمة 5.5$ بهامش 1.10$ فقط
+      minTradeValue: 5.5,        // يتوافق تماماً مع شرط بايننس الأدنى 5 USDT
+      maxTradePercentage: 0.60,
       maxQualifiedAssets: 15,
-      allowedSymbols: ['SOL/USDT', 'BTC/USDT', 'ETH/USDT', 'QNT/USDT'],
+      allowedSymbols: ['SOL/USDT', 'BTC/USDT', 'ETH/USDT', 'NEAR/USDT', 'SUI/USDT', 'DOGE/USDT', 'TAO/USDT', '1000PEPE/USDT', 'FET/USDT', 'AVAX/USDT', 'RENDER/USDT', 'WIF/USDT'],
       quboEnabled: false,
       minZScore: -2.5,
       maxDrawdownPercent: 0.15,
@@ -78,7 +78,7 @@ export class PortfolioSizer {
       minTradeValue: 10,
       maxTradePercentage: 0.40,
       maxQualifiedAssets: 25,
-      allowedSymbols: ['SOL/USDT', 'ETH/USDT', 'BTC/USDT', 'QNT/USDT'],
+      allowedSymbols: ['SOL/USDT', 'ETH/USDT', 'BTC/USDT', 'NEAR/USDT', 'SUI/USDT', 'DOGE/USDT', 'TAO/USDT', '1000PEPE/USDT', 'FET/USDT', 'AVAX/USDT', 'INJ/USDT', 'APT/USDT', 'TIA/USDT', 'RENDER/USDT', 'WIF/USDT', 'BNB/USDT', 'XRP/USDT', 'LINK/USDT', 'ADA/USDT'],
       quboEnabled: false,
       minZScore: -2.0,
       maxDrawdownPercent: 0.20,
@@ -91,7 +91,7 @@ export class PortfolioSizer {
       minTradeValue: 20,
       maxTradePercentage: 0.25,
       maxQualifiedAssets: 40,
-      allowedSymbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'QNT/USDT'],
+      allowedSymbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'NEAR/USDT', 'SUI/USDT', 'DOGE/USDT', 'TAO/USDT', '1000PEPE/USDT', 'FET/USDT', 'AVAX/USDT', 'INJ/USDT', 'APT/USDT', 'TIA/USDT', 'RENDER/USDT', 'WIF/USDT', 'BNB/USDT', 'XRP/USDT', 'LINK/USDT'],
       quboEnabled: true,
       minZScore: -1.6,
       maxDrawdownPercent: 0.25,
@@ -104,7 +104,7 @@ export class PortfolioSizer {
       minTradeValue: 50,
       maxTradePercentage: 0.15,
       maxQualifiedAssets: 100,
-      allowedSymbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'QNT/USDT', 'NVDA/USD', 'AAPL/USD'],
+      allowedSymbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'NEAR/USDT', 'SUI/USDT', 'DOGE/USDT', 'TAO/USDT', '1000PEPE/USDT', 'FET/USDT', 'AVAX/USDT', 'INJ/USDT', 'APT/USDT', 'TIA/USDT', 'RENDER/USDT', 'WIF/USDT', 'BNB/USDT', 'XRP/USDT', 'LINK/USDT'],
       quboEnabled: true,
       minZScore: -1.6,
       maxDrawdownPercent: 0.30,
@@ -351,7 +351,7 @@ export class PortfolioSizer {
     let rawQty = riskAmount / stopDistance;
     let notional = rawQty * entry;
 
-    // سقف التعرض الأقصى لكل صفقة (50% من رأس المال)
+    // سقف التعرض الأقصى لكل صفقة بناءً على فئة المحفظة
     const maxExposurePct = config.maxTradePercentage || 0.50;
     const maxNotional = safeEquity * maxExposurePct;
     if (notional > maxNotional) {
@@ -359,10 +359,16 @@ export class PortfolioSizer {
       notional = maxNotional;
     }
 
-    // حساب الرافعة المطلوبة لتغطية الهامش، مع الالتزام بالحد الأقصى للطبقة
-    const requiredMargin = notional / 2; // هامش أولي
-    const calculatedLev = Math.ceil(notional / safeEquity);
-    const leverage = Math.min(config.maxLeverage, Math.max(1, calculatedLev));
+    // دعم الأرصدة الصغيرة (< 50$): ضمان عدم النزول عن الحد الأدنى لبايننس (5 USDT)
+    const MIN_BINANCE_NOTIONAL = config.minTradeValue || 5.5;
+    if (notional < MIN_BINANCE_NOTIONAL && entry > 0) {
+      notional = MIN_BINANCE_NOTIONAL;
+      rawQty = notional / entry;
+    }
+
+    // حساب الرافعة المطلوبة لتغطية الهامش، مع الالتزام بالنطاق الآمن للفئة
+    const calculatedLev = Math.max(config.minLeverage || 3, Math.ceil(notional / safeEquity));
+    const leverage = Math.min(config.maxLeverage || 5, Math.max(config.minLeverage || 3, calculatedLev));
 
     return {
       quantity: Number(rawQty.toFixed(4)),

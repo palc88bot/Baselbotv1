@@ -1,13 +1,13 @@
 import { BacktestEngine } from './BacktestEngine';
 import fs from 'fs';
 
-interface OptimizationResult {
+export interface OptimizationResult {
     parameters: any;
     fitness: number;
     metrics: any;
 }
 
-interface WFOSegment {
+export interface WFOSegment {
     inSampleStart: number;
     inSampleEnd: number;
     outSampleStart: number;
@@ -41,7 +41,8 @@ export class WalkForwardOptimizer {
         const dayMs = 24 * 60 * 60 * 1000;
         let currentEnd = endTime;
 
-        while (currentEnd - (this.inSampleDays + this.outSampleDays) * dayMs > endTime - this.totalDays * dayMs) {
+        this.segments = [];
+        while (currentEnd - (this.inSampleDays + this.outSampleDays) * dayMs >= endTime - this.totalDays * dayMs) {
             const outEnd = currentEnd;
             const outStart = outEnd - this.outSampleDays * dayMs;
             const inEnd = outStart;
@@ -55,6 +56,18 @@ export class WalkForwardOptimizer {
             });
 
             currentEnd -= this.outSampleDays * dayMs;
+        }
+
+        // If no segments fitted, generate at least one default segment
+        if (this.segments.length === 0) {
+            const inEnd = endTime - this.outSampleDays * dayMs;
+            const inStart = inEnd - this.inSampleDays * dayMs;
+            this.segments.push({
+                inSampleStart: Math.max(0, inStart),
+                inSampleEnd: inEnd,
+                outSampleStart: inEnd,
+                outSampleEnd: endTime,
+            });
         }
     }
 
@@ -72,34 +85,38 @@ export class WalkForwardOptimizer {
             const best = await this.optimize(inSampleCandles);
             segment.bestParams = best.parameters;
 
-            // 2. Validate Out-of-Sample
+            // 2. Validate Out-of-Sample using the discovered best parameters
             const outSampleCandles = this.sliceCandles(candles, segment.outSampleStart, segment.outSampleEnd);
-            segment.oosPerformance = await this.engine.runWithCandles(outSampleCandles);
+            segment.oosPerformance = await this.engine.runWithCandles(outSampleCandles, best.parameters);
             
             console.log(`Best Params: ${JSON.stringify(best.parameters)}`);
-            console.log(`OOS Sharpe:  ${segment.oosPerformance.sharpeRatio.toFixed(2)}`);
+            console.log(`OOS Sharpe:  ${segment.oosPerformance.sharpeRatio.toFixed(2)} | OOS Return: ${segment.oosPerformance.totalReturn.toFixed(2)}%`);
         }
 
         this.printFullReport();
+        return this.segments;
     }
 
     private async optimize(candles: Map<string, any[]>): Promise<OptimizationResult> {
-        // Grid search for simplicity in this version
-        const zScores = [-1.4, -1.6, -1.8, -2.0];
+        // Grid search over entry z-score thresholds and halfLife thresholds
+        const zScores = [1.2, 1.5, 1.8, 2.2];
+        const halfLifes = [15, 25, 40];
         let best: OptimizationResult | null = null;
 
         for (const z of zScores) {
-            // In a real scenario, we would inject these params into the engine/strategy
-            // For now we simulate the process
-            const metrics = await this.engine.runWithCandles(candles);
-            const fitness = metrics.sharpeRatio;
+            for (const hl of halfLifes) {
+                const params = { entryZ: z, maxHalfLife: hl };
+                const metrics = await this.engine.runWithCandles(candles, params);
+                const ddPct = (metrics as any).maxDrawdownPct ?? (metrics as any).maxDrawdown ?? 0;
+                const fitness = metrics.sharpeRatio - (ddPct * 0.05);
 
-            if (!best || fitness > best.fitness) {
-                best = { parameters: { zScore: z }, fitness, metrics };
+                if (!best || fitness > best.fitness) {
+                    best = { parameters: params, fitness, metrics };
+                }
             }
         }
 
-        return best!;
+        return best || { parameters: { entryZ: 1.5, maxHalfLife: 25 }, fitness: 0, metrics: {} as any };
     }
 
     private sliceCandles(allCandles: Map<string, any[]>, start: number, end: number): Map<string, any[]> {
@@ -115,8 +132,10 @@ export class WalkForwardOptimizer {
         console.log('📊 WFO FINAL REPORT');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         
-        const avgSharpe = this.segments.reduce((acc, s) => acc + s.oosPerformance.sharpeRatio, 0) / this.segments.length;
-        const stability = this.segments.filter(s => s.oosPerformance.sharpeRatio > 0).length / this.segments.length;
+        const validSegments = this.segments.filter(s => s.oosPerformance);
+        const count = validSegments.length || 1;
+        const avgSharpe = validSegments.reduce((acc, s) => acc + (s.oosPerformance?.sharpeRatio || 0), 0) / count;
+        const stability = validSegments.filter(s => (s.oosPerformance?.sharpeRatio || 0) > 0).length / count;
 
         console.log(`Average OOS Sharpe: ${avgSharpe.toFixed(2)}`);
         console.log(`Parameter Stability: ${(stability * 100).toFixed(0)}%`);
@@ -130,7 +149,7 @@ export class WalkForwardOptimizer {
                 fs.writeFileSync(configPath, JSON.stringify({
                     ...lastSegment.bestParams,
                     optimizedAt: new Date().toISOString(),
-                    oosSharpe: lastSegment.oosPerformance.sharpeRatio
+                    oosSharpe: lastSegment.oosPerformance?.sharpeRatio || 0
                 }, null, 2));
                 console.log(`✅ Best parameters saved to ${configPath}`);
             } catch (e) {

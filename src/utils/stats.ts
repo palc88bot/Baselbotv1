@@ -173,6 +173,75 @@ export function calculateHurstDFA(series: number[], minScale: number = 8, maxSca
 }
 
 /**
+ * Augmented Dickey-Fuller (ADF) Test for Stationarity / Mean Reversion
+ * Tests H0: Unit root present (non-stationary random walk) vs H1: Stationary mean-reverting
+ */
+export interface ADFResult {
+  tStat: number;
+  pValueApprox: number;
+  isStationary: boolean;
+  beta: number;
+  halfLife: number;
+}
+
+export function augmentedDickeyFullerTest(prices: number[]): ADFResult {
+  const n = prices.length;
+  if (n < 15) {
+    return { tStat: 0, pValueApprox: 1.0, isStationary: false, beta: 0, halfLife: 999 };
+  }
+
+  const x = prices.slice(0, n - 1);
+  const y = prices.slice(1, n).map((p, i) => p - x[i]); // delta prices
+
+  const xMean = x.reduce((a, b) => a + b, 0) / x.length;
+  const yMean = y.reduce((a, b) => a + b, 0) / y.length;
+
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < x.length; i++) {
+    num += (x[i] - xMean) * (y[i] - yMean);
+    den += Math.pow(x[i] - xMean, 2);
+  }
+
+  const beta = den !== 0 ? num / den : 0;
+  const alpha = yMean - beta * xMean;
+
+  // Residual standard error
+  let sumSqRes = 0;
+  for (let i = 0; i < x.length; i++) {
+    const pred = alpha + beta * x[i];
+    sumSqRes += Math.pow(y[i] - pred, 2);
+  }
+
+  const degreesOfFreedom = Math.max(1, x.length - 2);
+  const resVar = sumSqRes / degreesOfFreedom;
+  const seBeta = den > 0 ? Math.sqrt(resVar / den) : 1;
+
+  const tStat = seBeta > 0 ? beta / seBeta : 0;
+  
+  // Approximate p-value for ADF with drift (MacKinnon approximation)
+  // Critical values: 1%: -3.43, 5%: -2.86, 10%: -2.57
+  let pValueApprox = 1.0;
+  if (tStat < -3.43) pValueApprox = 0.01;
+  else if (tStat < -2.86) pValueApprox = 0.05;
+  else if (tStat < -2.57) pValueApprox = 0.10;
+  else if (tStat < -1.95) pValueApprox = 0.25;
+  else pValueApprox = 0.50 + Math.min(0.5, Math.max(0, (tStat + 1.95) * 0.25));
+
+  const isStationary = tStat < -2.57 && beta < 0; // 90%+ confidence stationarity
+  const theta = Math.max(0.0001, -beta);
+  const halfLife = Math.log(2) / theta;
+
+  return {
+    tStat: Number(tStat.toFixed(3)),
+    pValueApprox: Number(pValueApprox.toFixed(3)),
+    isStationary,
+    beta: Number(beta.toFixed(5)),
+    halfLife: Number(halfLife.toFixed(1)),
+  };
+}
+
+/**
  * Sigmoid function
  */
 export function sigmoid(x: number, k: number = 12): number {

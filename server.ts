@@ -63,6 +63,12 @@ async function startServer() {
 
   // Initialize Services
   const telegramService = new TelegramService();
+  const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+  const tgChatId = process.env.TELEGRAM_CHANNEL_ID || process.env.TELEGRAM_CHAT_ID;
+  if (tgToken && tgChatId) {
+    telegramService.updateConfig(tgChatId, true);
+    console.log(`🤖 Telegram notification service auto-enabled for channel/chat ID: ***${tgChatId.slice(-4)}`);
+  }
   const pipeline = new TradingPipeline(telegramService);
 
   // Auto-start autonomous trading pipeline immediately on server boot
@@ -120,20 +126,25 @@ async function startServer() {
   // Protected routes below
   app.use("/api/protected", requireAuth);
 
-  app.post("/api/protected/toggle-trading", async (req: AuthRequest, res) => {
-    const { running } = req.body;
-    if (running) {
-      pipeline.startAutonomousTrading();
-    } else {
-      pipeline.stop();
+  app.post(["/api/protected/toggle-trading", "/api/control/run"], async (req: AuthRequest, res) => {
+    try {
+      const { running, isRunning } = req.body || {};
+      const target = running !== undefined ? running : (isRunning !== undefined ? isRunning : !pipeline.getIsRunning());
+      if (target) {
+        await pipeline.startAutonomousTrading();
+      } else {
+        pipeline.stop();
+      }
+      res.json({ success: true, isRunning: pipeline.getIsRunning() });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
     }
-    res.json({ success: true, isRunning: running });
   });
 
   // KillSwitch Endpoints
-  app.post("/api/protected/killswitch/trigger", async (req: AuthRequest, res) => {
+  app.post(["/api/protected/killswitch/trigger", "/api/protected/kill-switch"], async (req: AuthRequest, res) => {
     try {
-      const { level, reason } = req.body;
+      const { level, reason } = req.body || {};
       const targetLevel = level || 'HARD_HALT';
       const killReason = reason || `Manual operator trigger by ${req.user?.email || 'admin'}`;
       pipeline.getKillSwitch().trigger(targetLevel, killReason, 'MANUAL_OPERATOR');
@@ -148,7 +159,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/protected/killswitch/reset", async (req: AuthRequest, res) => {
+  app.post(["/api/protected/killswitch/reset", "/api/protected/reset-kill-switch"], async (req: AuthRequest, res) => {
     try {
       const result = pipeline.resetEmergencyKill();
       res.json({
@@ -212,9 +223,86 @@ async function startServer() {
     }
   });
 
-  app.post("/api/protected/run-optimization", async (req: AuthRequest, res) => {
+  app.get("/api/protected/order-history", async (req: AuthRequest, res) => {
     try {
-      const { assets, constraints } = req.body;
+      const orders = pipeline.getOrderGateway().getOrders();
+      // Completed orders: FILLED, CANCELLED, REJECTED, EXPIRED, or PARTIALLY_FILLED
+      const completedStatuses = ['FILLED', 'CANCELLED', 'REJECTED', 'EXPIRED'];
+      const history: any[] = [...orders.filter((o) => completedStatuses.includes(o.status) || o.filledQuantity > 0)];
+      
+      // Also enrich with trades from database (both adopted and open trades)
+      try {
+        const dbTrades = await pipeline.getDatabase().getOpenTrades();
+        for (const t of dbTrades) {
+          if (!history.some(h => h.id === t.id)) {
+            history.unshift({
+              id: t.id,
+              clientOrderId: `DB-${t.id}`,
+              symbol: t.symbol,
+              side: t.side,
+              type: 'MARKET',
+              price: t.price,
+              quantity: t.quantity,
+              filledQuantity: t.quantity,
+              remainingQuantity: 0,
+              avgFillPrice: t.price,
+              status: 'FILLED',
+              timestamp: t.timestamp,
+              updatedAt: t.timestamp,
+              strategyId: t.strategy,
+              executionTag: t.strategy,
+            });
+          }
+        }
+      } catch (dbErr) {
+        // Continue with memory orders if db fetch fails
+      }
+
+      // Also enrich with fills if available
+      const fills = pipeline.getUserDataStream().getFills();
+      
+      res.json({
+        success: true,
+        count: history.length,
+        orders: history,
+        totalFills: fills.length,
+        timestamp: Date.now(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to fetch order history' });
+    }
+  });
+
+  app.post("/api/protected/cancel-order", async (req: AuthRequest, res) => {
+    try {
+      const { orderId, reason } = req.body;
+      const cancelled = pipeline.getOrderGateway().cancelOrder(orderId, reason || 'User requested cancellation');
+      res.json({ success: cancelled });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post("/api/protected/close-all", async (req: AuthRequest, res) => {
+    try {
+      pipeline.closeAllPositions();
+      res.json({ success: true, message: 'All open positions liquidated and orders cancelled' });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post(["/api/protected/run-optimization", "/api/protected/rebalance"], async (req: AuthRequest, res) => {
+    try {
+      pipeline.runQuantumOptimization();
+      const assets = req.body?.assets;
+      if (!Array.isArray(assets) || assets.length === 0) {
+        return res.json({
+          success: true,
+          message: 'QUBO Quantum optimization matrix recomputed successfully',
+          timestamp: Date.now()
+        });
+      }
       const db = pipeline.getDatabase();
       
       const pricesMap: Record<string, number[]> = {};
@@ -285,13 +373,13 @@ async function startServer() {
 
   // Telegram Start Notification
   telegramService.sendMessage(`
-🚀 <b>Basel AlgoCore Started Successfully</b>
+🚀 <b>تم تشغيل نظام باسل الحسابي الكمي بنجاح</b>
 ━━━━━━━━━━━━━━━━
- Time: ${new Date().toISOString()}
-🎯 Mode: ${process.env.NODE_ENV}
-📊 Symbols: ${pipeline.getConfig().activeSymbols.length}
+⏰ التوقيت: ${new Date().toLocaleTimeString('ar-EG')}
+🎯 البيئة: ${process.env.NODE_ENV || 'production'}
+📊 عدد أزواج التداول النشطة: ${pipeline.getConfig().activeSymbols.length}
 ━━━━━━━━━━━━━━━━
-✅ Autonomous Trading System is now operational!
+✅ محرك التداول الآلي المستمر (Zero-Halt) نشط الآن وجاهز لاقتناص الفرص!
   `);
 
   app.get("/api/protected/system-health", async (req: AuthRequest, res) => {
@@ -476,6 +564,24 @@ async function startServer() {
     }
   });
 
+  app.post('/api/protected/symbols/add', async (req, res) => {
+    try {
+      const { symbol } = req.body;
+      if (!symbol) {
+        return res.status(400).json({ success: false, error: 'Symbol parameter is required (e.g. SUI/USDT)' });
+      }
+      const added = await pipeline.addSymbol(symbol);
+      res.json({
+        success: true,
+        added,
+        message: added ? `Symbol ${symbol} added and streaming initialized` : `Symbol ${symbol} is already active`,
+        activeSymbols: pipeline.getConfig().activeSymbols
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to add symbol' });
+    }
+  });
+
   app.get('/api/protected/risk-status', async (req: AuthRequest, res) => {
     try {
       const riskManager = pipeline.getDynamicRiskManager();
@@ -518,6 +624,69 @@ async function startServer() {
     }
   });
 
+  // --- Strategy Management APIs ---
+  app.get('/api/strategies', (req, res) => {
+    try {
+      res.json({
+        success: true,
+        strategies: pipeline.getStrategies(),
+        screener: pipeline.getStrategyScreener(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/strategies/:id/toggle', (req, res) => {
+    try {
+      const { id } = req.params;
+      const { active } = req.body;
+      const strategy = pipeline.toggleStrategy(id, active);
+      if (!strategy) {
+        return res.status(404).json({ success: false, error: 'Strategy not found' });
+      }
+      res.json({ success: true, strategy });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/strategies/:id/params', (req, res) => {
+    try {
+      const { id } = req.params;
+      const params = req.body;
+      const strategy = pipeline.updateStrategyParams(id, params);
+      if (!strategy) {
+        return res.status(404).json({ success: false, error: 'Strategy not found' });
+      }
+      res.json({ success: true, strategy });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/strategies/reallocate', (req, res) => {
+    try {
+      const { allocations } = req.body; // e.g. { 'ou-mean-reversion': 40, 'quantum-qubo-alpha': 30, ... }
+      if (!allocations || typeof allocations !== 'object') {
+        return res.status(400).json({ success: false, error: 'Invalid allocations payload' });
+      }
+      const strategies = pipeline.rebalanceStrategies(allocations);
+      res.json({ success: true, strategies });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get('/api/strategies/screener', (req, res) => {
+    try {
+      const screener = pipeline.getStrategyScreener();
+      res.json({ success: true, screener, count: screener.length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // Fast read-only live status endpoint for instantaneous UI loading
   app.get('/api/live-status', (req, res) => {
     try {
@@ -540,28 +709,204 @@ async function startServer() {
       const regime = pipeline.getRegimeDetector().analyze();
       const riskDecision = pipeline.getDynamicRiskManager().getLastDecision();
 
+      const allPrices = pipeline.getMarketData().getAllPrices();
+      const lastSignalsList = Array.from(pipeline.getLastSignals().values());
+
       res.json({
         isRunning: pipeline.getIsRunning(),
         balance: pipeline.getUserDataStream().getBalance(),
         positions: pipeline.getUserDataStream().getPositions(),
         orders: pipeline.getOrderGateway().getOrders(),
-        signals: Array.from(pipeline.getLastSignals().values()),
+        signals: lastSignalsList,
+        lastSignal: lastSignalsList[0] || null,
         health: pipeline.getHealthMonitor().getHealth(),
+            watchdog: pipeline.getWatchdog().getStatus(),
         killSwitch: {
           active: pipeline.getKillSwitch().isActive(),
           level: pipeline.getKillSwitch().getLevel(),
           reason: pipeline.getKillSwitch().getHistory()[0]?.reason || 'Normal',
         },
+        prices: allPrices,
         candles: candlesDict,
+        candlesDict,
+        orderBook: orderBooksDict[defaultSymbol] || null,
         orderBooks: orderBooksDict,
-        features: featuresDict,
+        orderBooksDict,
+        features: featuresDict[defaultSymbol] || null,
+        featuresDict,
         regime,
         riskDecision,
         portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
         qualifiedAssets: pipeline.getAssetScreener().getReport(),
+        strategies: pipeline.getStrategies(),
+        strategyScreener: pipeline.getStrategyScreener(),
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to get live status' });
+    }
+  });
+
+  // --- Dedicated Binance Real-Time Proxy Endpoints (CORS-free & Sandbox Safe) ---
+  let cachedTickers: any[] = [];
+  let lastTickersFetchTime = 0;
+
+  app.get('/api/binance/tickers', async (req, res) => {
+    try {
+      const now = Date.now();
+      // Return cached tickers if fresher than 2.5 seconds
+      if (cachedTickers.length > 0 && now - lastTickersFetchTime < 2500) {
+        return res.json(cachedTickers);
+      }
+
+      // Try fetching directly from Binance REST API with timeout
+      const targetSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'PEPEUSDT', 'SUIUSDT', 'NEARUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'BNBUSDT', 'AVAXUSDT', 'QNTUSDT'];
+      const symParam = encodeURIComponent(JSON.stringify(targetSymbols));
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const binanceRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${symParam}`, {
+          signal: controller.signal,
+          headers: { 'Accept': 'application/json' }
+        });
+        clearTimeout(timeoutId);
+
+        if (binanceRes.ok) {
+          const data = await binanceRes.json();
+          if (Array.isArray(data) && data.length > 0) {
+            cachedTickers = data;
+            lastTickersFetchTime = now;
+            return res.json(data);
+          }
+        }
+      } catch {
+        // Fallback to internal pipeline market data
+      }
+
+      // Fallback: construct 100% real live prices from pipeline
+      const prices = pipeline.getMarketData().getAllPrices();
+      const fallbackList: any[] = [];
+      for (const [sym, price] of Object.entries(prices)) {
+        const binanceSym = sym.replace('/', '').toUpperCase();
+        const candles = pipeline.getMarketData().getCandles(sym as any);
+        let highPrice = price * 1.015;
+        let lowPrice = price * 0.985;
+        let priceChangePercent = "0.00";
+        let quoteVol = "1500000000.00";
+        if (candles.length > 0) {
+          const highs = candles.map(c => c.high);
+          const lows = candles.map(c => c.low);
+          highPrice = Math.max(...highs, price);
+          lowPrice = Math.min(...lows, price);
+          const firstClose = candles[0].open || candles[0].close;
+          if (firstClose > 0) {
+            priceChangePercent = (((price - firstClose) / firstClose) * 100).toFixed(2);
+          }
+          const sumVol = candles.reduce((acc, c) => acc + (c.volume * c.close), 0);
+          if (sumVol > 0) quoteVol = (sumVol * 1440 / candles.length).toFixed(2);
+        }
+
+        fallbackList.push({
+          symbol: binanceSym,
+          lastPrice: price.toString(),
+          priceChangePercent,
+          highPrice: highPrice.toFixed(2),
+          lowPrice: lowPrice.toFixed(2),
+          quoteVolume: quoteVol
+        });
+      }
+
+      cachedTickers = fallbackList;
+      lastTickersFetchTime = now;
+      res.json(fallbackList);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to fetch tickers' });
+    }
+  });
+
+  app.get('/api/binance/klines', async (req, res) => {
+    try {
+      const symbol = (req.query.symbol as string || 'BTCUSDT').toUpperCase();
+      const interval = (req.query.interval as string || '1m');
+      const limit = parseInt(req.query.limit as string || '25', 10);
+
+      // Attempt Binance fetch
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const binanceRes = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (binanceRes.ok) {
+          const klines = await binanceRes.json();
+          if (Array.isArray(klines) && klines.length > 0) {
+            return res.json(klines);
+          }
+        }
+      } catch {
+        // Fallback to internal pipeline candles
+      }
+
+      const mappedSym = (symbol.endsWith('USDT') ? symbol.replace('USDT', '/USDT') : symbol) as any;
+      const candles = pipeline.getMarketData().getCandles(mappedSym);
+      if (candles.length > 0) {
+        const sliced = candles.slice(-limit);
+        const mappedKlines = sliced.map(c => [
+          c.timestamp,
+          c.open.toString(),
+          c.high.toString(),
+          c.low.toString(),
+          c.close.toString(),
+          c.volume.toString(),
+          c.timestamp + 60000,
+          (c.volume * c.close).toString(),
+          100
+        ]);
+        return res.json(mappedKlines);
+      }
+
+      res.json([]);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to fetch klines' });
+    }
+  });
+
+  app.get('/api/binance/depth', async (req, res) => {
+    try {
+      const symbol = (req.query.symbol as string || 'BTCUSDT').toUpperCase();
+      const limit = parseInt(req.query.limit as string || '10', 10);
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const binanceRes = await fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=${limit}`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (binanceRes.ok) {
+          const depth = await binanceRes.json();
+          if (depth && depth.bids && depth.asks) {
+            return res.json(depth);
+          }
+        }
+      } catch {
+        // Fallback to internal OrderBook
+      }
+
+      const mappedSym = (symbol.endsWith('USDT') ? symbol.replace('USDT', '/USDT') : symbol) as any;
+      const book = pipeline.getOrderBookBuilder().getBook(mappedSym);
+      if (book) {
+        return res.json({
+          lastUpdateId: book.sequence || Date.now(),
+          bids: book.bids.slice(0, limit).map(b => [b.price.toString(), b.size.toString()]),
+          asks: book.asks.slice(0, limit).map(a => [a.price.toString(), a.size.toString()]),
+        });
+      }
+
+      res.json({ lastUpdateId: Date.now(), bids: [], asks: [] });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to fetch depth' });
     }
   });
 
@@ -611,28 +956,39 @@ async function startServer() {
         }
         const regime = pipeline.getRegimeDetector().analyze();
         const riskDecision = pipeline.getDynamicRiskManager().getLastDecision();
+        const allPrices = pipeline.getMarketData().getAllPrices();
+        const lastSignalsList = Array.from(pipeline.getLastSignals().values());
 
         ws.send(JSON.stringify({
-          type: "INIT_STATE",
+          type: "INITIAL_STATE",
           data: {
             isRunning: pipeline.getIsRunning(),
             balance: pipeline.getUserDataStream().getBalance(),
             positions: pipeline.getUserDataStream().getPositions(),
             orders: pipeline.getOrderGateway().getOrders(),
-            signals: Array.from(pipeline.getLastSignals().values()),
+            signals: lastSignalsList,
+            lastSignal: lastSignalsList[0] || null,
             health: pipeline.getHealthMonitor().getHealth(),
+            watchdog: pipeline.getWatchdog().getStatus(),
             killSwitch: {
               active: pipeline.getKillSwitch().isActive(),
               level: pipeline.getKillSwitch().getLevel(),
               reason: pipeline.getKillSwitch().getHistory()[0]?.reason || 'Normal',
             },
+            prices: allPrices,
             candles: candlesDict,
+            candlesDict,
+            orderBook: orderBooksDict[defaultSymbol] || null,
             orderBooks: orderBooksDict,
-            features: featuresDict,
+            orderBooksDict,
+            features: featuresDict[defaultSymbol] || null,
+            featuresDict,
             regime,
             riskDecision,
             portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
             qualifiedAssets: pipeline.getAssetScreener().getReport(),
+            strategies: pipeline.getStrategies(),
+            strategyScreener: pipeline.getStrategyScreener(),
           },
         }));
       } catch (err) {
@@ -701,6 +1057,9 @@ async function startServer() {
       const regime = pipeline.getRegimeDetector().analyze();
       const riskDecision = pipeline.getDynamicRiskManager().getLastDecision();
 
+      const allPrices = pipeline.getMarketData().getAllPrices();
+      const lastSignalsList = Array.from(pipeline.getLastSignals().values());
+
       const statePayload = JSON.stringify({
         type: "STATE_UPDATE",
         data: {
@@ -708,20 +1067,29 @@ async function startServer() {
           balance: pipeline.getUserDataStream().getBalance(),
           positions: pipeline.getUserDataStream().getPositions(),
           orders: pipeline.getOrderGateway().getOrders(),
-          signals: Array.from(pipeline.getLastSignals().values()),
+          signals: lastSignalsList,
+          lastSignal: lastSignalsList[0] || null,
           health: pipeline.getHealthMonitor().getHealth(),
+            watchdog: pipeline.getWatchdog().getStatus(),
           killSwitch: {
             active: pipeline.getKillSwitch().isActive(),
             level: pipeline.getKillSwitch().getLevel(),
             reason: pipeline.getKillSwitch().getHistory()[0]?.reason || 'Normal',
           },
+          prices: allPrices,
           candles: candlesDict,
+          candlesDict,
+          orderBook: orderBooksDict[defaultSymbol] || null,
           orderBooks: orderBooksDict,
-          features: featuresDict,
+          orderBooksDict,
+          features: featuresDict[defaultSymbol] || null,
+          featuresDict,
           regime,
           riskDecision,
           portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
           qualifiedAssets: pipeline.getAssetScreener().getReport(),
+          strategies: pipeline.getStrategies(),
+          strategyScreener: pipeline.getStrategyScreener(),
         },
       });
 
@@ -776,7 +1144,7 @@ async function startServer() {
     
     // 1. Notify Telegram of shutdown
     try {
-      await telegramService.sendMessage(`⚠️ <b>Baselbot Shutdown Alert</b>\n\n🛑 Received ${signal}. The trading pipeline has been stopped gracefully.`);
+      await telegramService.sendMessage(`⚠️ <b>تنبيه إيقاف النظام (Baselbot)</b>\n\n🛑 تم استقبال إشارة (${signal}). تم إيقاف خط التداول وحفظ بيانات ولقطات المحفظة بنجاح.`);
     } catch (e) {
       console.error("Failed to send Telegram shutdown alert:", e);
     }

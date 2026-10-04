@@ -38,8 +38,8 @@ export class UserDataStream {
     this.apiSecret = process.env.EXCHANGE_API_SECRET || '';
     this.executionMode = normalizeExecutionMode(process.env.EXECUTION_MODE, !!this.apiKey);
     
-    // Default 10k for PAPER and initial fallback for others to prevent zeroed UI on boot
-    const startBalance = initialCapital > 0 ? initialCapital : 10000;
+    // Strict real accounting: defaults to 0 and populated exclusively via Binance REST/WebSocket
+    const startBalance = initialCapital > 0 ? initialCapital : 0;
 
     this.apiBaseUrl = getBinanceBaseUrl(this.executionMode);
     this.wsUrl = `${getBinanceWsUrl(this.executionMode)}/ws`;
@@ -87,7 +87,7 @@ export class UserDataStream {
 
   public getBalance(): AccountBalance {
     const rawBal = this.balance;
-    const totalEq = Number.isFinite(rawBal.totalEquity) ? rawBal.totalEquity : (Number.isFinite(rawBal.availableCash) ? rawBal.availableCash : 10000);
+    const totalEq = Number.isFinite(rawBal.totalEquity) ? rawBal.totalEquity : (Number.isFinite(rawBal.availableCash) ? rawBal.availableCash : 0);
     const availCash = Number.isFinite(rawBal.availableCash) ? rawBal.availableCash : totalEq;
     const unPnl = Number.isFinite(rawBal.unrealizedPnl) ? rawBal.unrealizedPnl : 0;
     
@@ -107,6 +107,14 @@ export class UserDataStream {
 
   public getPositions(): Position[] {
     return Array.from(this.positions.values()).filter((p) => p.size !== 0);
+  }
+
+  public closeAllPositions() {
+    this.positions.clear();
+    this.balance.usedMargin = 0;
+    this.balance.unrealizedPnl = 0;
+    this.balance.totalEquity = this.balance.availableCash;
+    for (const l of this.balanceListeners) l(this.getBalance());
   }
 
   public getPosition(symbol: AssetSymbol): Position | undefined {

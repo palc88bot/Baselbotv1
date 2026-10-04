@@ -249,7 +249,9 @@
       "quantity": 137.2998,
       "price": 65.55,
       "strategy": "OU-QUBO-COMPOUND",
-      "status": "OPEN"
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791123717824
     },
     "ORD-mu8x5gq7-3": {
       "id": "ORD-mu8x5gq7-3",
@@ -259,7 +261,20 @@
       "quantity": 3.428,
       "price": 2625.4,
       "strategy": "OU-QUBO-COMPOUND",
-      "status": "OPEN"
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791123717824
+    },
+    "ADOPTED-muu4xrco-LINKUSDT": {
+      "id": "ADOPTED-muu4xrco-LINKUSDT",
+      "symbol": "LINK/USDT",
+      "side": "SELL",
+      "quantity": 0.01,
+      "price": 14.007,
+      "timestamp": 1791137359032,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "OPEN",
+      "pnl": 0
     }
   },
   "signals": [
@@ -1251,13 +1266,223 @@
       "total_equity": 4999.64948437,
       "free_margin": 211.8670877,
       "unrealized_pnl": 12.07223425
+    },
+    {
+      "timestamp": 1791123716425,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791124016456,
+      "total_equity": 4588.67,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.02
+    },
+    {
+      "timestamp": 1791124019009,
+      "total_equity": 4588.67,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.02
+    },
+    {
+      "timestamp": 1791124272669,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791124303313,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791124597529,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791124826756,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791137358440,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791137658553,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791137660264,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791137958656,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791137960262,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791138258709,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791138260262,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791138558788,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791138560262,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791138650018,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791138661350,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791138961395,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791138963429,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791139261429,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791139263427,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791139561640,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791139563428,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791139801389,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791139821741,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791140121788,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791140124106,
+      "total_equity": 4589.14,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791140156756,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791140167952,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791140467981,
+      "total_equity": 4589.13,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791140469936,
+      "total_equity": 4589.13,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791140767986,
+      "total_equity": 4589.13,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791140769932,
+      "total_equity": 4589.13,
+      "free_margin": 4495.46,
+      "unrealized_pnl": 4.5
+    },
+    {
+      "timestamp": 1791140833044,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
     }
   ],
   "prices": {},
   "botState": {
     "last_balance": {
-      "equity": 4987.57725012,
-      "timestamp": 1789919613130
+      "equity": 4584.6392555,
+      "timestamp": 1791140833924
     }
   }
 }

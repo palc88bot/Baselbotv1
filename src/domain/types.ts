@@ -392,3 +392,69 @@ export function roundToStep(value: number, step: number): number {
 export function isLiveTradingConfirmed(): boolean {
   return process.env.CONFIRM_LIVE_TRADING === 'yes' || process.env.CONFIRM_LIVE_TRADING === 'true';
 }
+
+// --- Strategy Domain Contracts ---
+export type StrategyStatus = 'ACTIVE' | 'PAUSED' | 'TESTING' | 'OPTIMIZING';
+
+export type StrategyCategory =
+  | 'STATISTICAL_ARBITRAGE'
+  | 'QUANTUM_ALPHA'
+  | 'MOMENTUM_BREAKOUT'
+  | 'ORDERBOOK_MICROSTRUCTURE'
+  | 'DELTA_NEUTRAL'
+  | 'TREND_FOLLOWING'
+  | 'MULTI_AGENT_ML';
+
+export interface StrategyMetrics {
+  winRatePct: number;
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  dailyPnl: number;
+  dailyPnlPct: number;
+  profitFactor: number;
+  sharpeRatio: number;
+  maxDrawdownPct: number;
+  avgHoldMinutes: number;
+  lastSignalTime: number;
+}
+
+export interface BotStrategy {
+  id: string;
+  name: string;
+  nameAr: string;
+  description: string;
+  descriptionAr: string;
+  category: StrategyCategory;
+  status: StrategyStatus;
+  allocationPct: number;
+  allocatedCapital: number;
+  targetSymbols: AssetSymbol[];
+  params: Record<string, number | string | boolean>;
+  metrics: StrategyMetrics;
+  timeframe: string;
+  executionTag: string;
+}
+
+export interface StrategyScreenerItem {
+  symbol: AssetSymbol;
+  price: number;
+  change24h: number;
+  volume24h: number;
+  zScore: number;
+  halfLife: number;
+  hurst: number;
+  rsi: number;
+  ouMu: number;
+  ouSigma: number;
+  spreadBps: number;
+  liquidityScore: number;
+  suitabilityScore: number;
+  isQualified: boolean;
+  reason: string;
+  activeSignal?: TradingSignal | null;
+  recommendedStrategy: string;
+}
+

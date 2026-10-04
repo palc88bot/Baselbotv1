@@ -4,7 +4,7 @@
  */
 
 import { AssetSymbol, Candle, OrderBook } from '../domain/types';
-import { calculateHurstDFA } from '../utils/stats';
+import { calculateHurstDFA, augmentedDickeyFullerTest, ADFResult } from '../utils/stats';
 
 export interface CalculatedFeatures {
   symbol: AssetSymbol;
@@ -16,6 +16,8 @@ export interface CalculatedFeatures {
   ouSigma: number; // Volatility
   halfLifePeriods: number; // ln(2) / theta
   hurstExponent: number; // < 0.5 mean reverting, > 0.5 trending
+  adfTStat: number; // Dickey-Fuller t-statistic
+  isStationary: boolean; // True if adfTStat < -2.57 (90%+ confidence)
   rsi14: number;
   bbUpper: number;
   bbLower: number;
@@ -44,9 +46,10 @@ export class FeatureEngine {
   public extractFeatures(symbol: AssetSymbol, currentPrice: number, candles: Candle[], orderBook?: OrderBook): CalculatedFeatures {
     this.updatePrice(symbol, currentPrice);
     const window = this.priceWindows.get(symbol) || [currentPrice];
-    const prices = window.length >= 20 ? window : candles.map((c) => c.close);
+    const prices = candles && candles.length >= 20 ? candles.map((c) => c.close) : (window.length >= 20 ? window : candles.map(c => c.close));
 
     const ou = this.estimateOrnsteinUhlenbeck(prices);
+    const adf = augmentedDickeyFullerTest(prices);
     const zScore = ou.sigma > 0 ? (currentPrice - ou.mu) / ou.sigma : 0;
     const hurst = this.estimateHurstExponent(prices);
     const rsi = this.calculateRSI(prices);
@@ -65,6 +68,8 @@ export class FeatureEngine {
       ouSigma: Number(ou.sigma.toFixed(3)),
       halfLifePeriods: Number(ou.halfLife.toFixed(1)),
       hurstExponent: Number(hurst.toFixed(3)),
+      adfTStat: adf.tStat,
+      isStationary: adf.isStationary,
       rsi14: Number(rsi.toFixed(1)),
       bbUpper: Number(bb.upper.toFixed(2)),
       bbLower: Number(bb.lower.toFixed(2)),

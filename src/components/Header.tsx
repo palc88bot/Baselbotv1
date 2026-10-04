@@ -1,9 +1,10 @@
 /**
- * Basel Quantum Algorithmic Trading System
- * Header Navigation & Bot Master Control Center
+ * Basel AlgoCore Trading System
+ * Master Command Navigation & Quantum Neural Core Header
  */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Activity,
   AlertOctagon,
@@ -14,9 +15,18 @@ import {
   RotateCcw,
   Send,
   ShieldAlert,
+  ShieldCheck,
+  Sparkles,
   Zap,
+  Sliders,
+  Bell,
+  CheckCircle,
+  XCircle,
+  ChevronDown,
+  Layers,
+  Terminal,
 } from 'lucide-react';
-import { AssetSymbol, SolverType } from '../domain/types';
+import { AssetSymbol } from '../domain/types';
 import { RuntimeConfigState } from '../app/RuntimeConfig';
 
 interface HeaderProps {
@@ -24,7 +34,7 @@ interface HeaderProps {
   onToggleRun: () => void;
   killSwitchActive: boolean;
   killSwitchLevel: string;
-  onEmergencyKill: () => void;
+  onEmergencyKill: (level?: any, reason?: string) => void;
   onResetKill: () => void;
   config: RuntimeConfigState;
   onConfigChange: (newConfig: Partial<RuntimeConfigState>) => void;
@@ -55,7 +65,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onToggleLang,
   activeTab,
   setActiveTab,
-  activeSymbols,
+  activeSymbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'AVAX/USDT'],
   selectedSymbol,
   setSelectedSymbol,
   isConnected,
@@ -65,143 +75,247 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onToggleReduceMotion,
 }) => {
   const isAr = lang === 'ar';
+  const [showKillModal, setShowKillModal] = useState(false);
+  const [selectedKillLevel, setSelectedKillLevel] = useState<'SOFT_HALT' | 'HARD_HALT' | 'LIQUIDATION_STOP'>('HARD_HALT');
+
+  const navTabs = [
+    { id: 'dashboard', nameEn: 'LIVE DESK', nameAr: 'غرفة العمليات', icon: Activity },
+    { id: 'quantum', nameEn: 'QUANTUM AI', nameAr: 'المحسن الكمي', icon: Cpu },
+    { id: 'risk', nameEn: 'RISK SHIELD', nameAr: 'إدارة المخاطر', icon: ShieldCheck },
+    { id: 'backtest', nameEn: 'LABS & SIM', nameAr: 'المختبر والباك تيست', icon: Layers },
+    { id: 'telemetry', nameEn: 'TELEMETRY', nameAr: 'سجل التزامن', icon: Terminal },
+  ];
 
   return (
-    <header className="border-b border-white/5 bg-[#080d1a] sticky top-0 z-50 px-4 md:px-6 py-3 md:py-4 gpu-accelerated">
-      <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
-        {/* Top Row for Mobile (Brand + Master Control) */}
-        <div className="w-full md:w-auto flex items-center justify-between gap-4">
+    <header 
+      dir={isAr ? 'rtl' : 'ltr'}
+      className="border-b border-white/10 bg-[#040814]/90 backdrop-blur-xl sticky top-0 z-50 px-3 sm:px-6 py-3 gpu-accelerated shadow-2xl"
+    >
+      <div className="max-w-[1720px] mx-auto flex flex-col lg:flex-row items-center justify-between gap-3 lg:gap-6">
+        
+        {/* Top Brand and Status Section */}
+        <div className="w-full lg:w-auto flex items-center justify-between gap-4">
+          
+          {/* Neural Kinetic Logo */}
           <div className="flex items-center gap-3">
-            <div className="relative group">
-              <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="relative flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gradient-to-br from-cyan-600 to-blue-600 shadow-lg shadow-cyan-500/20 text-white font-black text-xl md:text-2xl tracking-wider transition-transform hover:scale-110 active:scale-95 cursor-pointer">
-                <Zap className="w-5 h-5 md:w-6 md:h-6" />
-                <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 rounded-full bg-emerald-500 border-4 border-[#0a0f1d] ${reduceMotion ? '' : 'animate-pulse'}`} />
+            <div className="relative group cursor-pointer">
+              <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-indigo-600 rounded-2xl blur opacity-70 group-hover:opacity-100 transition duration-500" />
+              <div className="relative flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#090e1d] border border-cyan-500/40 text-cyan-400 font-black text-xl shadow-lg">
+                <Zap className={`w-5 h-5 text-cyan-400 ${reduceMotion ? '' : 'group-hover:scale-110'} transition-transform`} />
+                <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#040814] ${
+                  isConnected ? 'bg-emerald-400' : 'bg-rose-500'
+                }`} />
               </div>
             </div>
+
             <div>
-              <h1 className="text-base md:text-xl font-black text-slate-100 tracking-tight flex items-center gap-2 md:gap-3">
-                <span className="truncate max-w-[150px] md:max-w-none font-sans tracking-[0.1em] text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">Basel AlgoCore</span>
-                <span className="hidden xs:inline-block px-2 py-0.5 rounded-lg text-[8px] md:text-[9px] font-black font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase tracking-[0.1em] md:tracking-[0.2em]">
-                  Pro
+              <div className="flex items-center gap-2">
+                <span className="text-base sm:text-lg font-black text-white tracking-tight font-sans">
+                  {isAr ? 'بازل ألغوكور' : 'BASEL ALGOCORE'}
                 </span>
-              </h1>
-              <div className="flex items-center gap-2 md:gap-3 text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
+                <span className="px-2 py-0.5 rounded-md text-[9px] font-mono font-black bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase tracking-widest">
+                  QUANTUM
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400 tracking-wider">
                 <div className="flex items-center gap-1.5">
-                  <div className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                  <span className="hidden sm:inline">{isConnected ? (isAr ? 'المخ متصل' : 'BRAIN_SYNCED') : (isAr ? 'فشل الاتصال' : 'BRAIN_OFFLINE')}</span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                  <span>{isConnected ? (isAr ? 'العقل متصل' : 'BRAIN_SYNCED') : (isAr ? 'غير متصل' : 'DISCONNECTED')}</span>
                 </div>
-                <span className="text-slate-700 hidden sm:inline">/</span>
-                <div className="flex items-center gap-1.5">
-                  <Send className={`w-2.5 h-2.5 md:w-3 md:h-3 ${isTelegramEnabled ? 'text-blue-400' : 'text-slate-600'}`} />
-                  <span className="hidden sm:inline">{isTelegramEnabled ? 'TG_ENABLED' : 'TG_DISABLED'}</span>
-                </div>
+                <span className="text-slate-700">•</span>
+                <button 
+                  onClick={onToggleTelegram}
+                  className={`flex items-center gap-1 hover:text-cyan-300 transition-colors ${
+                    isTelegramEnabled ? 'text-blue-400' : 'text-slate-500'
+                  }`}
+                  title={isAr ? 'تنبيهات تليغرام' : 'Telegram Alerts'}
+                >
+                  <Send className="w-2.5 h-2.5" />
+                  <span>{isTelegramEnabled ? (isAr ? 'تليغرام مفعّل' : 'TG_ON') : (isAr ? 'تليغرام معطل' : 'TG_OFF')}</span>
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Master Execution Button for Mobile */}
-          <button
-            onClick={onToggleRun}
-            className={`md:hidden flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[9px] tracking-[0.1em] uppercase transition-all shadow-xl ${
-              isRunning
-                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                : 'bg-emerald-600 text-white shadow-emerald-500/20'
-            }`}
-          >
-            {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            {isRunning ? (isAr ? 'إيقاف' : 'PAUSE') : (isAr ? 'بدء' : 'BOOT')}
-          </button>
-        </div>
-
-        {/* Dynamic Navigation - Scrollable on Mobile */}
-        <div className="w-full md:w-auto flex items-center bg-slate-900/50 p-1 rounded-2xl border border-white/5 overflow-x-auto no-scrollbar">
-          {[
-            { id: 'dashboard', nameEn: 'OPS', nameAr: 'العمليات' },
-            { id: 'quantum', nameEn: 'QUANTUM', nameAr: 'الكم' },
-            { id: 'risk', nameEn: 'RISK', nameAr: 'المخاطر' },
-            { id: 'backtest', nameEn: 'LABS', nameAr: 'المختبر' },
-            { id: 'telemetry', nameEn: 'SYNC', nameAr: 'التزامن' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 md:flex-none px-4 md:px-6 py-2 rounded-xl text-[9px] md:text-[10px] font-black tracking-widest uppercase transition-all whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {isAr ? tab.nameAr : tab.nameEn}
-            </button>
-          ))}
-        </div>
-
-        {/* Global Controls Section - Wrap on mobile */}
-        <div className="w-full md:w-auto flex items-center justify-between md:justify-end gap-2 md:gap-3">
-          <div className="flex items-center gap-2">
-            {/* Symbol Selector Pill */}
-            <div className="flex items-center bg-slate-900/50 px-3 py-2 rounded-2xl border border-white/5 gap-2">
-              <span className="hidden xs:inline text-[9px] font-black text-slate-600 uppercase tracking-widest">{isAr ? 'الزوج:' : 'PAIR'}</span>
-              <select
-                value={selectedSymbol}
-                onChange={(e) => setSelectedSymbol(e.target.value as AssetSymbol)}
-                className="bg-transparent text-cyan-400 text-[9px] md:text-[10px] font-black focus:outline-none cursor-pointer uppercase tracking-widest outline-none border-none p-0"
-              >
-                {activeSymbols.map(sym => (
-                  <option key={sym} value={sym} className="bg-slate-900">{sym}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Language & Utilities */}
-            <button
-                onClick={onToggleLang}
-                className="p-2.5 md:p-3 rounded-2xl bg-slate-900/50 text-slate-400 border border-white/5 hover:text-slate-100 transition-all font-black text-[9px]"
-             >
-                {lang === 'ar' ? 'EN' : 'AR'}
-             </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Master Execution Button for Desktop */}
+          {/* Quick Bot Toggle for Mobile */}
+          <div className="lg:hidden flex items-center gap-2">
             <button
               onClick={onToggleRun}
-              className={`hidden md:flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] tracking-[0.2em] uppercase transition-all shadow-xl ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[10px] tracking-wider uppercase transition-all shadow-lg ${
                 isRunning
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
+                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                  : 'bg-emerald-600 text-white shadow-emerald-500/30'
               }`}
             >
-              {isRunning ? (
-                <><Pause className="w-4 h-4" /> {isAr ? 'إيقاف مؤقت' : 'PAUSE'}</>
-              ) : (
-                <><Play className="w-4 h-4" /> {isAr ? 'تشغيل' : 'BOOT'}</>
-              )}
+              {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+              <span>{isRunning ? (isAr ? 'إيقاف' : 'PAUSE') : (isAr ? 'تشغيل' : 'BOOT')}</span>
             </button>
-
-            {/* System Critical KillSwitch */}
-            {killSwitchActive ? (
-              <button
-                onClick={onResetKill}
-                className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 rounded-2xl bg-rose-600 text-white font-black text-[9px] md:text-[10px] tracking-[0.1em] md:tracking-[0.2em] uppercase shadow-lg shadow-rose-500/30 transition-all hover:bg-rose-500"
-              >
-                <RotateCcw className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                <span className="hidden sm:inline">{isAr ? 'إعادة الضبط' : 'RECOVERY'}</span>
-                <span className="sm:hidden">{isAr ? 'ضبط' : 'REC'}</span>
-              </button>
-            ) : (
-              <button
-                onClick={onEmergencyKill}
-                className="p-2.5 md:p-3 rounded-2xl bg-rose-950/20 hover:bg-rose-950/40 text-rose-500 border border-rose-900/30 transition-all group"
-                title="EMERGENCY_HALT"
-              >
-                <AlertOctagon className="w-4 h-4 md:w-5 md:h-5 group-hover:scale-110 transition-transform" />
-              </button>
-            )}
           </div>
         </div>
+
+        {/* Dynamic Navigation Bar */}
+        <nav 
+          aria-label={isAr ? 'التنقل بين الأقسام' : 'Primary Navigation'}
+          className="w-full lg:w-auto flex items-center bg-[#070c18] p-1 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar"
+        >
+          {navTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-[10px] sm:text-[11px] font-black tracking-wider uppercase transition-all whitespace-nowrap ${
+                  isActive
+                    ? 'text-cyan-300 shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                }`}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="activeTabPill"
+                    className="absolute inset-0 bg-cyan-500/20 border border-cyan-500/40 rounded-xl"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <Icon className={`w-3.5 h-3.5 relative z-10 ${isActive ? 'text-cyan-400' : 'text-slate-500'}`} />
+                <span className="relative z-10">{isAr ? tab.nameAr : tab.nameEn}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Global Controls & Master Triggers */}
+        <div className="w-full lg:w-auto flex items-center justify-between lg:justify-end gap-2 sm:gap-3">
+          
+          {/* Symbol Selector Dropdown */}
+          <div className="flex items-center bg-[#070c18] px-3 py-1.5 rounded-xl border border-white/10 gap-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase">{isAr ? 'الزوج:' : 'PAIR:'}</span>
+            <select
+              value={selectedSymbol}
+              onChange={(e) => setSelectedSymbol(e.target.value as AssetSymbol)}
+              className="bg-transparent text-cyan-400 text-[11px] font-mono font-black focus:outline-none cursor-pointer uppercase tracking-wider border-none p-0"
+            >
+              {activeSymbols.map(sym => (
+                <option key={sym} value={sym} className="bg-[#090e1d] text-slate-100">{sym}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Bilingual Switcher Button */}
+          <button
+            onClick={onToggleLang}
+            className="px-3 py-1.5 rounded-xl bg-[#070c18] text-slate-300 border border-white/10 hover:border-cyan-500/30 hover:text-white transition-all font-mono font-black text-[10px] uppercase flex items-center gap-1.5"
+            title={isAr ? 'التبديل إلى الإنجليزية' : 'Switch to Arabic'}
+          >
+            <Globe className="w-3 h-3 text-cyan-400" />
+            <span>{isAr ? 'EN' : 'عربي'}</span>
+          </button>
+
+          {/* Master Execution Button (Desktop) */}
+          <button
+            onClick={onToggleRun}
+            className={`hidden lg:flex items-center gap-2.5 px-5 py-2 rounded-xl font-mono font-black text-[11px] tracking-wider uppercase transition-all shadow-xl ${
+              isRunning
+                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/40 hover:bg-amber-500/25'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/30'
+            }`}
+          >
+            {isRunning ? (
+              <><Pause className="w-4 h-4 text-amber-400" /> <span>{isAr ? 'إيقاف مؤقت' : 'PAUSE_BOT'}</span></>
+            ) : (
+              <><Play className="w-4 h-4 text-white" /> <span>{isAr ? 'تشغيل البوت' : 'BOOT_ENGINE'}</span></>
+            )}
+          </button>
+
+          {/* Emergency KillSwitch Trigger & Recovery */}
+          {killSwitchActive ? (
+            <button
+              onClick={onResetKill}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 text-white font-mono font-black text-[10px] tracking-wider uppercase shadow-lg shadow-rose-600/40 transition-all hover:bg-rose-500 animate-pulse"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>{isAr ? 'إعادة ضبط الطوارئ' : 'RESET_KILL'}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowKillModal(true)}
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-rose-950/30 hover:bg-rose-950/60 text-rose-400 border border-rose-500/30 transition-all flex items-center gap-1.5 group"
+              title={isAr ? 'قاطع الطوارئ الآلي' : 'Emergency Halt'}
+            >
+              <AlertOctagon className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" />
+              <span className="hidden sm:inline font-mono font-bold text-[10px]">{isAr ? 'طوارئ' : 'HALT'}</span>
+            </button>
+          )}
+
+        </div>
       </div>
+
+      {/* Emergency Kill Modal */}
+      <AnimatePresence>
+        {showKillModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0d1222] border border-rose-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl"
+              dir={isAr ? 'rtl' : 'ltr'}
+            >
+              <div className="flex items-center gap-3 text-rose-400 mb-4">
+                <AlertOctagon className="w-7 h-7" />
+                <h3 className="text-lg font-black font-sans">{isAr ? 'تأكيد إيقاف الطوارئ' : 'Confirm Emergency Halt'}</h3>
+              </div>
+
+              <p className="text-xs text-slate-300 mb-4 leading-relaxed font-medium">
+                {isAr 
+                  ? 'سيقوم قاطع الدورة بتعليق تنفيذ جميع الصفقات الخوارزمية فوراً لحماية المحفظة من تقلبات السوق.'
+                  : 'The circuit breaker will immediately suspend algorithmic trade execution across all markets.'}
+              </p>
+
+              <div className="space-y-2 mb-6">
+                {(['SOFT_HALT', 'HARD_HALT', 'LIQUIDATION_STOP'] as const).map((lvl) => (
+                  <button
+                    key={lvl}
+                    onClick={() => setSelectedKillLevel(lvl)}
+                    className={`w-full p-3 rounded-xl text-xs font-mono font-bold flex items-center justify-between border transition-all ${
+                      selectedKillLevel === lvl
+                        ? 'bg-rose-500/20 border-rose-500 text-white'
+                        : 'bg-slate-900/50 border-white/5 text-slate-400 hover:border-white/20'
+                    }`}
+                  >
+                    <span>{lvl}</span>
+                    <span className="text-[10px] text-slate-400">
+                      {lvl === 'SOFT_HALT' ? (isAr ? 'إلغاء الأوامر فقط' : 'Cancel orders only') :
+                       lvl === 'HARD_HALT' ? (isAr ? 'وقف الصفقات بالكامل' : 'Halt all pipeline') :
+                       (isAr ? 'إغلاق المراكز فوراً' : 'Liquidate all positions')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowKillModal(false)}
+                  className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 transition-colors"
+                >
+                  {isAr ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  onClick={() => {
+                    onEmergencyKill(selectedKillLevel, 'Manual emergency halt by operator');
+                    setShowKillModal(false);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-mono font-black text-xs shadow-lg shadow-rose-600/30 transition-all"
+                >
+                  {isAr ? 'تفعيل الإيقاف 🛑' : 'TRIGGER HALT 🛑'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </header>
   );
 });

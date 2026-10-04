@@ -29,12 +29,14 @@ export interface PositionState {
   lastTrailingUpdate?: number;
   registeredAt: number;
   maxHoldMs?: number;
+  exiting?: boolean;               // علم متزامن لمنع إرسال أوامر خروج مكررة على كل tick
 }
 
 export class PartialProfitManager {
   private orderGateway: OrderGateway;
   private config: PartialProfitConfig;
   private activePositions: Map<string, PositionState> = new Map();
+  private processingMutex: Set<string> = new Set();
 
   constructor(orderGateway: OrderGateway, config: Partial<PartialProfitConfig> = {}) {
     this.orderGateway = orderGateway;
@@ -58,6 +60,19 @@ export class PartialProfitManager {
   ): void {
     if (!this.config.enabled) return;
 
+    // Check if an existing position for this symbol is already tracked -> consolidate
+    const existing = Array.from(this.activePositions.values()).find((p) => p.symbol === symbol && p.side === side);
+    if (existing) {
+      const totalCost = (existing.entryPrice * existing.remainingQuantity) + (entryPrice * quantity);
+      const totalQty = existing.remainingQuantity + quantity;
+      existing.entryPrice = totalCost / totalQty;
+      existing.originalQuantity += quantity;
+      existing.remainingQuantity = totalQty;
+      if (maxHoldMs) existing.maxHoldMs = maxHoldMs;
+      console.log(`📝 PartialProfitManager: Consolidated position for ${symbol} | New Avg: $${existing.entryPrice.toFixed(2)} | Qty: ${existing.remainingQuantity}`);
+      return;
+    }
+
     this.activePositions.set(orderId, {
       orderId,
       symbol,
@@ -72,6 +87,7 @@ export class PartialProfitManager {
       trailingStopPrice: 0,
       registeredAt: Date.now(),
       maxHoldMs,
+      exiting: false,
     });
 
     console.log(`📝 PartialProfitManager: Position registered [${orderId}] | ${symbol} ${side} @ $${entryPrice} | Qty: ${quantity}${maxHoldMs ? ` | MaxHold: ${(maxHoldMs/60000).toFixed(1)}m` : ''}`);
@@ -91,10 +107,21 @@ export class PartialProfitManager {
     }
 
     for (const position of matchingPositions) {
-      // 0. Time-based Exit Check (البند 11: الخروج الزمني بعد انقضاء ضعف نصف عمر الارتداد)
+      if (position.exiting) continue;
+
+      const mutexKey = `${position.symbol}-${position.orderId}`;
+      if (this.processingMutex.has(mutexKey)) continue;
+
+      // 0. Time-based Exit Check
       if (position.maxHoldMs && (Date.now() - position.registeredAt > position.maxHoldMs)) {
-        console.log(`⏱️ Time-Based Exit triggered for ${position.symbol} [${position.orderId}] after ${Math.round((Date.now() - position.registeredAt) / 60000)}m`);
-        await this.executeTimeExit(position, currentPrice);
+        position.exiting = true; // Synchronously lock to prevent re-entrant exit orders on rapid ticks
+        this.processingMutex.add(mutexKey);
+        try {
+          console.log(`⏱️ Time-Based Exit triggered for ${position.symbol} [${position.orderId}] after ${Math.round((Date.now() - position.registeredAt) / 60000)}m`);
+          await this.executeTimeExit(position, currentPrice);
+        } finally {
+          this.processingMutex.delete(mutexKey);
+        }
         continue;
       }
 
@@ -111,12 +138,17 @@ export class PartialProfitManager {
           : (position.entryPrice - currentPrice) / position.entryPrice;
 
         if (profitPercent >= this.config.firstTargetPercent) {
-          await this.executePartialProfit(position, currentPrice);
+          this.processingMutex.add(mutexKey);
+          try {
+            await this.executePartialProfit(position, currentPrice);
+          } finally {
+            this.processingMutex.delete(mutexKey);
+          }
         }
       }
 
       // 2. Trailing Stop Management (after partial profit)
-      if (position.partialProfitTaken) {
+      if (position.partialProfitTaken && !position.exiting) {
         await this.updateTrailingStop(position, currentPrice);
       }
     }
@@ -124,46 +156,64 @@ export class PartialProfitManager {
 
   private async executeTimeExit(position: PositionState, currentPrice: number): Promise<void> {
     const closeSide = position.side === 'BUY' ? 'SELL' : 'BUY';
+    const filter = this.orderGateway.getSymbolFilter(position.symbol);
+    const stepDecimals = Math.max(0, -Math.floor(Math.log10(filter.stepSize || 0.0001)));
+    const cleanQty = Number(position.remainingQuantity.toFixed(stepDecimals));
+
+    if (cleanQty <= 0) {
+      this.activePositions.delete(position.orderId);
+      return;
+    }
+
     try {
       this.orderGateway.submitOrder({
         symbol: position.symbol,
         side: closeSide,
         type: 'MARKET',
-        quantity: position.remainingQuantity,
+        quantity: cleanQty,
         price: currentPrice,
         strategyId: 'TIME_EXIT',
         executionTag: 'TIME_EXIT',
+        reduceOnly: true,
       });
-      await this.orderGateway.cancelProtectiveOrders(position.orderId);
+
+      await this.orderGateway.cancelProtectiveOrders(position.symbol, position.orderId);
       this.activePositions.delete(position.orderId);
-      console.log(`⏱️ Closed remaining ${position.remainingQuantity} ${position.symbol} due to max holding time elapsed.`);
+      console.log(`⏱️ Closed remaining ${cleanQty} ${position.symbol} via reduceOnly market exit.`);
     } catch (err) {
+      position.exiting = false;
       console.error('❌ Error executing time-based exit:', err);
     }
   }
 
   private async executePartialProfit(position: PositionState, currentPrice: number): Promise<void> {
-    const closeQuantity = Number((position.originalQuantity * this.config.firstClosePercent).toFixed(4));
-    if (closeQuantity <= 0) return;
+    const filter = this.orderGateway.getSymbolFilter(position.symbol);
+    const stepDecimals = Math.max(0, -Math.floor(Math.log10(filter.stepSize || 0.0001)));
+    const rawCloseQty = position.originalQuantity * this.config.firstClosePercent;
+    const closeQuantity = Number(rawCloseQty.toFixed(stepDecimals));
+
+    if (closeQuantity <= 0 || closeQuantity > position.remainingQuantity) return;
 
     const closeSide = position.side === 'BUY' ? 'SELL' : 'BUY';
-
     console.log(`💰 Partial Profit Triggered: Closing ${closeQuantity} ${position.symbol} @ $${currentPrice}`);
 
     try {
-      this.orderGateway.submitOrder({
+      const fill = this.orderGateway.submitOrder({
         symbol: position.symbol,
         side: closeSide,
         type: 'MARKET',
         quantity: closeQuantity,
         price: currentPrice,
         strategyId: 'PARTIAL_PROFIT',
+        reduceOnly: true,
       });
 
-      position.remainingQuantity = Number((position.remainingQuantity - closeQuantity).toFixed(4));
+      // Update remaining quantity only on successful submission
+      const newRemaining = Number((position.remainingQuantity - closeQuantity).toFixed(stepDecimals));
+      position.remainingQuantity = Math.max(0, newRemaining);
       position.partialProfitTaken = true;
 
-      if (this.config.moveStopToBreakEven) {
+      if (this.config.moveStopToBreakEven && position.remainingQuantity > 0) {
         await this.moveToBreakEven(position);
       }
 
@@ -180,7 +230,7 @@ export class PartialProfitManager {
   private async moveToBreakEven(position: PositionState): Promise<void> {
     console.log(`🛡️ Moving Stop Loss to Break-Even for ${position.symbol} @ $${position.entryPrice}`);
 
-    await this.orderGateway.cancelProtectiveOrders(position.orderId);
+    await this.orderGateway.cancelProtectiveOrders(position.symbol, position.orderId);
 
     const stopPrice = position.entryPrice;
     const closeSide = position.side === 'BUY' ? 'SELL' : 'BUY';
@@ -235,7 +285,7 @@ export class PartialProfitManager {
   }
 
   private async updateStopLossOrder(position: PositionState, stopPrice: number): Promise<void> {
-    await this.orderGateway.cancelProtectiveOrders(position.orderId);
+    await this.orderGateway.cancelProtectiveOrders(position.symbol, position.orderId);
 
     const closeSide = position.side === 'BUY' ? 'SELL' : 'BUY';
     await this.orderGateway.sendStopLoss(
@@ -262,6 +312,10 @@ export class PartialProfitManager {
 
   public getPositionState(orderId: string): PositionState | undefined {
     return this.activePositions.get(orderId);
+  }
+
+  public getPositionBySymbol(symbol: AssetSymbol): PositionState | undefined {
+    return Array.from(this.activePositions.values()).find(p => p.symbol === symbol);
   }
 
   public getReport(): any {

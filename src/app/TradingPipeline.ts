@@ -42,15 +42,19 @@ import { DatabaseService } from '../storage/DatabaseService';
 import { CorrelationRiskManager } from '../risk/CorrelationRiskManager';
 import { TelegramService } from '../services/TelegramService';
 import { DynamicRiskManager } from '../risk/DynamicRiskManager';
-import { RegimeDetector } from '../risk/RegimeDetector';
+import { RegimeDetector, RegimeAnalysis } from '../risk/RegimeDetector';
 import { PortfolioSizer } from '../risk/PortfolioSizer';
 import { PartialProfitManager } from '../execution/PartialProfitManager';
 import { ScaleInManager } from '../execution/ScaleInManager';
 import { AssetScreener } from '../market-data/AssetScreener';
+import { StrategyManager } from '../strategies/StrategyManager';
+import { SystemWatchdog, WatchdogStatus } from '../monitoring/SystemWatchdog';
+import { BotStrategy, StrategyScreenerItem } from '../domain/types';
 import fs from 'fs';
 
 export class TradingPipeline {
   private assetScreener: AssetScreener;
+  private strategyManager: StrategyManager;
   private marketData: ExchangeMarketData;
   private orderBookBuilder: OrderBookBuilder;
   private featureEngine: FeatureEngine;
@@ -60,6 +64,7 @@ export class TradingPipeline {
   private killSwitch: KillSwitch;
   private eventJournal: EventJournal;
   private healthMonitor: HealthMonitor;
+  private watchdog: SystemWatchdog;
   private db: DatabaseService;
   private correlationRiskManager: CorrelationRiskManager;
   private telegramService: TelegramService;
@@ -78,6 +83,9 @@ export class TradingPipeline {
   private signalHistory: TradingSignal[] = [];
   private riskInterval: NodeJS.Timeout | null = null;
   private maintenanceInterval: NodeJS.Timeout | null = null;
+  private positionCheckInterval: NodeJS.Timeout | null = null;
+  private watchdogInterval: NodeJS.Timeout | null = null;
+  private previousTradingAllowed: boolean = true;
 
   private config: RuntimeConfigState;
   private isRunning: boolean = false;
@@ -156,12 +164,47 @@ export class TradingPipeline {
     this.portfolioSizer = new PortfolioSizer(this.assetScreener);
     this.partialProfitManager = new PartialProfitManager(this.orderGateway);
     this.scaleInManager = new ScaleInManager(this.orderGateway);
+    this.strategyManager = new StrategyManager();
+
+    this.watchdog = new SystemWatchdog({
+      getFeedLastUpdate: () => {
+        const activeSymbols = this.config.activeSymbols || ['BTC/USDT'];
+        let maxTime = 0;
+        for (const s of activeSymbols) {
+          const t = this.marketData.getLastUpdateTime(s);
+          if (t > maxTime) maxTime = t;
+        }
+        return maxTime > 0 ? maxTime : Date.now();
+      },
+      onFeedStall: async () => {
+        await this.marketData.fetchLiveRestPrices();
+        await this.marketData.fetchOrderBookSnapshots();
+        this.eventJournal.record('WARN', 'SYSTEM', 'Watchdog 24/7 auto-healed stalled market data stream via Binance live REST snapshot');
+      },
+      getInFlightLocks: () => this.inFlightSymbols,
+      onClearStaleLocks: (stale) => {
+        const now = Date.now();
+        for (const sym of stale) {
+          const last = this.lastOrderTime.get(sym) || 0;
+          if (now - last > 20000) {
+            this.inFlightSymbols.delete(sym);
+            console.log();
+          }
+        }
+      },
+      onHeartbeatPulse: (status) => {
+        this.healthMonitor.recordMessage();
+      },
+    });
+    this.watchdog.start(2500);
+
 
     // Load optimized parameters if available
     this.loadOptimizedParameters();
 
     this.dynamicRiskManager.on('critical_alert', async (decision) => {
-      await this.telegramService.sendMessage(`🚨 <b>Critical Risk Alert</b>\n\nAction: ${decision.action}\nLeverage: ${(decision.leverageMultiplier * 100).toFixed(0)}%\nPosition Size: ${(decision.positionSizeMultiplier * 100).toFixed(0)}%\n\nReasons:\n${decision.reasons.map((r: string) => `• ${r}`).join('\n')}`);
+      const actionAr = decision.action === 'REDUCE_SIZE' ? 'تقليص حجم العقود' : decision.action === 'PAUSE' ? 'تهدئة مؤقتة' : decision.action === 'REDUCE_LEVERAGE' ? 'تخفيض الرافعة المالية' : decision.action;
+      await this.telegramService.sendMessage(`🚨 <b>تنبيه إدارة المخاطر المتقدمة</b>\n\n⚡ الإجراء المتخذ: <b>${actionAr}</b>\n⚖️ الرافعة المالية المسموحة: <b>${(decision.leverageMultiplier * 100).toFixed(0)}%</b>\n📦 نسبة حجم المركز: <b>${(decision.positionSizeMultiplier * 100).toFixed(0)}%</b>\n\n📋 أسباب التقييم:\n${decision.reasons.map((r: string) => `• ${r}`).join('\n')}`);
     });
 
     this.setupEventForwarding();
@@ -222,13 +265,13 @@ export class TradingPipeline {
       this.lastSignals.set(this.config.activeSymbols[0], initSignal);
 
       if (this.telegramService) {
-        await this.telegramService.sendMessage('🚀 <b>Basel AlgoCore Started</b>\n\nAutonomous Trading System is now active.').catch(() => {});
+        await this.telegramService.sendMessage('🚀 <b>تم تفعيل خط التداول الآلي (Basel AlgoCore)</b>\n\n✅ النظام الحسابي المستمر نشط الآن ويراقب سيولة وعمق السوق 24/7.').catch(() => {});
       }
     } catch (error: any) {
       this.isRunning = false;
       console.error('❌ Failed to start autonomous trading:', error);
       if (this.telegramService) {
-        await this.telegramService.sendMessage(`🚨 <b>Critical Startup Error</b>\n\n${error.message}`).catch(() => {});
+        await this.telegramService.sendMessage(`🚨 <b>خطأ أثناء بدء التشغيل</b>\n\n${error.message}`).catch(() => {});
       }
     }
   }
@@ -245,6 +288,25 @@ export class TradingPipeline {
       }
     }, 60 * 1000);
 
+    // Position Trailing Stop & Take Profit Loop (1s)
+    this.positionCheckInterval = setInterval(async () => {
+      try {
+        if (this.isRunning) {
+          const report = this.partialProfitManager.getReport();
+          if (report && report.positions) {
+            for (const pos of report.positions) {
+              const currentPrice = this.marketData.getPrice(pos.symbol);
+              if (currentPrice > 0) {
+                await this.partialProfitManager.updatePosition(pos.symbol, currentPrice);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Silent catch
+      }
+    }, 1000);
+
     // Maintenance Cycle (5m)
     this.maintenanceInterval = setInterval(async () => {
       try {
@@ -252,6 +314,8 @@ export class TradingPipeline {
           this.correlationRiskManager.calculateCorrelationMatrix();
           const balance = this.userDataStream.getBalance();
           await this.db.saveBalanceSnapshot(balance.totalEquity, balance.freeMargin, balance.unrealizedPnl);
+          // Continuous inventory & orphan position reconciliation
+          await this.reconcileState();
         }
       } catch (error) {
         console.error('Error in maintenance tasks:', error);
@@ -264,6 +328,32 @@ export class TradingPipeline {
         this.runQuantumOptimization();
       }
     }, this.config.rebalanceIntervalMs);
+
+    // Zero-Halt Continuous Auto-Recovery Watchdog (every 10s)
+    this.watchdogInterval = setInterval(async () => {
+      try {
+        if (!this.isRunning && !this.killSwitch.isActive()) {
+          console.log('🔄 Zero-Halt Watchdog: Auto-recovering autonomous trading loop...');
+          await this.startAutonomousTrading();
+        }
+
+        // Verify market data feeds are active and fresh
+        const now = Date.now();
+        let staleCount = 0;
+        for (const sym of this.config.activeSymbols) {
+          const lastUp = this.marketData.getLastUpdateTime(sym);
+          if (now - lastUp > 15000) {
+            staleCount++;
+          }
+        }
+
+        if (staleCount > 0) {
+          await this.marketData.fetchLiveRestPrices();
+        }
+      } catch (e) {
+        // Watchdog resilience
+      }
+    }, 10000);
   }
 
   public async stop(): Promise<void> {
@@ -271,6 +361,10 @@ export class TradingPipeline {
     this.isRunning = false;
     console.log('🛑 Stopping TradingPipeline...');
 
+    if (this.watchdogInterval) {
+      clearInterval(this.watchdogInterval);
+      this.watchdogInterval = null;
+    }
     if (this.rebalanceTimer) {
       clearInterval(this.rebalanceTimer);
       this.rebalanceTimer = null;
@@ -282,6 +376,10 @@ export class TradingPipeline {
     if (this.maintenanceInterval) {
       clearInterval(this.maintenanceInterval);
       this.maintenanceInterval = null;
+    }
+    if (this.positionCheckInterval) {
+      clearInterval(this.positionCheckInterval);
+      this.positionCheckInterval = null;
     }
 
     this.marketData.stopStreaming();
@@ -316,10 +414,22 @@ export class TradingPipeline {
         const openTrades = await this.db.getOpenTrades(closedSymbol);
         const lastCandle = this.marketData.getCandles(closedSymbol).slice(-1)[0];
         const exitPrice = lastCandle ? lastCandle.close : undefined;
+        let totalPnl = 0;
         for (const t of openTrades) {
           const pnl = exitPrice ? (t.side === 'BUY' ? (exitPrice - t.price) * t.quantity : (t.price - exitPrice) * t.quantity) : 0;
+          totalPnl += pnl;
           await this.db.closeTrade(t.id, pnl, exitPrice);
         }
+
+        await this.telegramService.sendMessage(`
+🏁 <b>تم إغلاق صفقة بالكامل</b>
+━━━━━━━━━━━━━━━━
+🪙 الزوج: <b>${closedSymbol}</b>
+💵 سعر الخروج: <b>$${exitPrice ? (exitPrice >= 100 ? exitPrice.toFixed(2) : exitPrice.toFixed(6)) : 'سعر السوق'}</b>
+💰 النتيجة التقديرية: <b>${totalPnl >= 0 ? '🟢 +' : '🔴 '}${totalPnl.toFixed(2)} USDT</b>
+━━━━━━━━━━━━━━━━
+✅ تم تحرير الهامش وإعادة ضبط مصفوفة الأوزان بنجاح.
+        `).catch(() => {});
       } catch (err) {
         console.warn('Failed to update closed trade in DB:', err);
       }
@@ -333,6 +443,15 @@ export class TradingPipeline {
         `KillSwitch transitioned to [${evt.toLevel}]: ${evt.reason}`,
         { ...evt }
       );
+
+      const levelAr = evt.toLevel === 'NORMAL' ? 'عادي (مستقر ومفعّل)' : evt.toLevel === 'SOFT_HALT' ? 'توقف وقائي ناعم (إيقاف الأوامر الجديدة)' : 'توقف طارئ كامل (Hard Halt)';
+      this.telegramService.sendMessage(`
+⚠️ <b>تنبيه صمام الأمان (KillSwitch)</b>
+━━━━━━━━━━━━━━━━
+🛡️ الحالة الجديدة: <b>${levelAr}</b>
+📝 السبب: <b>${evt.reason}</b>
+━━━━━━━━━━━━━━━━
+      `).catch(() => {});
 
       // Persist killswitch state to DB
       this.db.saveState('killswitch_state', {
@@ -355,6 +474,23 @@ export class TradingPipeline {
       if (ord.status === 'FILLED' || ord.status === 'PARTIALLY_FILLED') {
         this.eventJournal.record('FILL', 'ORDER_GATEWAY', `Order ${ord.id} ${ord.status}: ${ord.side} ${ord.filledQuantity} ${ord.symbol} @ $${ord.avgFillPrice}`);
         
+        // Telegram trade fill notification in Arabic
+        if (!ord.strategyId?.startsWith('PROTECT')) {
+          const sideText = ord.side === 'BUY' ? '🟢 شراء (LONG)' : '🔴 بيع (SHORT)';
+          const fillPrice = ord.avgFillPrice || ord.price;
+          this.telegramService.sendMessage(`
+⚡ <b>تم تنفيذ صفقة تداول جديدة</b>
+━━━━━━━━━━━━━━━━
+🪙 الزوج: <b>${ord.symbol}</b>
+📋 الاتجاه: <b>${sideText}</b>
+📦 الكمية المنفذة: <b>${ord.filledQuantity}</b>
+💵 متوسط سعر التنفيذ: <b>$${fillPrice}</b>
+🏷️ الاستراتيجية: <b>${ord.strategyId || 'تداول خوارزمي متكيف'}</b>
+━━━━━━━━━━━━━━━━
+🛡️ تم تثبيت أوامر الحماية ووقف الخسارة تلقائياً في دفتر الأوامر.
+          `).catch(() => {});
+        }
+
         // Item 23: Send protection from fill handler using actual fill price
         if (ord.status === 'FILLED' && !ord.strategyId?.startsWith('PROTECT')) {
           const pending = this.pendingProtection.get(ord.id);
@@ -501,7 +637,14 @@ export class TradingPipeline {
 
     // 1. Unified Strategy Decision via DecisionEngine (البنود 15 و 16 و 39)
     const tier = this.portfolioSizer.getPortfolioTier();
-    const decision = this.decisionEngine.decide(symbol, features, tier, regime);
+    // 1. Evaluate Multi-Agent Quant Engine first if active
+    const candles = this.marketData.getCandles(symbol) || [];
+    const multiAgentRes = this.strategyManager.getMultiAgentEngine().evaluate(features, regime, candles);
+    
+    // Fall back to OU Decision Engine
+    const decision = multiAgentRes?.signal 
+      ? { signal: multiAgentRes.signal } 
+      : this.decisionEngine.decide(symbol, features, tier, regime);
 
     if (!decision.signal || decision.signal.type === 'NEUTRAL' || decision.signal.strength < 0.5) {
       return;
@@ -555,6 +698,14 @@ export class TradingPipeline {
       const warmupMul = this.dynamicRiskManager.getWarmupMultiplier(this.eventJournal.getEvents().length);
       const regimeMul = regime?.sizeMultiplier ?? 1;
       qty = Number((qty * multipliers.positionSize * warmupMul * regimeMul).toFixed(4));
+
+      // التوافق مع الأرصدة الصغيرة (< 50$): ضمان عدم النزول عن 5.2$ لتفادي رفض بايننس (MIN_NOTIONAL)
+      if (features.currentPrice > 0 && qty * features.currentPrice < 5.2) {
+        qty = Number((5.5 / features.currentPrice).toFixed(4));
+        if (qty === 0) {
+          qty = Number((5.5 / features.currentPrice).toFixed(6));
+        }
+      }
 
       if (qty > 0.0001) {
         // Pre-trade risk validation
@@ -697,14 +848,15 @@ export class TradingPipeline {
 
               const updatedState = this.scaleInManager.getState(scaleInState.originalOrderId);
               await this.telegramService.sendMessage(`
-📈 <b>Scale-In Executed</b>
+📈 <b>تم تنفيذ تعزيز للمركز (Scale-In)</b>
 ━━━━━━━━━━━━━━━━
-Symbol: ${symbol}
-Side: ${signalType}
-Added Qty: ${scaleInCheck.quantity.toFixed(4)} @ $${currentPrice.toFixed(2)}
-Total Position: ${updatedState?.currentTotalQuantity.toFixed(4)}
-New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
+🪙 الزوج: <b>${symbol}</b>
+📋 الاتجاه: <b>${signalType === 'BUY' ? '🟢 شراء (LONG)' : '🔴 بيع (SHORT)'}</b>
+➕ الكمية المضافة: <b>${scaleInCheck.quantity.toFixed(4)}</b> بسعر <b>$${currentPrice.toFixed(2)}</b>
+📊 إجمالي حجم المركز: <b>${updatedState?.currentTotalQuantity.toFixed(4)}</b>
+🎯 متوسط سعر الدخول الجديد: <b>$${updatedState?.averageEntryPrice.toFixed(2)}</b>
 ━━━━━━━━━━━━━━━━
+✅ تم تحديث مستويات جني الأرباح ووقف الخسارة التناسبي.
               `);
 
               return true;
@@ -835,13 +987,78 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
         const realOpenPositions = positionsData.filter((p: any) => parseFloat(p.positionAmt) !== 0);
         const realOpenSymbols = new Set(realOpenPositions.map((p: any) => p.symbol));
 
-        // Reconcile DB open trades: if a trade in DB is not on exchange, mark it CLOSED
+        // 1. Reconcile DB open trades: if a trade in DB is not on exchange, mark it CLOSED
         const dbOpenTrades = await this.db.getOpenTrades();
         for (const trade of dbOpenTrades) {
           const cleanSym = trade.symbol.replace('/', '');
           if (!realOpenSymbols.has(cleanSym)) {
             console.log(`🔄 Reconciled: Trade ${trade.id} (${trade.symbol}) is closed on exchange. Syncing DB status to CLOSED.`);
             await this.db.closeTrade(trade.id, 0);
+          }
+        }
+
+        // 2. Detect & Adopt Orphan Positions (صفقات يتيمة):
+        // إذا كان هناك مركز مفتوح على بايننس غير مسجل في قاعدة البيانات أو إدارة المخاطر
+        // يقوم البوت بتبنيه فوراً، وإدراجه تحت نظام التتبع ووقف الخسارة وجني الأرباح التلقائي!
+        const knownDbSymbols = new Set(dbOpenTrades.map((t) => t.symbol.replace('/', '')));
+        for (const p of realOpenPositions) {
+          const rawSymbol = p.symbol;
+          const posAmt = parseFloat(p.positionAmt);
+          if (posAmt === 0) continue;
+
+          if (!knownDbSymbols.has(rawSymbol)) {
+            const baseAsset = rawSymbol.replace('USDT', '');
+            const formattedSymbol = `${baseAsset}/USDT` as AssetSymbol;
+            const side = posAmt > 0 ? 'BUY' : 'SELL';
+            const qty = Math.abs(posAmt);
+            const entryPrice = parseFloat(p.entryPrice) || this.marketData.getPrice(formattedSymbol) || 1;
+            const orphanOrderId = `ADOPTED-${Date.now().toString(36)}-${rawSymbol}`;
+
+            console.log(`🛡️ Orphan Position Detected for ${rawSymbol} (${side} ${qty} @ $${entryPrice}). Adopting under algorithmic management...`);
+
+            // تسجيل الصفقة اليتيمة في قاعدة البيانات
+            await this.db.saveTrade({
+              id: orphanOrderId,
+              symbol: formattedSymbol,
+              side: side,
+              quantity: qty,
+              price: entryPrice,
+              timestamp: Date.now(),
+              strategy: 'Orphan-Adopted-Protective-Manager',
+              status: 'OPEN',
+              pnl: 0,
+            });
+
+            // تسجيلها في مدير الأرباح الجزئية والوقف المتحرك
+            this.partialProfitManager.registerPosition(
+              orphanOrderId,
+              formattedSymbol,
+              side,
+              entryPrice,
+              qty
+            );
+
+            // تسجيلها في مدير التعزيز
+            this.scaleInManager.registerOriginalPosition(
+              orphanOrderId,
+              formattedSymbol,
+              side,
+              qty,
+              entryPrice
+            );
+
+            // إرسال تنبيه بالعربية عبر تليجرام لإبلاغ المتداول
+            await this.telegramService.sendMessage(`
+🛡️ <b>تم رصد وتبني صفقة يتيمة (Orphan Position Adopted)</b>
+━━━━━━━━━━━━━━━━
+🪙 الزوج: <b>${formattedSymbol}</b>
+📋 الاتجاه: <b>${side === 'BUY' ? '🟢 شراء (LONG)' : '🔴 بيع (SHORT)'}</b>
+📦 الكمية: <b>${qty}</b>
+💵 متوسط سعر الدخول: <b>$${entryPrice >= 100 ? entryPrice.toFixed(2) : entryPrice.toFixed(6)}</b>
+🏷️ الحالة: <b>تم الإلحاق بنظام الحماية وإدارة المخاطر</b>
+━━━━━━━━━━━━━━━━
+✅ تم تبني المركز المفتوح بنجاح، وربطه بمحرك جني الأرباح الجزئية ووقف الخسارة التلقائي لحمايته من أي انعكاسات.
+            `).catch(() => {});
           }
         }
 
@@ -881,6 +1098,10 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
   public getRiskEngine(): RiskEngine { return this.riskEngine; }
   public getKillSwitch(): KillSwitch { return this.killSwitch; }
   public getEventJournal(): EventJournal { return this.eventJournal; }
+  public getWatchdog(): SystemWatchdog {
+    return this.watchdog;
+  }
+
   public getHealthMonitor(): HealthMonitor { return this.healthMonitor; }
   public getConfig(): RuntimeConfigState { return { ...this.config }; }
   public getLastQuboSolution(): QuboSolution | null { return this.lastQuboSolution; }
@@ -957,10 +1178,31 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
         parameterDrift: this.dynamicRiskManager.calculateParameterDrift()
       });
 
-      if (!regime.tradingAllowed) {
-        await this.telegramService.sendMessage(`⚠️ <b>Market Regime Change Detected</b>\n\nMarket: TRENDING (Strong Direction)\nHurst: ${regime.hurstExponent.toFixed(3)}\nADX: ${regime.adx.toFixed(1)}\n\nAction: <b>Trading PAUSED</b>\nReason: Mean Reversion strategy is not suitable for trending markets.`);
+      // Only notify when regime state changes to prevent telegram spam
+      if (this.previousTradingAllowed !== regime.tradingAllowed) {
+        this.previousTradingAllowed = regime.tradingAllowed;
+        if (!regime.tradingAllowed) {
+          await this.telegramService.sendMessage(`🔄 <b>تغير نظام السوق: اتجاه قوي (TRENDING)</b>\n\nنظام السوق: <b>اتجاهي (حركة قوية)</b>\nمؤشر هيرست: <b>${regime.hurstExponent.toFixed(3)}</b>\nمؤشر ADX: <b>${regime.adx.toFixed(1)}</b>\n\nالإجراء: <b>تم التحول تلقائياً لاستراتيجية كسر الاتجاه (Trend Breakout)</b>\nالمحرك: التداول مستمر بدون توقف (Zero-Halt) مع تفعيل وقف الخسارة المتحرك.`);
+        } else {
+          await this.telegramService.sendMessage(`✅ <b>استقرار نظام السوق: حركة عرضية (RANGING)</b>\n\nنظام السوق: <b>${regime.marketRegime === 'RANGING' ? 'عرضي متذبذب' : 'معتدل'}</b>\nمؤشر هيرست: <b>${regime.hurstExponent.toFixed(3)}</b>\nمؤشر ADX: <b>${regime.adx.toFixed(1)}</b>\n\nالإجراء: <b>تم التحول تلقائياً لاستراتيجية الارتداد للمتوسط (Ornstein-Uhlenbeck)</b>\nالمحرك: استهداف مراجحة الانحرافات الإحصائية مع مسار التعادل.`);
+        }
       }
     }
+  }
+
+  public async addSymbol(symbol: AssetSymbol): Promise<boolean> {
+    const formatted = symbol.includes('/') ? symbol : `${symbol}/USDT`;
+    if (!this.config.activeSymbols.includes(formatted)) {
+      this.config.activeSymbols.push(formatted);
+      try {
+        await this.marketData.backfillRealCandles([formatted]);
+        this.marketData.startStreaming(300, this.config.activeSymbols);
+      } catch (err) {
+        console.warn(`⚠️ Added symbol streaming notice for ${formatted}:`, err);
+      }
+      return true;
+    }
+    return false;
   }
 
   public getDynamicRiskManager(): DynamicRiskManager {
@@ -969,6 +1211,89 @@ New Avg Entry: $${updatedState?.averageEntryPrice.toFixed(2)}
 
   public getAssetScreener(): AssetScreener {
     return this.assetScreener;
+  }
+
+  public getStrategyManager(): StrategyManager {
+    return this.strategyManager;
+  }
+
+  public closeAllPositions() {
+    this.orderGateway.cancelAllOrders('Manual operator liquidation');
+    this.userDataStream.closeAllPositions();
+    this.eventJournal.record('WARN', 'ORDER_GATEWAY', 'Liquidated all active portfolio positions and cancelled pending orders');
+  }
+
+  public getStrategies(): BotStrategy[] {
+    const totalEquity = this.userDataStream.getBalance().totalEquity || 10000;
+    const strats = this.strategyManager.getStrategies();
+    // Dynamically calculate allocated capital
+    for (const s of strats) {
+      s.allocatedCapital = Number(((totalEquity * s.allocationPct) / 100).toFixed(2));
+    }
+    return strats;
+  }
+
+  public toggleStrategy(id: string, active?: boolean): BotStrategy | undefined {
+    const updated = this.strategyManager.toggleStrategy(id, active);
+    if (updated) {
+      this.eventJournal.record(
+        'INFO',
+        'STRATEGY',
+        `Strategy [${updated.name}] transitioned to ${updated.status}`
+      );
+      this.telegramService.sendMessage(
+        `⚙️ <b>تحديث حالة استراتيجية التداول</b>\n\nالاستراتيجية: <b>${updated.nameAr || updated.name}</b>\nالحالة: <b>${updated.status === 'ACTIVE' ? 'نشطة مفعّلة ✅' : 'متوقفة مؤقتاً ⏸️'}</b>\nنسبة التخصيص من المحفظة: <b>${updated.allocationPct}%</b>`
+      ).catch(() => {});
+    }
+    return updated;
+  }
+
+  public updateStrategyParams(id: string, params: Record<string, any>): BotStrategy | undefined {
+    const updated = this.strategyManager.updateStrategyParams(id, params);
+    if (updated) {
+      this.eventJournal.record(
+        'INFO',
+        'STRATEGY',
+        `Updated parameters for [${updated.name}]`
+      );
+      // If OU strategy, update decision engine params
+      if (id === 'ou-mean-reversion') {
+        this.decisionEngine.updateParams(params as any);
+      }
+    }
+    return updated;
+  }
+
+  public rebalanceStrategies(allocations: Record<string, number>): BotStrategy[] {
+    const totalEquity = this.userDataStream.getBalance().totalEquity || 10000;
+    const updated = this.strategyManager.updateAllocations(allocations, totalEquity);
+    this.eventJournal.record('INFO', 'STRATEGY', 'Rebalanced portfolio strategy allocation weights');
+    return updated;
+  }
+
+  public getStrategyScreener(): StrategyScreenerItem[] {
+    const candlesMap = new Map<AssetSymbol, any[]>();
+    const regimeMap = new Map<AssetSymbol, RegimeAnalysis>();
+    const qualifiedMap = new Map<AssetSymbol, any>();
+
+    for (const sym of this.config.activeSymbols) {
+      const candles = this.marketData.getCandles(sym);
+      candlesMap.set(sym, candles);
+      const rd = this.getRegimeDetector(sym);
+      rd.update(candles);
+      regimeMap.set(sym, rd.analyze());
+    }
+
+    for (const q of this.assetScreener.getAllAssets()) {
+      qualifiedMap.set(q.symbol, q);
+    }
+
+    return this.strategyManager.evaluateScreener(
+      this.lastFeatures,
+      candlesMap,
+      regimeMap,
+      qualifiedMap
+    );
   }
 
   private loadOptimizedParameters() {

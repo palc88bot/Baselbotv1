@@ -281,6 +281,11 @@ export class ScaleInManager {
       strategyId: 'SCALE_IN',
     });
 
+    if (scaleInOrder.status === 'REJECTED') {
+      console.warn(`⚠️ Scale-in order was rejected by gateway: ${scaleInOrder.errorMessage}`);
+      return null;
+    }
+
     const profitPercent = position.side === 'BUY'
       ? (currentPrice - position.averageEntryPrice) / position.averageEntryPrice
       : (position.averageEntryPrice - currentPrice) / position.averageEntryPrice;
@@ -304,6 +309,10 @@ export class ScaleInManager {
     console.log(`   Tier: ${this.currentTier} | New Avg Entry: $${position.averageEntryPrice.toFixed(2)} | Total Qty: ${position.currentTotalQuantity.toFixed(6)}`);
 
     return scaleInOrder.id;
+  }
+
+  public getPositionBySymbol(symbol: AssetSymbol): ScaleInState | undefined {
+    return Array.from(this.activePositions.values()).find((p) => p.symbol === symbol);
   }
 
   public removePosition(orderId: string): void {

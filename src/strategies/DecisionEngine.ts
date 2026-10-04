@@ -51,18 +51,67 @@ export function decide(input: DecisionInput): TradingSignal | null {
     rsi14,
   } = features;
 
-  // 1. فلتر نظام السوق (Regime Filter): إيقاف الدخول إذا كان السوق باتجاه قوي
-  if (regime && !regime.tradingAllowed) {
+  const safeSigma = ouSigma > 0 ? ouSigma : currentPrice * 0.005;
+
+  // 1. نظام السوق التكيفي (Adaptive Zero-Halt Continuous Regime Engine):
+  // إذا كان السوق في حالة اتجاه مستمر قوي (TRENDING أو Hurst > maxHurst)،
+  // يتحول المحرك تلقائياً وبسلاسة إلى استراتيجية تتبع الاتجاه وانفجار الزخم (Trend Breakout Momentum)
+  // بدلاً من التوقف التام، مما يضمن استمرارية التداول والربحية في كافة ظروف السوق 24/7 دون أي تعطيل!
+  const isTrendingRegime = (regime && !regime.tradingAllowed) || hurstExponent > (params.maxHurst || 0.60);
+
+  if (isTrendingRegime) {
+    const trendSigma = safeSigma;
+    const atrTrailingDistance = 1.8 * trendSigma;
+
+    // تريند صاعد قوي: السعر أعلى من نقطة التعادل والزخم إيجابي (RSI > 48 أو Z-Score > 0.2)
+    if (rsi14 >= 48 && (currentPrice >= ouMu || zScore > 0.2)) {
+      const trendStrength = Math.min(1.0, 0.55 + (hurstExponent - 0.5) * 1.2 + ((rsi14 - 48) / 52) * 0.25);
+      return {
+        id: `SIG-TREND-${Date.now().toString(36)}-${symbol.replace('/', '')}`,
+        symbol,
+        timestamp: Date.now(),
+        type: 'BUY',
+        strength: Number(trendStrength.toFixed(3)),
+        zScore,
+        halfLife: halfLifePeriods,
+        targetPrice: Number((currentPrice + 2.5 * trendSigma).toFixed(2)),
+        stopLoss: Number((currentPrice - atrTrailingDistance).toFixed(2)),
+        takeProfit: Number((currentPrice + 2.5 * trendSigma).toFixed(2)),
+        reason: `Adaptive Trend Breakout BUY: Continuous Engine riding directional momentum (Hurst ${hurstExponent.toFixed(3)}, ADX ${regime?.adx.toFixed(1) || 24.2}, RSI ${rsi14.toFixed(1)})`,
+        strategy: 'Adaptive-Regime-Breakout',
+        maxHoldMs: 1800000,
+      };
+    }
+    // تريند هابط قوي: السعر أدنى من نقطة التعادل والزخم سلبي (RSI < 52 أو Z-Score < -0.2)
+    else if (rsi14 <= 52 && (currentPrice <= ouMu || zScore < -0.2)) {
+      const trendStrength = Math.min(1.0, 0.55 + (hurstExponent - 0.5) * 1.2 + ((52 - rsi14) / 52) * 0.25);
+      return {
+        id: `SIG-TREND-${Date.now().toString(36)}-${symbol.replace('/', '')}`,
+        symbol,
+        timestamp: Date.now(),
+        type: 'SELL',
+        strength: Number(trendStrength.toFixed(3)),
+        zScore,
+        halfLife: halfLifePeriods,
+        targetPrice: Number((currentPrice - 2.5 * trendSigma).toFixed(2)),
+        stopLoss: Number((currentPrice + atrTrailingDistance).toFixed(2)),
+        takeProfit: Number((currentPrice - 2.5 * trendSigma).toFixed(2)),
+        reason: `Adaptive Trend Breakout SELL: Continuous Engine riding directional momentum (Hurst ${hurstExponent.toFixed(3)}, ADX ${regime?.adx.toFixed(1) || 24.2}, RSI ${rsi14.toFixed(1)})`,
+        strategy: 'Adaptive-Regime-Breakout',
+        maxHoldMs: 1800000,
+      };
+    }
+
+    // إذا لم يتأكد الاتجاه بعد، ننتظر الشمعة القادمة
     return null;
   }
 
-  // 2. فلتر هيرست ونصف العمر (Mean-Reversion Suitability)
-  if (hurstExponent > params.maxHurst || halfLifePeriods > params.maxHalfLife || halfLifePeriods <= 0) {
+  // 2. فلتر هيرست ونصف العمر لاستراتيجية الارتداد للمتوسط (Mean-Reversion Suitability)
+  if (halfLifePeriods > params.maxHalfLife || halfLifePeriods <= 0) {
     return null;
   }
 
   // 3. التحقق من مسافة الوقف وضمان سيجما صالحة
-  const safeSigma = ouSigma > 0 ? ouSigma : currentPrice * 0.005;
   const stopDistance = 2 * safeSigma; // البند 11: استخدام 2σ بدلاً من 3σ
   if (stopDistance <= 0) return null;
 
@@ -145,6 +194,10 @@ export class DecisionEngine {
 
   public setParams(params: Partial<StrategyParams>): void {
     this.params = { ...this.params, ...params };
+  }
+
+  public updateParams(params: Partial<StrategyParams>): void {
+    this.setParams(params);
   }
 
   public getParams(): StrategyParams {

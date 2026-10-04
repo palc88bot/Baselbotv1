@@ -21,6 +21,7 @@ export * from './execution/ExchangeAdapters';
 export * from './storage/EventJournal';
 export * from './monitoring/HealthMonitor';
 export * from './simulation/DepthFillModel';
+export * from './backtest/BacktestEngine';
 export * from './simulation/Backtest';
 export * from './validation/WalkForward';
 export * from './validation/StressScenarios';

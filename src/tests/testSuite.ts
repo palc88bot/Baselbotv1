@@ -10,7 +10,7 @@ import { QuboPortfolio } from '../portfolio/QuboPortfolio';
 import { QAOAAdapter } from '../quantum/QAOAAdapter';
 import { QuantumInspiredSolver } from '../quantum/QuantumInspiredSolver';
 import { RiskEngine } from '../risk/RiskEngine';
-import { BacktestEngine } from '../simulation/Backtest';
+import { BacktestEngine } from '../backtest/BacktestEngine';
 import { WalkForwardValidator } from '../validation/WalkForward';
 
 export interface TestResultItem {

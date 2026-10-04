@@ -405,12 +405,25 @@ export class AssetScreener {
 
   private populateDefaultFallbackAssets(): void {
     const defaults: Array<{ symbol: AssetSymbol; clean: string; score: number; volume: number; stepSize: number; tickSize: number }> = [
-      { symbol: 'BTC/USDT', clean: 'BTCUSDT', score: 98, volume: 1500000000, stepSize: 0.001, tickSize: 0.1 },
-      { symbol: 'ETH/USDT', clean: 'ETHUSDT', score: 95, volume: 800000000, stepSize: 0.001, tickSize: 0.01 },
-      { symbol: 'SOL/USDT', clean: 'SOLUSDT', score: 92, volume: 400000000, stepSize: 0.01, tickSize: 0.01 },
-      { symbol: 'BNB/USDT', clean: 'BNBUSDT', score: 90, volume: 200000000, stepSize: 0.01, tickSize: 0.01 },
-      { symbol: 'XRP/USDT', clean: 'XRPUSDT', score: 88, volume: 180000000, stepSize: 0.1, tickSize: 0.0001 },
-      { symbol: 'DOGE/USDT', clean: 'DOGEUSDT', score: 85, volume: 150000000, stepSize: 1, tickSize: 0.00001 },
+      { symbol: 'BTC/USDT', clean: 'BTCUSDT', score: 98, volume: 3700000000, stepSize: 0.001, tickSize: 0.1 },
+      { symbol: 'ETH/USDT', clean: 'ETHUSDT', score: 96, volume: 2300000000, stepSize: 0.001, tickSize: 0.01 },
+      { symbol: 'SOL/USDT', clean: 'SOLUSDT', score: 95, volume: 830000000, stepSize: 0.01, tickSize: 0.01 },
+      { symbol: 'NEAR/USDT', clean: 'NEARUSDT', score: 93, volume: 410000000, stepSize: 0.1, tickSize: 0.001 },
+      { symbol: 'SUI/USDT', clean: 'SUIUSDT', score: 92, volume: 320000000, stepSize: 0.1, tickSize: 0.0001 },
+      { symbol: 'DOGE/USDT', clean: 'DOGEUSDT', score: 91, volume: 270000000, stepSize: 1, tickSize: 0.00001 },
+      { symbol: 'TAO/USDT', clean: 'TAOUSDT', score: 90, volume: 125000000, stepSize: 0.001, tickSize: 0.01 },
+      { symbol: '1000PEPE/USDT', clean: '1000PEPEUSDT', score: 89, volume: 85000000, stepSize: 100, tickSize: 0.0000001 },
+      { symbol: 'FET/USDT', clean: 'FETUSDT', score: 88, volume: 82000000, stepSize: 1, tickSize: 0.0001 },
+      { symbol: 'AVAX/USDT', clean: 'AVAXUSDT', score: 87, volume: 68000000, stepSize: 1, tickSize: 0.001 },
+      { symbol: 'INJ/USDT', clean: 'INJUSDT', score: 86, volume: 30000000, stepSize: 0.1, tickSize: 0.001 },
+      { symbol: 'APT/USDT', clean: 'APTUSDT', score: 85, volume: 29000000, stepSize: 0.1, tickSize: 0.001 },
+      { symbol: 'TIA/USDT', clean: 'TIAUSDT', score: 84, volume: 26000000, stepSize: 1, tickSize: 0.0001 },
+      { symbol: 'RENDER/USDT', clean: 'RENDERUSDT', score: 83, volume: 15000000, stepSize: 0.1, tickSize: 0.001 },
+      { symbol: 'WIF/USDT', clean: 'WIFUSDT', score: 82, volume: 12000000, stepSize: 1, tickSize: 0.0001 },
+      { symbol: 'BNB/USDT', clean: 'BNBUSDT', score: 92, volume: 200000000, stepSize: 0.01, tickSize: 0.01 },
+      { symbol: 'XRP/USDT', clean: 'XRPUSDT', score: 89, volume: 180000000, stepSize: 0.1, tickSize: 0.0001 },
+      { symbol: 'LINK/USDT', clean: 'LINKUSDT', score: 88, volume: 90000000, stepSize: 0.01, tickSize: 0.001 },
+      { symbol: 'ADA/USDT', clean: 'ADAUSDT', score: 86, volume: 80000000, stepSize: 1, tickSize: 0.0001 },
     ];
 
     for (const d of defaults) {

@@ -347,14 +347,17 @@ export class OrderGateway {
   /**
    * إلغاء كافة أوامر الحماية للرمز أو لأمر محدد بالمعرف
    */
-  public async cancelProtectiveOrders(symbolOrOrderId: string): Promise<void> {
+  public async cancelProtectiveOrders(symbolOrOrderId: string, secondaryKey?: string): Promise<void> {
     if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return;
 
     try {
       const clean = symbolOrOrderId.replace('/', '');
       
-      // إذا كان لدينا معرفات محددة مسجلة مسبقاً لهذا الأمر
-      const tracked = this.protectiveOrders.get(symbolOrOrderId) || this.protectiveOrders.get(clean);
+      // إذا كان لدينا معرفات محددة مسجلة مسبقاً لهذا الأمر أو الرمز
+      const tracked = this.protectiveOrders.get(symbolOrOrderId) || 
+                      this.protectiveOrders.get(clean) || 
+                      (secondaryKey ? this.protectiveOrders.get(secondaryKey) : undefined);
+
       if (tracked && (tracked.slId || tracked.tpId)) {
         const headers = { 'X-MBX-APIKEY': this.apiKey };
         const cancelPromises = [];
@@ -373,6 +376,7 @@ export class OrderGateway {
         await Promise.allSettled(cancelPromises);
         this.protectiveOrders.delete(symbolOrOrderId);
         this.protectiveOrders.delete(clean);
+        if (secondaryKey) this.protectiveOrders.delete(secondaryKey);
         console.log(`🗑️ Cancelled specific protective order IDs for ${symbolOrOrderId}`);
         return;
       }
@@ -437,13 +441,16 @@ export class OrderGateway {
       const timestamp = this.ts();
       const endpoint = '/fapi/v1/order';
 
-      // دقة الكمية والسعر مطابقة لفلاتر Binance بالضبط
-      const formattedQty = formatQuantityToStep(params.quantity, filter.stepSize);
+      // دقة الكمية والسعر مطابقة لفلاتر Binance بالضبط مع التوافق مع الأرصدة الصغيرة
+      let formattedQty = formatQuantityToStep(params.quantity, filter.stepSize);
       if (formattedQty < filter.minQty) {
-        order.status = 'REJECTED';
-        order.errorMessage = `Quantity ${formattedQty} is below minimum ${filter.minQty}`;
-        this.notifyOrder(order);
-        return;
+        formattedQty = filter.minQty;
+      }
+      if (params.price && filter.minNotional && (formattedQty * params.price) < filter.minNotional) {
+        const bumped = formatQuantityToStep((filter.minNotional * 1.02) / params.price, filter.stepSize);
+        if (bumped >= filter.minQty) {
+          formattedQty = bumped;
+        }
       }
 
       let queryStr = `symbol=${cleanSymbol}&side=${params.side}&type=${params.type}&quantity=${formattedQty}&newClientOrderId=${order.id}&newOrderRespType=RESULT&timestamp=${timestamp}&recvWindow=5000`;
@@ -612,7 +619,7 @@ export class OrderGateway {
     const clientOrderId = `C_${orderId}`;
 
     const filter = this.getSymbolFilter(params.symbol);
-    const formattedQty = formatQuantityToStep(params.quantity, filter.stepSize);
+    let formattedQty = formatQuantityToStep(params.quantity, filter.stepSize);
 
     const book = this.orderBookBuilder.getBook(params.symbol);
     const midPrice = book?.midPrice || 100;
@@ -647,28 +654,35 @@ export class OrderGateway {
     }
 
     if (filter.minNotional && notionalValue < filter.minNotional) {
-      const order: Order = {
-        id: orderId,
-        clientOrderId,
-        symbol: params.symbol,
-        side: params.side,
-        type: params.type,
-        price: formatPriceToTick(limitPrice, filter.tickSize),
-        quantity: formattedQty,
-        filledQuantity: 0,
-        remainingQuantity: formattedQty,
-        avgFillPrice: 0,
-        status: 'REJECTED',
-        timeInForce: params.timeInForce || 'GTC',
-        timestamp: Date.now(),
-        updatedAt: Date.now(),
-        strategyId: params.strategyId || 'Ornstein-Uhlenbeck-QUBO',
-        executionTag: params.executionTag || 'SOR-AUTO',
-        errorMessage: `Notional value $${notionalValue.toFixed(2)} is below minimum $${filter.minNotional}`,
-      };
-      this.orders.set(orderId, order);
-      this.notifyOrder(order);
-      return order;
+      // للأرصدة الصغيرة: تصحيح الكمية تلقائياً للوصول للحد الأدنى لبايننس (5 USDT)
+      const adjustedQty = formatQuantityToStep((filter.minNotional * 1.02) / limitPrice, filter.stepSize);
+      if (adjustedQty >= filter.minQty && (adjustedQty * limitPrice) >= filter.minNotional) {
+        formattedQty = adjustedQty;
+        console.log(`ℹ️ Auto-adjusted micro order quantity for ${params.symbol} to meet minNotional: ${formattedQty} (Val: $${(formattedQty * limitPrice).toFixed(2)})`);
+      } else {
+        const order: Order = {
+          id: orderId,
+          clientOrderId,
+          symbol: params.symbol,
+          side: params.side,
+          type: params.type,
+          price: formatPriceToTick(limitPrice, filter.tickSize),
+          quantity: formattedQty,
+          filledQuantity: 0,
+          remainingQuantity: formattedQty,
+          avgFillPrice: 0,
+          status: 'REJECTED',
+          timeInForce: params.timeInForce || 'GTC',
+          timestamp: Date.now(),
+          updatedAt: Date.now(),
+          strategyId: params.strategyId || 'Ornstein-Uhlenbeck-QUBO',
+          executionTag: params.executionTag || 'SOR-AUTO',
+          errorMessage: `Notional value $${notionalValue.toFixed(2)} is below minimum $${filter.minNotional}`,
+        };
+        this.orders.set(orderId, order);
+        this.notifyOrder(order);
+        return order;
+      }
     }
 
     const order: Order = {
