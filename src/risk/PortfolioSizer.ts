@@ -59,16 +59,16 @@ export class PortfolioSizer {
   private tierConfigs: Record<PortfolioTier, TierConfig> = {
     MICRO: {
       tier: 'MICRO',
-      maxConcurrentPositions: 1, // مركز واحد فقط في نفس الوقت للمحافظ الصغيرة للحفاظ على الهامش
-      minLeverage: 3,            // رافعة 3x تتيح صفقة بقيمة 5.5$ بهامش 1.83$ فقط
-      maxLeverage: 5,            // رافعة 5x تتيح صفقة بقيمة 5.5$ بهامش 1.10$ فقط
-      minTradeValue: 5.5,        // يتوافق تماماً مع شرط بايننس الأدنى 5 USDT
-      maxTradePercentage: 0.60,
+      maxConcurrentPositions: 3, // حتى 3 صفقات متوازنة
+      minLeverage: 3,            // رافعة 3x
+      maxLeverage: 5,            // رافعة 5x
+      minTradeValue: 18.0,       // قيمة اسمية تتناسب مع المحفظة (هامش ~6.0$ لكل صفقة)
+      maxTradePercentage: 0.85,
       maxQualifiedAssets: 15,
       allowedSymbols: ['SOL/USDT', 'BTC/USDT', 'ETH/USDT', 'NEAR/USDT', 'SUI/USDT', 'DOGE/USDT', 'TAO/USDT', '1000PEPE/USDT', 'FET/USDT', 'AVAX/USDT', 'RENDER/USDT', 'WIF/USDT'],
       quboEnabled: false,
-      minZScore: -2.5,
-      maxDrawdownPercent: 0.15,
+      minZScore: -2.0,
+      maxDrawdownPercent: 0.20,
     },
     SMALL: {
       tier: 'SMALL',
@@ -359,10 +359,11 @@ export class PortfolioSizer {
       notional = maxNotional;
     }
 
-    // دعم الأرصدة الصغيرة (< 50$): ضمان عدم النزول عن الحد الأدنى لبايننس (5 USDT)
-    const MIN_BINANCE_NOTIONAL = config.minTradeValue || 5.5;
-    if (notional < MIN_BINANCE_NOTIONAL && entry > 0) {
-      notional = MIN_BINANCE_NOTIONAL;
+    // تخصيص هامش متناسب مع المحفظة (حوالي 25% من رأس المال = ~6$ إلى 8$ هامش، أي 18$ إلى 25$ قيمة اسمية)
+    const proportionalTargetMargin = Math.max(6.0, safeEquity * 0.25);
+    const targetNotional = Math.max(config.minTradeValue || 18.0, proportionalTargetMargin * (config.minLeverage || 3));
+    if (notional < targetNotional && entry > 0) {
+      notional = targetNotional;
       rawQty = notional / entry;
     }
 

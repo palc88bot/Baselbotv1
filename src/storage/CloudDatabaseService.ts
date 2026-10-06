@@ -22,7 +22,7 @@ export class CloudDatabaseService {
     } else {
       app = getApps()[0];
     }
-    this.firestore = getFirestore(app);
+    this.firestore = getFirestore(app, firebaseConfig.firestoreDatabaseId);
     if (userUid) {
       this.userUid = userUid;
     }

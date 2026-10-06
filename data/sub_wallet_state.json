@@ -1,0 +1,17 @@
+{
+  "isActive": true,
+  "initialAllocation": 25,
+  "allocatedCapital": 25,
+  "currentEquity": 24.96,
+  "availableMargin": 0,
+  "usedMargin": 29.01,
+  "realizedProfit": -0.06,
+  "unrealizedPnl": 0.02,
+  "totalTrades": 4,
+  "winningTrades": 1,
+  "losingTrades": 3,
+  "winRate": 25,
+  "growthPct": -0.16,
+  "isDepleted": false,
+  "lastUpdated": 1791321361492
+}

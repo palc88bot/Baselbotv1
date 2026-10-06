@@ -42,10 +42,10 @@ export class PartialProfitManager {
     this.orderGateway = orderGateway;
     this.config = {
       enabled: true,
-      firstTargetPercent: 0.05,      // 5% ربح
-      firstClosePercent: 0.50,       // إغلاق 50%
-      trailingStopPercent: 0.03,     // Trailing 3%
-      moveStopToBreakEven: true,
+      firstTargetPercent: 0.018,     // هدف تكتيكي أول سريع 1.8% (يعادل +6% إلى +9% على الهامش)
+      firstClosePercent: 0.50,       // إغلاق 50% وقفل الربح
+      trailingStopPercent: 0.008,    // Trailing Stop 0.8% لحماية القمة
+      moveStopToBreakEven: true,     // نقل الوقف لنقطة الدخول فوراً
       ...config,
     };
   }

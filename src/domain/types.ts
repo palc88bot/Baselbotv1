@@ -97,6 +97,7 @@ export interface Fill {
   commissionAsset: string;
   timestamp: number;
   isMaker: boolean;
+  realizedPnl?: number;
 }
 
 export interface Position {

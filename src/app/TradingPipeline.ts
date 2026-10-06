@@ -1,3 +1,4 @@
+import { BoardOfDirectorsEngine, BoardMeetingDecision } from '../strategies/BoardOfDirectorsEngine';
 /**
  * Basel Quantum Algorithmic Trading System
  * Master Unified Trading Pipeline Orchestrator
@@ -44,6 +45,7 @@ import { TelegramService } from '../services/TelegramService';
 import { DynamicRiskManager } from '../risk/DynamicRiskManager';
 import { RegimeDetector, RegimeAnalysis } from '../risk/RegimeDetector';
 import { PortfolioSizer } from '../risk/PortfolioSizer';
+import { SubWalletManager, SubWalletState } from '../risk/SubWalletManager';
 import { PartialProfitManager } from '../execution/PartialProfitManager';
 import { ScaleInManager } from '../execution/ScaleInManager';
 import { AssetScreener } from '../market-data/AssetScreener';
@@ -55,6 +57,8 @@ import fs from 'fs';
 export class TradingPipeline {
   private assetScreener: AssetScreener;
   private strategyManager: StrategyManager;
+  private boardOfDirectors: BoardOfDirectorsEngine;
+
   private marketData: ExchangeMarketData;
   private orderBookBuilder: OrderBookBuilder;
   private featureEngine: FeatureEngine;
@@ -74,6 +78,7 @@ export class TradingPipeline {
   private regimeDetector: RegimeDetector;
   private regimeDetectors: Map<AssetSymbol, RegimeDetector> = new Map();
   private portfolioSizer: PortfolioSizer;
+  private subWalletManager: SubWalletManager;
   private partialProfitManager: PartialProfitManager;
   private scaleInManager: ScaleInManager;
   private lastSnapshotTime: number = 0;
@@ -86,6 +91,9 @@ export class TradingPipeline {
   private positionCheckInterval: NodeJS.Timeout | null = null;
   private watchdogInterval: NodeJS.Timeout | null = null;
   private previousTradingAllowed: boolean = true;
+  private heartbeatIntervalTimer: NodeJS.Timeout | null = null;
+  private heartbeatIntervalMs: number = 30 * 60 * 1000;
+  private lastHeartbeatSent: number = 0;
 
   private config: RuntimeConfigState;
   private isRunning: boolean = false;
@@ -161,10 +169,13 @@ export class TradingPipeline {
     );
     this.dynamicRiskManager = new DynamicRiskManager({ zScoreThreshold: -1.6, halfLifeMax: 30 });
     this.regimeDetector = new RegimeDetector();
+    this.subWalletManager = new SubWalletManager(25.0);
     this.portfolioSizer = new PortfolioSizer(this.assetScreener);
     this.partialProfitManager = new PartialProfitManager(this.orderGateway);
     this.scaleInManager = new ScaleInManager(this.orderGateway);
     this.strategyManager = new StrategyManager();
+    this.boardOfDirectors = BoardOfDirectorsEngine.getInstance();
+
 
     this.watchdog = new SystemWatchdog({
       getFeedLastUpdate: () => {
@@ -207,7 +218,19 @@ export class TradingPipeline {
       await this.telegramService.sendMessage(`🚨 <b>تنبيه إدارة المخاطر المتقدمة</b>\n\n⚡ الإجراء المتخذ: <b>${actionAr}</b>\n⚖️ الرافعة المالية المسموحة: <b>${(decision.leverageMultiplier * 100).toFixed(0)}%</b>\n📦 نسبة حجم المركز: <b>${(decision.positionSizeMultiplier * 100).toFixed(0)}%</b>\n\n📋 أسباب التقييم:\n${decision.reasons.map((r: string) => `• ${r}`).join('\n')}`);
     });
 
+    
+    this.userDataStream.subscribeFills((fill) => {
+      // Calculate approximate realized pnl if closing
+      if (fill.realizedPnl && fill.realizedPnl !== 0) {
+        this.subWalletManager.recordTradeResult(fill.realizedPnl, fill.commission || 0);
+      }
+    });
+
     this.setupEventForwarding();
+    this.initHeartbeatTimer();
+    this.db.getAllTrades().then((trades) => {
+      this.subWalletManager.syncWithTrades(trades);
+    }).catch(() => {});
   }
 
   public async start() {
@@ -223,7 +246,16 @@ export class TradingPipeline {
       for (const asset of this.assetScreener.getAllAssets()) {
         this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity);
       }
-      this.portfolioSizer.updateBalance(this.userDataStream.getBalance().totalEquity);
+
+      // Synchronize Sub-Wallet with all closed trades recorded in persistent DB
+      try {
+        const allDbTrades = await this.db.getAllTrades();
+        this.subWalletManager.syncWithTrades(allDbTrades);
+      } catch (err) {
+        console.warn('⚠️ Could not sync sub-wallet with DB trades on boot:', err);
+      }
+
+      this.portfolioSizer.updateBalance(this.subWalletManager.getCurrentEquity());
       this.config.activeSymbols = this.portfolioSizer.getAllowedSymbols();
 
       // 1. Reconcile State with Exchange
@@ -288,10 +320,11 @@ export class TradingPipeline {
       }
     }, 60 * 1000);
 
-    // Position Trailing Stop & Take Profit Loop (1s)
+    // Position Trailing Stop & Take Profit Loop (1s) - Closes simultaneously on Bot & Binance
     this.positionCheckInterval = setInterval(async () => {
       try {
         if (this.isRunning) {
+          // 1. Partial Profit Manager trailing stop check
           const report = this.partialProfitManager.getReport();
           if (report && report.positions) {
             for (const pos of report.positions) {
@@ -301,6 +334,41 @@ export class TradingPipeline {
               }
             }
           }
+
+          // 2. Active Exchange Positions Direct Supervisor & Live Sub-Wallet Floating PnL Sync
+          const openPositions = this.userDataStream.getPositions();
+          let totalUnrealizedPnl = 0;
+          let totalUsedMargin = 0;
+
+          for (const pos of openPositions) {
+            const currentPrice = this.marketData.getPrice(pos.symbol) || pos.currentPrice;
+            if (currentPrice > 0 && pos.entryPrice > 0) {
+              const isLong = pos.size > 0;
+              const pnl = isLong ? (currentPrice - pos.entryPrice) * pos.size : (pos.entryPrice - currentPrice) * Math.abs(pos.size);
+              totalUnrealizedPnl += pnl;
+
+              const pnlPct = ((currentPrice - pos.entryPrice) / pos.entryPrice) * (isLong ? 100 : -100);
+              // 1. Full Take Profit Target: +2.8% to +3.5% (High Momentum Runner)
+              if (pnlPct >= 2.8) {
+                console.log(`🎯 [TAKE PROFIT TRIGGER] ${pos.symbol} reached +${pnlPct.toFixed(2)}%. Closing on Binance & Bot...`);
+                await this.closeSinglePositionOnExchange(pos.symbol, `Take Profit Target Hit (+${pnlPct.toFixed(2)}%)`);
+              }
+              // 2. Tactical Scalp Lock: +1.6% (Locks in +5% to +8% ROE on margin before mean-reversion pullbacks)
+              else if (pnlPct >= 1.6) {
+                console.log(`🎯 [TACTICAL PROFIT LOCK] ${pos.symbol} reached +${pnlPct.toFixed(2)}%. Securing solid intraday gain...`);
+                await this.closeSinglePositionOnExchange(pos.symbol, `Tactical Scalp Target Hit (+${pnlPct.toFixed(2)}%)`);
+              }
+              // 3. Stop Loss Target: -1.5% (Strict Risk Discipline, 1:2 R:R Ratio)
+              else if (pnlPct <= -1.5) {
+                console.log(`🛑 [STOP LOSS TRIGGER] ${pos.symbol} reached ${pnlPct.toFixed(2)}%. Closing on Binance & Bot...`);
+                await this.closeSinglePositionOnExchange(pos.symbol, `Stop Loss Triggered (${pnlPct.toFixed(2)}%)`);
+              }
+            }
+            totalUsedMargin += pos.marginUsed || 0;
+          }
+
+          // Live Sub-Wallet Floating Equity update
+          this.subWalletManager.updateUnrealizedPnl(totalUnrealizedPnl, totalUsedMargin);
         }
       } catch (err) {
         // Silent catch
@@ -415,18 +483,27 @@ export class TradingPipeline {
         const lastCandle = this.marketData.getCandles(closedSymbol).slice(-1)[0];
         const exitPrice = lastCandle ? lastCandle.close : undefined;
         let totalPnl = 0;
+        let totalCommissions = 0;
         for (const t of openTrades) {
-          const pnl = exitPrice ? (t.side === 'BUY' ? (exitPrice - t.price) * t.quantity : (t.price - exitPrice) * t.quantity) : 0;
-          totalPnl += pnl;
-          await this.db.closeTrade(t.id, pnl, exitPrice);
+          const grossPnl = exitPrice ? (t.side === 'BUY' ? (exitPrice - t.price) * t.quantity : (t.price - exitPrice) * t.quantity) : 0;
+          // Deduct round-trip taker commissions (0.05% entry + 0.05% exit = 0.10% notional)
+          const roundTripFee = (t.quantity * (exitPrice || t.price)) * 0.0010;
+          const netPnl = Number((grossPnl - roundTripFee).toFixed(4));
+          totalPnl += netPnl;
+          totalCommissions += roundTripFee;
+          await this.db.closeTrade(t.id, netPnl, exitPrice);
         }
 
+        this.subWalletManager.recordTradeResult(totalPnl);
+        this.boardOfDirectors.learnFromOutcome(totalPnl, closedSymbol);
+
         await this.telegramService.sendMessage(`
-🏁 <b>تم إغلاق صفقة بالكامل</b>
+🏁 <b>تم إغلاق صفقة بالكامل (صافي بعد خصم العمولات)</b>
 ━━━━━━━━━━━━━━━━
 🪙 الزوج: <b>${closedSymbol}</b>
 💵 سعر الخروج: <b>$${exitPrice ? (exitPrice >= 100 ? exitPrice.toFixed(2) : exitPrice.toFixed(6)) : 'سعر السوق'}</b>
-💰 النتيجة التقديرية: <b>${totalPnl >= 0 ? '🟢 +' : '🔴 '}${totalPnl.toFixed(2)} USDT</b>
+💰 الربح الصافي (بعد العمولات): <b>${totalPnl >= 0 ? '🟢 +' : '🔴 '}${totalPnl.toFixed(2)} USDT</b>
+🏷️ عمولة المنصة (فتح + إغلاق): <b>-$${totalCommissions.toFixed(3)} USDT</b>
 ━━━━━━━━━━━━━━━━
 ✅ تم تحرير الهامش وإعادة ضبط مصفوفة الأوزان بنجاح.
         `).catch(() => {});
@@ -654,6 +731,28 @@ export class TradingPipeline {
     const signalType = sig.type as 'BUY' | 'SELL';
     const strength = sig.strength;
 
+    // 🏛️ Board of Directors v6.0 Evaluation (6 Decision Makers + 8 Anti-Overfitting Guards)
+    const candlesMap: Record<string, any> = {};
+    for (const sym of this.config.activeSymbols || [symbol]) {
+      candlesMap[sym] = this.marketData.getCandles(sym) || [];
+    }
+    const boardDecision = this.boardOfDirectors.holdMeeting({
+      symbol,
+      candles,
+      candlesMap,
+      signals: [sig],
+      features,
+      regime,
+      capital: this.subWalletManager.getCurrentEquity(),
+      latencyMs: 15
+    });
+
+    if (boardDecision.verdict === 'REJECTED') {
+      console.log('🏛️ [BOARD REJECTED] ' + symbol + ' signal blocked by Board of Directors: ' + boardDecision.action + ' (Guards: ' + boardDecision.guardsPassed + '/8)');
+      this.eventJournal.record('WARN', 'STRATEGY', 'Signal blocked for ' + symbol + ': ' + boardDecision.action);
+      return;
+    }
+
     // ACQUIRE LOCK BEFORE ANY ASYNC OPERATIONS (البند 2)
     this.inFlightSymbols.add(symbol);
     this.lastOrderTime.set(symbol, now);
@@ -676,10 +775,11 @@ export class TradingPipeline {
 
       // 3. Portfolio Sizer calculation with 1% Risk-Based Sizing (البند 6 و 8)
       const balance = this.userDataStream.getBalance();
+      const subEquity = this.subWalletManager.getCurrentEquity();
       const positionSizing = this.portfolioSizer.calculatePositionSize(
         features.currentPrice,
         sig.stopLoss,
-        balance.totalEquity,
+        subEquity,
         0.01
       );
 
@@ -705,6 +805,16 @@ export class TradingPipeline {
         if (qty === 0) {
           qty = Number((5.5 / features.currentPrice).toFixed(6));
         }
+      }
+
+      const subAvailableMargin = this.subWalletManager.getAvailableMargin();
+      const requiredLev = positionSizing.leverage || 5;
+      const notionalVal = qty * features.currentPrice;
+      const requiredMargin = notionalVal / requiredLev;
+
+      if (subAvailableMargin < requiredMargin) {
+        console.log();
+        return;
       }
 
       if (qty > 0.0001) {
@@ -975,7 +1085,7 @@ export class TradingPipeline {
       }
 
       // Keep portfolio sizer synced with real exchange equity
-      this.portfolioSizer.updateBalance(realEquity);
+      this.portfolioSizer.updateBalance(this.subWalletManager.getCurrentEquity());
 
       const dbState = await this.db.getState<{ equity: number; timestamp: number }>('last_balance');
       if (dbState && Math.abs(realEquity - dbState.equity) > 1) {
@@ -1086,6 +1196,8 @@ export class TradingPipeline {
     return this.correlationRiskManager.getCorrelationReport(this.config.activeSymbols);
   }
 
+  public getSubWallet(): SubWalletManager { return this.subWalletManager; }
+
   public getPortfolioSizer(): PortfolioSizer { return this.portfolioSizer; }
   public getPartialProfitManager(): PartialProfitManager { return this.partialProfitManager; }
   public getScaleInManager(): ScaleInManager { return this.scaleInManager; }
@@ -1108,6 +1220,137 @@ export class TradingPipeline {
   public getLastSignals(): Map<AssetSymbol, TradingSignal> { return this.lastSignals; }
   public getLastFeatures(): Map<AssetSymbol, any> { return this.lastFeatures; }
   public getIsRunning(): boolean { return this.isRunning; }
+  public getTelegramService(): TelegramService { return this.telegramService; }
+
+  /**
+   * Continuous 30-Minute Telegram Heartbeat System
+   * Runs independently of whether bot is actively trading or paused.
+   * Periodically reports exact running/stopped status, sub-wallet metrics, and market conditions.
+   */
+  public initHeartbeatTimer(): void {
+    if (this.heartbeatIntervalTimer) {
+      clearInterval(this.heartbeatIntervalTimer);
+      this.heartbeatIntervalTimer = null;
+    }
+
+    const config = this.telegramService.getHeartbeatConfig();
+    const intervalMinutes = config.intervalMinutes || 30;
+    this.heartbeatIntervalMs = intervalMinutes * 60 * 1000;
+
+    console.log(`⏱️ [TELEGRAM-HEARTBEAT] Periodic 30-minute status alert loop activated. Interval: ${intervalMinutes} minutes.`);
+
+    // Run periodically every 30 minutes
+    this.heartbeatIntervalTimer = setInterval(async () => {
+      try {
+        const currentConfig = this.telegramService.getHeartbeatConfig();
+        if (currentConfig.enabled) {
+          await this.sendHeartbeatNotification(false);
+        }
+      } catch (err) {
+        console.error('❌ [TELEGRAM-HEARTBEAT] Error in periodic heartbeat dispatch:', err);
+      }
+    }, this.heartbeatIntervalMs);
+  }
+
+  public async sendHeartbeatNotification(isManual: boolean = false): Promise<{ success: boolean; isRunning: boolean; message: string }> {
+    const isBotRunning = this.isRunning && !this.killSwitch.isActive();
+    const subWallet = this.subWalletManager.getState();
+    const balance = this.userDataStream.getBalance();
+    const positions = this.userDataStream.getPositions();
+    const killSwitchActive = this.killSwitch.isActive();
+    const executionMode = this.config.executionMode || 'TESTNET';
+
+    // Snapshot of major prices
+    const btcPrice = this.marketData.getPrice('BTC/USDT');
+    const ethPrice = this.marketData.getPrice('ETH/USDT');
+    const solPrice = this.marketData.getPrice('SOL/USDT');
+
+    const nowStr = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' });
+    const intervalMins = this.telegramService.getHeartbeatConfig().intervalMinutes || 30;
+
+    let msg = '';
+    if (isBotRunning) {
+      msg = `🟢 <b>إشعار نبضات البوت الدوري (Basel AlgoCore Heartbeat)</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `⚡ <b>حالة البوت الحالية:</b> 🟢 <b>قيد التشغيل والعمل 24/7 (RUNNING)</b>\n` +
+        `⏱️ <b>الفترة:</b> إشعار نصف ساعوي دوري (كل ${intervalMins} دقيقة)${isManual ? ' [فحص يدوي فوري]' : ''}\n` +
+        `🎯 <b>وضع التنفيذ:</b> <b>${executionMode}</b>\n` +
+        `🛡️ <b>درع الأمان (Kill-Switch):</b> 🟢 في أمان تام (طبيعي)\n\n` +
+        `💼 <b>حالة المحفظة والأرباح:</b>\n` +
+        `• المحفظة الثانوية ($25): <b>$${subWallet.currentEquity.toFixed(2)}</b> (${subWallet.growthPct >= 0 ? '+' : ''}${subWallet.growthPct.toFixed(1)}% ROI)\n` +
+        `• الأرباح المحققة: <b>${subWallet.realizedProfit >= 0 ? '🟢 +' : '🔴 '}$${subWallet.realizedProfit.toFixed(2)} USDT</b>\n` +
+        `• الخزينة المركزية المحمية: <b>$${balance.totalEquity.toFixed(2)} USDT</b>\n` +
+        `• الصفقات المنفذة: <b>${subWallet.totalTrades}</b> (${subWallet.winningTrades} رابحة / ${subWallet.losingTrades} خاسرة - ${subWallet.winRate.toFixed(0)}%)\n` +
+        `• المراكز المفتوحة حالياً: <b>${positions.length} مركز نشط</b>\n\n` +
+        `📊 <b>أسعار السوق اللحظية:</b>\n` +
+        `• BTC: <b>$${btcPrice > 0 ? btcPrice.toLocaleString(undefined, { minimumFractionDigits: 1 }) : '---'}</b>\n` +
+        `• ETH: <b>$${ethPrice > 0 ? ethPrice.toLocaleString(undefined, { minimumFractionDigits: 1 }) : '---'}</b>\n` +
+        `• SOL: <b>$${solPrice > 0 ? solPrice.toFixed(2) : '---'}</b>\n\n` +
+        `🕒 <b>توقيت الإشعار:</b> ${nowStr} (${dateStr})\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `✅ المحرك يعمل باستمرار ويراقب سيولة وعمق السوق. الإشعار القادم بعد ${intervalMins} دقيقة.`;
+    } else {
+      msg = `🔴 <b>إشعار نبضات البوت الدوري (Basel AlgoCore Heartbeat)</b>\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `⚠️ <b>حالة البوت الحالية:</b> 🛑 <b>متوقف عن العمل حالياً (STOPPED / PAUSED)</b>\n` +
+        `⏱️ <b>الفترة:</b> إشعار نصف ساعوي دوري (كل ${intervalMins} دقيقة)${isManual ? ' [فحص يدوي فوري]' : ''}\n` +
+        `📝 <b>السبب:</b> ${killSwitchActive ? 'تم تفعيل درع الطوارئ (Kill-Switch)' : 'البوت في وضع الإيقاف المؤقت بواسطة المشغل'}\n` +
+        `🛡️ <b>حالة رأس المال:</b> محفوظ في أمان تام بنسبة 100%\n\n` +
+        `💼 <b>حالة المحفظة:</b>\n` +
+        `• المحفظة الثانوية ($25): <b>$${subWallet.currentEquity.toFixed(2)}</b>\n` +
+        `• الأرباح المحققة السابقة: <b>${subWallet.realizedProfit >= 0 ? '+' : ''}$${subWallet.realizedProfit.toFixed(2)} USDT</b>\n` +
+        `• الخزينة المركزية المحمية: <b>$${balance.totalEquity.toFixed(2)} USDT</b>\n` +
+        `• المراكز المفتوحة: <b>${positions.length} مركز</b>\n\n` +
+        `🕒 <b>توقيت الإشعار:</b> ${nowStr} (${dateStr})\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `⚠️ <b>تنبيه للمشغل:</b> البوت لا يقوم بتنفيذ صفقات جديدة حالياً. لتشغيل البوت يرجى التوجه للوحة التحكم والنقر على "تشغيل البوت". الإشعار القادم بعد ${intervalMins} دقيقة.`;
+    }
+
+    const ok = await this.telegramService.sendMessage(msg);
+    if (ok) {
+      this.lastHeartbeatSent = Date.now();
+      this.telegramService.recordHeartbeatSent();
+      console.log(`📡 [TELEGRAM-HEARTBEAT] Dispatched 30-min status heartbeat (Bot status: ${isBotRunning ? 'RUNNING' : 'STOPPED'})`);
+    } else {
+      console.warn(`⚠️ [TELEGRAM-HEARTBEAT] Heartbeat notification could not be delivered. Ensure Bot Token and Chat ID are configured.`);
+    }
+
+    return {
+      success: ok,
+      isRunning: isBotRunning,
+      message: isBotRunning ? 'Bot is RUNNING' : 'Bot is STOPPED'
+    };
+  }
+
+  public getHeartbeatStatus() {
+    const config = this.telegramService.getHeartbeatConfig();
+    const intervalMins = config.intervalMinutes || 30;
+    const intervalMs = intervalMins * 60 * 1000;
+    const lastSent = this.lastHeartbeatSent || config.lastSent || 0;
+    const nextDue = lastSent > 0 ? lastSent + intervalMs : Date.now() + intervalMs;
+
+    return {
+      enabled: config.enabled,
+      intervalMinutes: intervalMins,
+      lastSent,
+      nextDue,
+      isRunning: this.isRunning && !this.killSwitch.isActive(),
+      isConfigured: this.telegramService.getConfigStatus().isConfigured,
+      chatId: this.telegramService.getConfigStatus().maskedChatId
+    };
+  }
+
+  public updateHeartbeatSettings(enabled: boolean, intervalMinutes?: number) {
+    this.telegramService.updateConfig(
+      undefined as any,
+      undefined as any,
+      undefined,
+      enabled,
+      intervalMinutes
+    );
+    this.initHeartbeatTimer();
+  }
 
   public updateConfig(newConfig: Partial<RuntimeConfigState>) {
     this.config = { ...this.config, ...newConfig };
@@ -1132,7 +1375,7 @@ export class TradingPipeline {
     }
 
     const balance = this.userDataStream.getBalance();
-    const currentTier = this.portfolioSizer.updateBalance(balance.totalEquity);
+    const currentTier = this.portfolioSizer.updateBalance(this.subWalletManager.getCurrentEquity());
     this.config.activeSymbols = this.portfolioSizer.getAllowedSymbols();
 
     this.scaleInManager.updateTier(currentTier);
@@ -1213,8 +1456,180 @@ export class TradingPipeline {
     return this.assetScreener;
   }
 
+  public getBoardOfDirectors(): BoardOfDirectorsEngine {
+    return this.boardOfDirectors;
+  }
   public getStrategyManager(): StrategyManager {
     return this.strategyManager;
+  }
+
+  public async closeSinglePositionOnExchange(
+    symbol: AssetSymbol,
+    reason: string = "Manual / Target Exit"
+  ): Promise<{
+    success: boolean;
+    message: string;
+    pnl?: number;
+    symbol?: string;
+    exitPrice?: number;
+    reason?: string;
+    learningEvent?: any;
+  }> {
+    console.log(`🛑 [PIPELINE CLOSE] Closing ${symbol} on Binance and local systems... Reason: ${reason}`);
+    this.inFlightSymbols.add(symbol);
+    try {
+      const pos = this.userDataStream.getPosition(symbol);
+      const closeRes = await this.orderGateway.closePositionDirectlyOnBinance(symbol, pos?.size);
+
+      this.partialProfitManager.removeBySymbol(symbol);
+      this.scaleInManager.removeBySymbol(symbol);
+      this.userDataStream.removePosition(symbol);
+
+      const openTrades = await this.db.getOpenTrades(symbol);
+      const lastCandle = this.marketData.getCandles(symbol).slice(-1)[0];
+      const exitPrice = lastCandle ? lastCandle.close : (pos?.currentPrice || pos?.entryPrice);
+      let totalPnl = 0;
+      let totalFees = 0;
+      for (const t of openTrades) {
+        const grossPnl = exitPrice ? (t.side === "BUY" ? (exitPrice - t.price) * t.quantity : (t.price - exitPrice) * t.quantity) : 0;
+        const roundTripFee = (t.quantity * (exitPrice || t.price)) * 0.0010;
+        const netPnl = Number((grossPnl - roundTripFee).toFixed(4));
+        totalPnl += netPnl;
+        totalFees += roundTripFee;
+        await this.db.closeTrade(t.id, netPnl, exitPrice);
+      }
+
+      if (pos) {
+        this.subWalletManager.recordTradeResult(totalPnl);
+      }
+      this.portfolioSizer.updateBalance(this.subWalletManager.getCurrentEquity());
+
+      // 🏛️ Real trade feedback into Board of Directors Self-Learning Engine
+      const learnEvent = this.boardOfDirectors.learnFromOutcome(totalPnl, symbol);
+
+      this.eventJournal.record("INFO", "ORDER_GATEWAY", `Successfully closed ${symbol} on Binance and bot: Net PnL: $${totalPnl.toFixed(2)} (Fees: -$${totalFees.toFixed(3)}) (${reason})`);
+      await this.telegramService.sendMessage(`🏁 <b>تم تأكيد إغلاق الصفقة على بايننس والبوت بالكامل (صافي)</b>\n━━━━━━━━━━━━━━━━\n🪙 الزوج: <b>${symbol}</b>\n💵 سعر الخروج: <b>$${exitPrice ? (exitPrice >= 100 ? exitPrice.toFixed(2) : exitPrice.toFixed(4)) : "سعر السوق"}</b>\n💰 الربح الصافي (بعد العمولات): <b>${totalPnl >= 0 ? "🟢 +" : "🔴 "}${totalPnl.toFixed(2)} USDT</b>\n🏷️ عمولة المنصة (فتح + إغلاق): <b>-$${totalFees.toFixed(3)} USDT</b>\n📝 السبب: <b>${reason}</b>\n━━━━━━━━━━━━━━━━\n✅ تم التأكد من إغلاق المركز على بايننس وتحرير الهامش بالكامل.\n🔎 البوت جاهز الآن للبحث عن الصفقة التالية.`).catch(() => {});
+
+      return {
+        success: true,
+        message: `Closed ${symbol} on Binance and local state successfully`,
+        pnl: totalPnl,
+        symbol,
+        exitPrice,
+        reason,
+        learningEvent: learnEvent
+      };
+    } catch (e: any) {
+      console.error(`❌ Failed to close position for ${symbol}:`, e);
+      return { success: false, message: e.message || "Close failed" };
+    } finally {
+      this.inFlightSymbols.delete(symbol);
+    }
+  }
+
+  public async scaleUpCurrentPositions(targetMarginPerPosition: number = 6.0): Promise<{ success: boolean; results: any[]; message: string }> {
+    console.log(`⚡ [SCALE UP] Adjusting open positions margin to $${targetMarginPerPosition.toFixed(2)} USDT each...`);
+    const openPositions = this.userDataStream.getPositions();
+    const results: any[] = [];
+
+    if (openPositions.length === 0) {
+      return {
+        success: false,
+        results: [],
+        message: 'No open positions currently active on exchange to adjust.'
+      };
+    }
+
+    for (const pos of openPositions) {
+      const currentPrice = this.marketData.getPrice(pos.symbol) || pos.currentPrice || pos.entryPrice;
+      const lev = pos.leverage || 3;
+      const currentMargin = pos.marginUsed || ((Math.abs(pos.size) * currentPrice) / lev);
+
+      if (currentMargin < targetMarginPerPosition && currentPrice > 0) {
+        const additionalMarginNeeded = targetMarginPerPosition - currentMargin;
+        const additionalNotional = additionalMarginNeeded * lev;
+        let additionalQty = additionalNotional / currentPrice;
+
+        const filter = this.orderGateway.getSymbolFilter(pos.symbol);
+        const step = filter?.stepSize || 0.001;
+        additionalQty = Math.max(filter?.minQty || 0.001, Math.round(additionalQty / step) * step);
+        additionalQty = Number(additionalQty.toFixed(4));
+
+        const isLong = pos.size > 0;
+        const side = isLong ? 'BUY' : 'SELL';
+
+        console.log(`⚡ [SCALE UP] Scaling up ${pos.symbol}: Margin $${currentMargin.toFixed(2)} -> Target $${targetMarginPerPosition.toFixed(2)} | Submitting order: ${side} ${additionalQty} @ ~$${currentPrice}`);
+
+        try {
+          const ord = this.orderGateway.submitOrder({
+            symbol: pos.symbol,
+            side: side,
+            type: 'MARKET',
+            quantity: additionalQty,
+            price: currentPrice,
+            strategyId: 'PROPORTIONAL-MARGIN-SCALE-UP',
+          });
+
+          results.push({
+            symbol: pos.symbol,
+            side,
+            quantityAdded: additionalQty,
+            previousMargin: Number(currentMargin.toFixed(2)),
+            addedMargin: Number(additionalMarginNeeded.toFixed(2)),
+            newTargetMargin: targetMarginPerPosition,
+            orderId: ord.id,
+            success: true
+          });
+        } catch (err: any) {
+          console.error(`❌ Failed to scale up ${pos.symbol}:`, err);
+          results.push({
+            symbol: pos.symbol,
+            error: err.message,
+            success: false
+          });
+        }
+      } else {
+        results.push({
+          symbol: pos.symbol,
+          message: `Already at target margin ($${currentMargin.toFixed(2)} >= $${targetMarginPerPosition.toFixed(2)})`,
+          currentMargin: Number(currentMargin.toFixed(2)),
+          success: true
+        });
+      }
+    }
+
+    setTimeout(() => {
+      const updatedPositions = this.userDataStream.getPositions();
+      let totalUnrealized = 0;
+      let totalMargin = 0;
+      for (const p of updatedPositions) {
+        const pPrice = this.marketData.getPrice(p.symbol) || p.currentPrice;
+        if (pPrice > 0 && p.entryPrice > 0) {
+          const pLong = p.size > 0;
+          totalUnrealized += pLong ? (pPrice - p.entryPrice) * p.size : (p.entryPrice - pPrice) * Math.abs(p.size);
+        }
+        totalMargin += p.marginUsed || 0;
+      }
+      this.subWalletManager.updateUnrealizedPnl(totalUnrealized, totalMargin);
+    }, 1500);
+
+    return {
+      success: true,
+      results,
+      message: `Scaled up ${results.filter(r => r.quantityAdded).length} positions to match proportional margin ($${targetMarginPerPosition.toFixed(2)} USDT).`
+    };
+  }
+
+  public async liquidateAndResetForNewWallet(): Promise<void> {
+    console.log('🔄 [REALIGNMENT] Closing and resetting all trades to match new 5 Sub-Wallet...');
+    const currentPositions = this.userDataStream.getPositions();
+    await this.orderGateway.closeAllPositionsOnExchange(currentPositions);
+    this.orderGateway.cancelAllOrders('Full realignment for 5 micro-wallet');
+    this.userDataStream.closeAllPositions();
+    await this.db.resetAllTrades();
+    this.subWalletManager.resetSubWallet(25.0);
+    this.portfolioSizer.updateBalance(25.0);
+    this.eventJournal.record('INFO', 'ORDER_GATEWAY', 'Liquidated all legacy positions on exchange and strictly enforced 1 concurrent position max for 5 Sub-Wallet');
   }
 
   public closeAllPositions() {

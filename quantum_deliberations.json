@@ -1,0 +1,1459 @@
+{
+  "activePolicy": {
+    "version": 6,
+    "zScoreEntryThreshold": 2.2,
+    "stopLossPctMultiplier": 1.15,
+    "takeProfitPctMultiplier": 1,
+    "minGuardsQuorum": 5,
+    "minApprovalRatio": 0.65,
+    "volatilitySensitivity": 1,
+    "cooldownMinutesAfterLoss": 3,
+    "dynamicLeverageCap": 3,
+    "maxAllowedSlippageBps": 12,
+    "errorReductionScore": 80.3,
+    "totalDeliberationsHeld": 5,
+    "lastOptimizedAt": "2026-10-06T21:02:12.310Z"
+  },
+  "deliberationSessions": [
+    {
+      "id": "delib-1791320532310-kv9cl",
+      "tradeId": "q-train-1791320532310-y3s1",
+      "symbol": "PEPEUSDT",
+      "pnl": -0.15,
+      "pnlPct": -0.94,
+      "isWin": false,
+      "timestamp": "2026-10-06T21:02:12.310Z",
+      "round1Diagnoses": [
+        {
+          "agentId": "algo",
+          "agentName": "AlgoEngineer",
+          "arabicName": "خبير الخوارزميات والهندسة",
+          "role": "فحص سلامة التنفيذ والتعقيد الحسابي",
+          "diagnosisPerspectiveAr": "لوحظ تأخير طفيف في معالجة ميكرو-الشموع (38ms) مما أدى إلى انزلاق سعري بنسبة 0.04% أثر على دقة الوقف.",
+          "diagnosisPerspectiveEn": "Micro-burst execution latency (38ms) introduced a 0.04% entry drag that degraded stop-loss buffer.",
+          "rootCauseAr": "تزاحم في طابور معالجة أوامر الـ WebSocket اللحظية لحظة تقلب السعر.",
+          "rootCauseEn": "WebSocket buffer congestion during high micro-frequency tick burst.",
+          "proposedParameterFixAr": "خفض سقف مهلة الإرسال القصوى إلى 15ms وتفعيل التنفيذ المسبق للأوامر المحددة.",
+          "proposedParameterFixEn": "Tighten async execution timeout to 15ms with pre-staged limit order routing.",
+          "suggestedStrategyAdjustment": {
+            "param": "maxAllowedSlippageBps",
+            "oldValue": 12,
+            "newValue": 11,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.88,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "trading",
+          "agentName": "TradingEngineer",
+          "arabicName": "خبير الصفقات وتطابق الإشارات",
+          "role": "التحقق من تناغم إشارات الدخول والوقف",
+          "diagnosisPerspectiveAr": "الإشارة دخلت مبكراً قبل تأكيد شمعة الارتداد مما عرض الصفقة لكسر وهمي (False Breakout).",
+          "diagnosisPerspectiveEn": "Signal triggered premature entry prior to candle close validation, suffering a false breakout.",
+          "rootCauseAr": "عدم انتظار إغلاق شمعة الدقيقة لتأكيد كسر نطاق التماسك.",
+          "rootCauseEn": "Lack of 1-min candle close confirmation before executing directional order.",
+          "proposedParameterFixAr": "اشتراط تأكيد شمعة الارتداد السعرية قبل إرسال أمر السوق لتقليل الإشارات الخاطئة.",
+          "proposedParameterFixEn": "Require 1-bar price action confirmation before firing market entry.",
+          "suggestedStrategyAdjustment": {
+            "param": "zScoreEntryThreshold",
+            "oldValue": 2.16,
+            "newValue": 2.24,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.89,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "quant",
+          "agentName": "QuantMathematician",
+          "arabicName": "خبير الرياضيات والإحصاء",
+          "role": "فحص الالتواء، التفلطح، والتوزيع الإحصائي",
+          "diagnosisPerspectiveAr": "التفلطح المرتفع (Kurtosis > 5.2) تسبب في حدوث ذيل سميك (Fat Tail) لم يستوعبه النطاق القياسي.",
+          "diagnosisPerspectiveEn": "High kurtosis (Fat-tail > 5.2) caused outlier volatility outside standard Gaussian bell bounds.",
+          "rootCauseAr": "حدوث صدمة سعرية ناتجة عن سيولة مفاجئة كسرت التوزيع الطبيعي.",
+          "rootCauseEn": "Liquidity sweep triggered a localized non-Gaussian jump event.",
+          "proposedParameterFixAr": "توسيع نطاق حساب السيغما وتطبيق تدرج Student-t للتوزيعات ذات الذيول السميكة.",
+          "proposedParameterFixEn": "Apply Student-t distribution heavy-tail adjustment for Kurtosis > 4.5.",
+          "suggestedStrategyAdjustment": {
+            "param": "volatilitySensitivity",
+            "oldValue": 1,
+            "newValue": 1.05,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.95,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "scout",
+          "agentName": "CoinScout",
+          "arabicName": "كشاف الفرص وقوة العملة",
+          "role": "مقارنة الزخم النسبي مع أزواج السوق",
+          "diagnosisPerspectiveAr": "حدوث هبوط جماعي في أزواج السوق جر العملة للأسفل رغم إيجابية المؤشرات الفردية.",
+          "diagnosisPerspectiveEn": "Systemic market-wide market dump dragged the asset downwards despite local indicators.",
+          "rootCauseAr": "ارتباط لحظي مفاجئ مع هبوط البيتكوين اللحظي بنسبة بيتا مرتفعة.",
+          "rootCauseEn": "High instantaneous beta correlation with sudden BTC benchmark drop.",
+          "proposedParameterFixAr": "إضافة فلتر منع الدخول إذا كان مؤشر بيتا مع BTC يتجاوز 1.4 في اللحظة نفسها.",
+          "proposedParameterFixEn": "Impose a BTC Beta cap filter (<1.4) during high-velocity benchmark swings.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.64,
+            "newValue": 0.66,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.9,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "market",
+          "agentName": "MarketExpert",
+          "arabicName": "خبير السيولة وصناع السوق",
+          "role": "مراقبة عمق دفتر الأوامر واختلال السيولة",
+          "diagnosisPerspectiveAr": "سحب مفاجئ لطلبات الشراء في عمق الأوامر (Liquidity Evaporation) سهل كسر مستوى الدعم.",
+          "diagnosisPerspectiveEn": "Orderbook bid liquidity evaporated, allowing minimal sell pressure to breach support.",
+          "rootCauseAr": "فجوة في دفتر الأوامر سمحت بانزلاق السعر إلى الوقف المحدد.",
+          "rootCauseEn": "Thin bid book depth led to cascading fill slippage into stop loss level.",
+          "proposedParameterFixAr": "رفع الحد الأدنى لعمق دفتر الأوامر المطلوب قبل فتح الصفقة بنسبة 20%.",
+          "proposedParameterFixEn": "Increase minimum top-5 orderbook depth liquidity requirement by +20%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minGuardsQuorum",
+            "oldValue": 5,
+            "newValue": 6,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.91,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "risk",
+          "agentName": "RiskController",
+          "arabicName": "مدير المخاطر الكمي الصارم",
+          "role": "التحكم بالرافعة ونسب التعرض ورأس المال",
+          "diagnosisPerspectiveAr": "الخسارة كانت محدودة ($0.15) بفضل الصرامة في تحديد الوقف، ولم تؤثر على رصيد المحفظة.",
+          "diagnosisPerspectiveEn": "Loss was safely capped at ($0.15) via strict pre-allocated stop boundaries.",
+          "rootCauseAr": "مستوى الوقف كان قريباً نسبياً من ضوضاء السوق اللحظية.",
+          "rootCauseEn": "Stop-loss barrier was placed slightly within micro-noise volatility bandwidth.",
+          "proposedParameterFixAr": "تعديل مضاعف وقف الخسارة بنسبة +10% لإعطاء مساحة كافية للارتداد دون زيادة المخاطرة المالية.",
+          "proposedParameterFixEn": "Widen ATR stop-loss buffer by +10% to prevent noise stop-outs while reducing lot size.",
+          "suggestedStrategyAdjustment": {
+            "param": "stopLossPctMultiplier",
+            "oldValue": 1.12,
+            "newValue": 1.21,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.96,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "wf",
+          "agentName": "WalkForwardGuard",
+          "arabicName": "حارس الاستقرار الزمني (Walk-Forward)",
+          "role": "التأكد من عدم تدهور الاستراتيجية عبر الزمن",
+          "diagnosisPerspectiveAr": "لوحظ انحراف طفيف في كفاءة المعاملات بين النافذة التاريخية والنافذة اللحظية.",
+          "diagnosisPerspectiveEn": "Minor parameter drift detected between lookback window and real-time execution window.",
+          "rootCauseAr": "تغير طفيف في متوسط فترة الارتداد الزمني للعملة.",
+          "rootCauseEn": "Slight drift in empirical half-life of price mean reversion.",
+          "proposedParameterFixAr": "تحديث فترة نصف العمر (Half-life) ديناميكياً كل 10 شموع بدلاً من قيمة ثابتة.",
+          "proposedParameterFixEn": "Dynamically recalculate empirical half-life every 10 bars.",
+          "suggestedStrategyAdjustment": {
+            "param": "cooldownMinutesAfterLoss",
+            "oldValue": 3,
+            "newValue": 4,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.93,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "oos",
+          "agentName": "OutOfSampleGuard",
+          "arabicName": "حارس العينة المجهولة (OOS 30%)",
+          "role": "فحص قوة التعميم على بيانات غير مرئية",
+          "diagnosisPerspectiveAr": "حدث تباين في حركة السعر في العينة غير المرئية أظهر ضرورة تشديد فلاتر الدخول.",
+          "diagnosisPerspectiveEn": "Out-of-sample test showed variance dispersion indicating tighter entry gating is needed.",
+          "rootCauseAr": "تغير طفيف في سرعة الارتداد في النطاق المجهول.",
+          "rootCauseEn": "Slight variance dispersion in unexplored price regime.",
+          "proposedParameterFixAr": "رفع نسبة العينات غير المرئية المطلوبة لتأكيد الدخول إلى 70%.",
+          "proposedParameterFixEn": "Increase required OOS validation threshold to 70%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.64,
+            "newValue": 0.65,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.92,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "stress",
+          "agentName": "StressTestGuard",
+          "arabicName": "حارس الاختبار الصادم (Stress Test 20%)",
+          "role": "حماية الرصيد من الصدمات والانهيارات السريعة",
+          "diagnosisPerspectiveAr": "هبوط مفاجئ سريع لامس حاجز الوقف، مما يثبت نجاح آلية الحماية في منع نزيف رأس المال.",
+          "diagnosisPerspectiveEn": "Rapid localized dip triggered safety stop, confirming risk ceiling successfully prevented catastrophic drawdown.",
+          "rootCauseAr": "شمعة بيع حادة وفورية في إطار 1 دقيقة.",
+          "rootCauseEn": "1-minute aggressive market selling spike tested baseline buffer.",
+          "proposedParameterFixAr": "إلزام تخفيض حجم الصفقة تلقائياً في الفترات التي تتبع تقلبات صادمة.",
+          "proposedParameterFixEn": "Enforce automatic lot scaling reduction immediately following high stress spikes.",
+          "suggestedStrategyAdjustment": {
+            "param": "dynamicLeverageCap",
+            "oldValue": 3,
+            "newValue": 2.8,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.94,
+          "voteOnFix": "ACCEPT"
+        }
+      ],
+      "round2Critiques": [
+        {
+          "fromAgentId": "risk",
+          "fromAgentName": "RiskController",
+          "toAgentId": "trading",
+          "critiqueAr": "تشخيص خبير الصفقات صحيح حول الدخول المبكر، والحل هو رفع عتبة Z-Score وليس زيادة الوقف لتفادي المخاطر.",
+          "critiqueEn": "Trading Engineer correctly identified premature entry. The optimal fix is tightening Z-Score entry threshold rather than widening stop risk.",
+          "counterProposalAr": "رفع شرط Z-Score إلى 2.26 لضمان جودة الإشارة بنسبة 99%.",
+          "counterProposalEn": "Adjust Z-Score entry requirement to 2.26 to ensure 99% signal purity.",
+          "agreementScore": 0.95
+        },
+        {
+          "fromAgentId": "quant",
+          "fromAgentName": "QuantMathematician",
+          "toAgentId": "algo",
+          "critiqueAr": "الانزلاق السعري الطفيف الذي ذكره خبير الخوارزميات يمكن تعويضه بوضع أمر Limit عند منتصف نطاق السيولة بدلاً من أمر Market.",
+          "critiqueEn": "The micro-slippage mentioned by Algo Engineer can be fully mitigated by routing pegged Limit orders at midpoint rather than taking immediate liquidity.",
+          "counterProposalAr": "اعتماد توجيه الأوامر بالـ Midpoint Limit Order في جميع أزواج الـ Testnet.",
+          "counterProposalEn": "Adopt Midpoint Pegged Limit Order routing across all simulated Testnet executions.",
+          "agreementScore": 0.92
+        },
+        {
+          "fromAgentId": "stress",
+          "fromAgentName": "StressTestGuard",
+          "toAgentId": "market",
+          "critiqueAr": "سحب السيولة كان خطيراً ويجب تفعيل الحظر الفوري إذا انخفض عمق الطلبات عن 50,000$.",
+          "critiqueEn": "Orderbook liquidity drainage was hazardous; we must trigger an instant circuit breaker if top-5 depth drops below $50k.",
+          "counterProposalAr": "إضافة فلتر حظر السيولة الضعيفة وربطه بنصاب إجماع الحراس.",
+          "counterProposalEn": "Inject minimum orderbook depth gating into guard quorum consensus.",
+          "agreementScore": 0.89
+        },
+        {
+          "fromAgentId": "wf",
+          "fromAgentName": "WalkForwardGuard",
+          "toAgentId": "oos",
+          "critiqueAr": "يجب ألا نغير أكثر من معاملين اثنين في الجولة الواحدة لتجنب الإفراط في التعديل (Over-optimization).",
+          "critiqueEn": "We must avoid mutating more than two hyperparameters per cycle to prevent over-adaptation.",
+          "counterProposalAr": "حصر التعديل في: عتبة الدخول Z-Score وفلتر التقلب فقط لضمان الثبات.",
+          "counterProposalEn": "Restrict policy mutations strictly to Z-Score Threshold and Volatility Sensitivity for stability.",
+          "agreementScore": 0.97
+        }
+      ],
+      "round3Trials": [
+        {
+          "trialNumber": 1,
+          "testName": "اختبار الصدمات المجهرية والانزلاق (Micro-Shock & Slippage Test)",
+          "candlesTested": 30,
+          "syntheticProfit": -0.07,
+          "syntheticWinRate": 74,
+          "maxDrawdownPct": 0.85,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 1: أظهر التعديل المقترح حماية بنسبة 92% ضد الانزلاق المجهري وخفض التكاليف التشغيلية.",
+          "validationLogEn": "✅ Trial 1: Mutated policy demonstrated 92% resistance to micro-slippage drag with lower fees."
+        },
+        {
+          "trialNumber": 2,
+          "testName": "اختبار مناعة الضوضاء والوقف التكيفي (Noise Immunity & Adaptive Trailing)",
+          "candlesTested": 45,
+          "syntheticProfit": 0.03,
+          "syntheticWinRate": 76.5,
+          "maxDrawdownPct": 0.62,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 2: أثبتت الاستراتيجية المعدلة قدرتها على تجنب ضرب الوقف الوهمي وحجز الأرباح بمرونة.",
+          "validationLogEn": "✅ Trial 2: Strategy mutation prevented false noise stop-outs while locking profits effectively."
+        },
+        {
+          "trialNumber": 3,
+          "testName": "اختبار التعميم في نافذة غير مرئية (Forward Out-of-Sample Consistency)",
+          "candlesTested": 60,
+          "syntheticProfit": 0.05,
+          "syntheticWinRate": 81,
+          "maxDrawdownPct": 0.48,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 3: حققت الاستراتيجية نسبة فوز متفوقة وثباتاً تاماً في نافذة البيانات غير المرئية.",
+          "validationLogEn": "✅ Trial 3: Mutated policy achieved superior win rate and solid expectancy across unseen data."
+        }
+      ],
+      "consensusVerdictAr": "🛡️ إجماع المجلس على تصحيح المعاملات وسد ثغرة الدخول بعد اجتياز 3 اختبارات تأكيدية.",
+      "consensusVerdictEn": "🛡️ Unanimous board consensus: Operational flaw corrected and policy calibrated following 3 validation trials.",
+      "adoptedStrategyPolicy": {
+        "version": 6,
+        "zScoreEntryThreshold": 2.2,
+        "stopLossPctMultiplier": 1.15,
+        "takeProfitPctMultiplier": 1,
+        "minGuardsQuorum": 5,
+        "minApprovalRatio": 0.65,
+        "volatilitySensitivity": 1,
+        "cooldownMinutesAfterLoss": 3,
+        "dynamicLeverageCap": 3,
+        "maxAllowedSlippageBps": 12,
+        "errorReductionScore": 80.3,
+        "totalDeliberationsHeld": 5,
+        "lastOptimizedAt": "2026-10-06T21:02:12.310Z"
+      },
+      "policyMutationSummaryAr": "تم علاج الخطأ التشغيلي بنجاح؛ رفع عتبة الدخول Z-Score إلى 2.2، وتشديد نصاب إجماع الحراس لمنع الصفقات المتسرعة (مؤشر التخلص من الأخطاء: 80.3%).",
+      "policyMutationSummaryEn": "Operational flaw eliminated: Z-Score entry threshold raised to 2.2 with reinforced guard quorum (Error Reduction Score: 80.3%).",
+      "errorReductionScore": 80.3
+    },
+    {
+      "id": "delib-1791320532074-vq2p9",
+      "tradeId": "q-train-1791320532074-nfxv",
+      "symbol": "AVAXUSDT",
+      "pnl": -0.19,
+      "pnlPct": -1.19,
+      "isWin": false,
+      "timestamp": "2026-10-06T21:02:12.074Z",
+      "round1Diagnoses": [
+        {
+          "agentId": "algo",
+          "agentName": "AlgoEngineer",
+          "arabicName": "خبير الخوارزميات والهندسة",
+          "role": "فحص سلامة التنفيذ والتعقيد الحسابي",
+          "diagnosisPerspectiveAr": "لوحظ تأخير طفيف في معالجة ميكرو-الشموع (38ms) مما أدى إلى انزلاق سعري بنسبة 0.04% أثر على دقة الوقف.",
+          "diagnosisPerspectiveEn": "Micro-burst execution latency (38ms) introduced a 0.04% entry drag that degraded stop-loss buffer.",
+          "rootCauseAr": "تزاحم في طابور معالجة أوامر الـ WebSocket اللحظية لحظة تقلب السعر.",
+          "rootCauseEn": "WebSocket buffer congestion during high micro-frequency tick burst.",
+          "proposedParameterFixAr": "خفض سقف مهلة الإرسال القصوى إلى 15ms وتفعيل التنفيذ المسبق للأوامر المحددة.",
+          "proposedParameterFixEn": "Tighten async execution timeout to 15ms with pre-staged limit order routing.",
+          "suggestedStrategyAdjustment": {
+            "param": "maxAllowedSlippageBps",
+            "oldValue": 12,
+            "newValue": 11,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.88,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "trading",
+          "agentName": "TradingEngineer",
+          "arabicName": "خبير الصفقات وتطابق الإشارات",
+          "role": "التحقق من تناغم إشارات الدخول والوقف",
+          "diagnosisPerspectiveAr": "الإشارة دخلت مبكراً قبل تأكيد شمعة الارتداد مما عرض الصفقة لكسر وهمي (False Breakout).",
+          "diagnosisPerspectiveEn": "Signal triggered premature entry prior to candle close validation, suffering a false breakout.",
+          "rootCauseAr": "عدم انتظار إغلاق شمعة الدقيقة لتأكيد كسر نطاق التماسك.",
+          "rootCauseEn": "Lack of 1-min candle close confirmation before executing directional order.",
+          "proposedParameterFixAr": "اشتراط تأكيد شمعة الارتداد السعرية قبل إرسال أمر السوق لتقليل الإشارات الخاطئة.",
+          "proposedParameterFixEn": "Require 1-bar price action confirmation before firing market entry.",
+          "suggestedStrategyAdjustment": {
+            "param": "zScoreEntryThreshold",
+            "oldValue": 2.12,
+            "newValue": 2.2,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.89,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "quant",
+          "agentName": "QuantMathematician",
+          "arabicName": "خبير الرياضيات والإحصاء",
+          "role": "فحص الالتواء، التفلطح، والتوزيع الإحصائي",
+          "diagnosisPerspectiveAr": "التفلطح المرتفع (Kurtosis > 5.2) تسبب في حدوث ذيل سميك (Fat Tail) لم يستوعبه النطاق القياسي.",
+          "diagnosisPerspectiveEn": "High kurtosis (Fat-tail > 5.2) caused outlier volatility outside standard Gaussian bell bounds.",
+          "rootCauseAr": "حدوث صدمة سعرية ناتجة عن سيولة مفاجئة كسرت التوزيع الطبيعي.",
+          "rootCauseEn": "Liquidity sweep triggered a localized non-Gaussian jump event.",
+          "proposedParameterFixAr": "توسيع نطاق حساب السيغما وتطبيق تدرج Student-t للتوزيعات ذات الذيول السميكة.",
+          "proposedParameterFixEn": "Apply Student-t distribution heavy-tail adjustment for Kurtosis > 4.5.",
+          "suggestedStrategyAdjustment": {
+            "param": "volatilitySensitivity",
+            "oldValue": 1,
+            "newValue": 1.05,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.95,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "scout",
+          "agentName": "CoinScout",
+          "arabicName": "كشاف الفرص وقوة العملة",
+          "role": "مقارنة الزخم النسبي مع أزواج السوق",
+          "diagnosisPerspectiveAr": "حدوث هبوط جماعي في أزواج السوق جر العملة للأسفل رغم إيجابية المؤشرات الفردية.",
+          "diagnosisPerspectiveEn": "Systemic market-wide market dump dragged the asset downwards despite local indicators.",
+          "rootCauseAr": "ارتباط لحظي مفاجئ مع هبوط البيتكوين اللحظي بنسبة بيتا مرتفعة.",
+          "rootCauseEn": "High instantaneous beta correlation with sudden BTC benchmark drop.",
+          "proposedParameterFixAr": "إضافة فلتر منع الدخول إذا كان مؤشر بيتا مع BTC يتجاوز 1.4 في اللحظة نفسها.",
+          "proposedParameterFixEn": "Impose a BTC Beta cap filter (<1.4) during high-velocity benchmark swings.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.63,
+            "newValue": 0.65,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.9,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "market",
+          "agentName": "MarketExpert",
+          "arabicName": "خبير السيولة وصناع السوق",
+          "role": "مراقبة عمق دفتر الأوامر واختلال السيولة",
+          "diagnosisPerspectiveAr": "سحب مفاجئ لطلبات الشراء في عمق الأوامر (Liquidity Evaporation) سهل كسر مستوى الدعم.",
+          "diagnosisPerspectiveEn": "Orderbook bid liquidity evaporated, allowing minimal sell pressure to breach support.",
+          "rootCauseAr": "فجوة في دفتر الأوامر سمحت بانزلاق السعر إلى الوقف المحدد.",
+          "rootCauseEn": "Thin bid book depth led to cascading fill slippage into stop loss level.",
+          "proposedParameterFixAr": "رفع الحد الأدنى لعمق دفتر الأوامر المطلوب قبل فتح الصفقة بنسبة 20%.",
+          "proposedParameterFixEn": "Increase minimum top-5 orderbook depth liquidity requirement by +20%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minGuardsQuorum",
+            "oldValue": 5,
+            "newValue": 6,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.91,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "risk",
+          "agentName": "RiskController",
+          "arabicName": "مدير المخاطر الكمي الصارم",
+          "role": "التحكم بالرافعة ونسب التعرض ورأس المال",
+          "diagnosisPerspectiveAr": "الخسارة كانت محدودة ($0.19) بفضل الصرامة في تحديد الوقف، ولم تؤثر على رصيد المحفظة.",
+          "diagnosisPerspectiveEn": "Loss was safely capped at ($0.19) via strict pre-allocated stop boundaries.",
+          "rootCauseAr": "مستوى الوقف كان قريباً نسبياً من ضوضاء السوق اللحظية.",
+          "rootCauseEn": "Stop-loss barrier was placed slightly within micro-noise volatility bandwidth.",
+          "proposedParameterFixAr": "تعديل مضاعف وقف الخسارة بنسبة +10% لإعطاء مساحة كافية للارتداد دون زيادة المخاطرة المالية.",
+          "proposedParameterFixEn": "Widen ATR stop-loss buffer by +10% to prevent noise stop-outs while reducing lot size.",
+          "suggestedStrategyAdjustment": {
+            "param": "stopLossPctMultiplier",
+            "oldValue": 1.09,
+            "newValue": 1.18,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.96,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "wf",
+          "agentName": "WalkForwardGuard",
+          "arabicName": "حارس الاستقرار الزمني (Walk-Forward)",
+          "role": "التأكد من عدم تدهور الاستراتيجية عبر الزمن",
+          "diagnosisPerspectiveAr": "لوحظ انحراف طفيف في كفاءة المعاملات بين النافذة التاريخية والنافذة اللحظية.",
+          "diagnosisPerspectiveEn": "Minor parameter drift detected between lookback window and real-time execution window.",
+          "rootCauseAr": "تغير طفيف في متوسط فترة الارتداد الزمني للعملة.",
+          "rootCauseEn": "Slight drift in empirical half-life of price mean reversion.",
+          "proposedParameterFixAr": "تحديث فترة نصف العمر (Half-life) ديناميكياً كل 10 شموع بدلاً من قيمة ثابتة.",
+          "proposedParameterFixEn": "Dynamically recalculate empirical half-life every 10 bars.",
+          "suggestedStrategyAdjustment": {
+            "param": "cooldownMinutesAfterLoss",
+            "oldValue": 3,
+            "newValue": 4,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.93,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "oos",
+          "agentName": "OutOfSampleGuard",
+          "arabicName": "حارس العينة المجهولة (OOS 30%)",
+          "role": "فحص قوة التعميم على بيانات غير مرئية",
+          "diagnosisPerspectiveAr": "حدث تباين في حركة السعر في العينة غير المرئية أظهر ضرورة تشديد فلاتر الدخول.",
+          "diagnosisPerspectiveEn": "Out-of-sample test showed variance dispersion indicating tighter entry gating is needed.",
+          "rootCauseAr": "تغير طفيف في سرعة الارتداد في النطاق المجهول.",
+          "rootCauseEn": "Slight variance dispersion in unexplored price regime.",
+          "proposedParameterFixAr": "رفع نسبة العينات غير المرئية المطلوبة لتأكيد الدخول إلى 70%.",
+          "proposedParameterFixEn": "Increase required OOS validation threshold to 70%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.63,
+            "newValue": 0.64,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.92,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "stress",
+          "agentName": "StressTestGuard",
+          "arabicName": "حارس الاختبار الصادم (Stress Test 20%)",
+          "role": "حماية الرصيد من الصدمات والانهيارات السريعة",
+          "diagnosisPerspectiveAr": "هبوط مفاجئ سريع لامس حاجز الوقف، مما يثبت نجاح آلية الحماية في منع نزيف رأس المال.",
+          "diagnosisPerspectiveEn": "Rapid localized dip triggered safety stop, confirming risk ceiling successfully prevented catastrophic drawdown.",
+          "rootCauseAr": "شمعة بيع حادة وفورية في إطار 1 دقيقة.",
+          "rootCauseEn": "1-minute aggressive market selling spike tested baseline buffer.",
+          "proposedParameterFixAr": "إلزام تخفيض حجم الصفقة تلقائياً في الفترات التي تتبع تقلبات صادمة.",
+          "proposedParameterFixEn": "Enforce automatic lot scaling reduction immediately following high stress spikes.",
+          "suggestedStrategyAdjustment": {
+            "param": "dynamicLeverageCap",
+            "oldValue": 3,
+            "newValue": 2.8,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.94,
+          "voteOnFix": "ACCEPT"
+        }
+      ],
+      "round2Critiques": [
+        {
+          "fromAgentId": "risk",
+          "fromAgentName": "RiskController",
+          "toAgentId": "trading",
+          "critiqueAr": "تشخيص خبير الصفقات صحيح حول الدخول المبكر، والحل هو رفع عتبة Z-Score وليس زيادة الوقف لتفادي المخاطر.",
+          "critiqueEn": "Trading Engineer correctly identified premature entry. The optimal fix is tightening Z-Score entry threshold rather than widening stop risk.",
+          "counterProposalAr": "رفع شرط Z-Score إلى 2.22 لضمان جودة الإشارة بنسبة 99%.",
+          "counterProposalEn": "Adjust Z-Score entry requirement to 2.22 to ensure 99% signal purity.",
+          "agreementScore": 0.95
+        },
+        {
+          "fromAgentId": "quant",
+          "fromAgentName": "QuantMathematician",
+          "toAgentId": "algo",
+          "critiqueAr": "الانزلاق السعري الطفيف الذي ذكره خبير الخوارزميات يمكن تعويضه بوضع أمر Limit عند منتصف نطاق السيولة بدلاً من أمر Market.",
+          "critiqueEn": "The micro-slippage mentioned by Algo Engineer can be fully mitigated by routing pegged Limit orders at midpoint rather than taking immediate liquidity.",
+          "counterProposalAr": "اعتماد توجيه الأوامر بالـ Midpoint Limit Order في جميع أزواج الـ Testnet.",
+          "counterProposalEn": "Adopt Midpoint Pegged Limit Order routing across all simulated Testnet executions.",
+          "agreementScore": 0.92
+        },
+        {
+          "fromAgentId": "stress",
+          "fromAgentName": "StressTestGuard",
+          "toAgentId": "market",
+          "critiqueAr": "سحب السيولة كان خطيراً ويجب تفعيل الحظر الفوري إذا انخفض عمق الطلبات عن 50,000$.",
+          "critiqueEn": "Orderbook liquidity drainage was hazardous; we must trigger an instant circuit breaker if top-5 depth drops below $50k.",
+          "counterProposalAr": "إضافة فلتر حظر السيولة الضعيفة وربطه بنصاب إجماع الحراس.",
+          "counterProposalEn": "Inject minimum orderbook depth gating into guard quorum consensus.",
+          "agreementScore": 0.89
+        },
+        {
+          "fromAgentId": "wf",
+          "fromAgentName": "WalkForwardGuard",
+          "toAgentId": "oos",
+          "critiqueAr": "يجب ألا نغير أكثر من معاملين اثنين في الجولة الواحدة لتجنب الإفراط في التعديل (Over-optimization).",
+          "critiqueEn": "We must avoid mutating more than two hyperparameters per cycle to prevent over-adaptation.",
+          "counterProposalAr": "حصر التعديل في: عتبة الدخول Z-Score وفلتر التقلب فقط لضمان الثبات.",
+          "counterProposalEn": "Restrict policy mutations strictly to Z-Score Threshold and Volatility Sensitivity for stability.",
+          "agreementScore": 0.97
+        }
+      ],
+      "round3Trials": [
+        {
+          "trialNumber": 1,
+          "testName": "اختبار الصدمات المجهرية والانزلاق (Micro-Shock & Slippage Test)",
+          "candlesTested": 30,
+          "syntheticProfit": -0.09,
+          "syntheticWinRate": 74,
+          "maxDrawdownPct": 0.85,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 1: أظهر التعديل المقترح حماية بنسبة 92% ضد الانزلاق المجهري وخفض التكاليف التشغيلية.",
+          "validationLogEn": "✅ Trial 1: Mutated policy demonstrated 92% resistance to micro-slippage drag with lower fees."
+        },
+        {
+          "trialNumber": 2,
+          "testName": "اختبار مناعة الضوضاء والوقف التكيفي (Noise Immunity & Adaptive Trailing)",
+          "candlesTested": 45,
+          "syntheticProfit": 0.04,
+          "syntheticWinRate": 76.5,
+          "maxDrawdownPct": 0.62,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 2: أثبتت الاستراتيجية المعدلة قدرتها على تجنب ضرب الوقف الوهمي وحجز الأرباح بمرونة.",
+          "validationLogEn": "✅ Trial 2: Strategy mutation prevented false noise stop-outs while locking profits effectively."
+        },
+        {
+          "trialNumber": 3,
+          "testName": "اختبار التعميم في نافذة غير مرئية (Forward Out-of-Sample Consistency)",
+          "candlesTested": 60,
+          "syntheticProfit": 0.07,
+          "syntheticWinRate": 81,
+          "maxDrawdownPct": 0.48,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 3: حققت الاستراتيجية نسبة فوز متفوقة وثباتاً تاماً في نافذة البيانات غير المرئية.",
+          "validationLogEn": "✅ Trial 3: Mutated policy achieved superior win rate and solid expectancy across unseen data."
+        }
+      ],
+      "consensusVerdictAr": "🛡️ إجماع المجلس على تصحيح المعاملات وسد ثغرة الدخول بعد اجتياز 3 اختبارات تأكيدية.",
+      "consensusVerdictEn": "🛡️ Unanimous board consensus: Operational flaw corrected and policy calibrated following 3 validation trials.",
+      "adoptedStrategyPolicy": {
+        "version": 5,
+        "zScoreEntryThreshold": 2.16,
+        "stopLossPctMultiplier": 1.12,
+        "takeProfitPctMultiplier": 1,
+        "minGuardsQuorum": 5,
+        "minApprovalRatio": 0.64,
+        "volatilitySensitivity": 1,
+        "cooldownMinutesAfterLoss": 3,
+        "dynamicLeverageCap": 3,
+        "maxAllowedSlippageBps": 12,
+        "errorReductionScore": 79.9,
+        "totalDeliberationsHeld": 4,
+        "lastOptimizedAt": "2026-10-06T21:02:12.074Z"
+      },
+      "policyMutationSummaryAr": "تم علاج الخطأ التشغيلي بنجاح؛ رفع عتبة الدخول Z-Score إلى 2.16، وتشديد نصاب إجماع الحراس لمنع الصفقات المتسرعة (مؤشر التخلص من الأخطاء: 79.9%).",
+      "policyMutationSummaryEn": "Operational flaw eliminated: Z-Score entry threshold raised to 2.16 with reinforced guard quorum (Error Reduction Score: 79.9%).",
+      "errorReductionScore": 79.9
+    },
+    {
+      "id": "delib-1791320531845-ziz1x",
+      "tradeId": "q-train-1791320531845-z0lk",
+      "symbol": "ETHUSDT",
+      "pnl": -0.07,
+      "pnlPct": -0.44,
+      "isWin": false,
+      "timestamp": "2026-10-06T21:02:11.845Z",
+      "round1Diagnoses": [
+        {
+          "agentId": "algo",
+          "agentName": "AlgoEngineer",
+          "arabicName": "خبير الخوارزميات والهندسة",
+          "role": "فحص سلامة التنفيذ والتعقيد الحسابي",
+          "diagnosisPerspectiveAr": "لوحظ تأخير طفيف في معالجة ميكرو-الشموع (38ms) مما أدى إلى انزلاق سعري بنسبة 0.04% أثر على دقة الوقف.",
+          "diagnosisPerspectiveEn": "Micro-burst execution latency (38ms) introduced a 0.04% entry drag that degraded stop-loss buffer.",
+          "rootCauseAr": "تزاحم في طابور معالجة أوامر الـ WebSocket اللحظية لحظة تقلب السعر.",
+          "rootCauseEn": "WebSocket buffer congestion during high micro-frequency tick burst.",
+          "proposedParameterFixAr": "خفض سقف مهلة الإرسال القصوى إلى 15ms وتفعيل التنفيذ المسبق للأوامر المحددة.",
+          "proposedParameterFixEn": "Tighten async execution timeout to 15ms with pre-staged limit order routing.",
+          "suggestedStrategyAdjustment": {
+            "param": "maxAllowedSlippageBps",
+            "oldValue": 12,
+            "newValue": 11,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.88,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "trading",
+          "agentName": "TradingEngineer",
+          "arabicName": "خبير الصفقات وتطابق الإشارات",
+          "role": "التحقق من تناغم إشارات الدخول والوقف",
+          "diagnosisPerspectiveAr": "الإشارة دخلت مبكراً قبل تأكيد شمعة الارتداد مما عرض الصفقة لكسر وهمي (False Breakout).",
+          "diagnosisPerspectiveEn": "Signal triggered premature entry prior to candle close validation, suffering a false breakout.",
+          "rootCauseAr": "عدم انتظار إغلاق شمعة الدقيقة لتأكيد كسر نطاق التماسك.",
+          "rootCauseEn": "Lack of 1-min candle close confirmation before executing directional order.",
+          "proposedParameterFixAr": "اشتراط تأكيد شمعة الارتداد السعرية قبل إرسال أمر السوق لتقليل الإشارات الخاطئة.",
+          "proposedParameterFixEn": "Require 1-bar price action confirmation before firing market entry.",
+          "suggestedStrategyAdjustment": {
+            "param": "zScoreEntryThreshold",
+            "oldValue": 2.08,
+            "newValue": 2.16,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.89,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "quant",
+          "agentName": "QuantMathematician",
+          "arabicName": "خبير الرياضيات والإحصاء",
+          "role": "فحص الالتواء، التفلطح، والتوزيع الإحصائي",
+          "diagnosisPerspectiveAr": "التفلطح المرتفع (Kurtosis > 5.2) تسبب في حدوث ذيل سميك (Fat Tail) لم يستوعبه النطاق القياسي.",
+          "diagnosisPerspectiveEn": "High kurtosis (Fat-tail > 5.2) caused outlier volatility outside standard Gaussian bell bounds.",
+          "rootCauseAr": "حدوث صدمة سعرية ناتجة عن سيولة مفاجئة كسرت التوزيع الطبيعي.",
+          "rootCauseEn": "Liquidity sweep triggered a localized non-Gaussian jump event.",
+          "proposedParameterFixAr": "توسيع نطاق حساب السيغما وتطبيق تدرج Student-t للتوزيعات ذات الذيول السميكة.",
+          "proposedParameterFixEn": "Apply Student-t distribution heavy-tail adjustment for Kurtosis > 4.5.",
+          "suggestedStrategyAdjustment": {
+            "param": "volatilitySensitivity",
+            "oldValue": 1,
+            "newValue": 1.05,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.95,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "scout",
+          "agentName": "CoinScout",
+          "arabicName": "كشاف الفرص وقوة العملة",
+          "role": "مقارنة الزخم النسبي مع أزواج السوق",
+          "diagnosisPerspectiveAr": "حدوث هبوط جماعي في أزواج السوق جر العملة للأسفل رغم إيجابية المؤشرات الفردية.",
+          "diagnosisPerspectiveEn": "Systemic market-wide market dump dragged the asset downwards despite local indicators.",
+          "rootCauseAr": "ارتباط لحظي مفاجئ مع هبوط البيتكوين اللحظي بنسبة بيتا مرتفعة.",
+          "rootCauseEn": "High instantaneous beta correlation with sudden BTC benchmark drop.",
+          "proposedParameterFixAr": "إضافة فلتر منع الدخول إذا كان مؤشر بيتا مع BTC يتجاوز 1.4 في اللحظة نفسها.",
+          "proposedParameterFixEn": "Impose a BTC Beta cap filter (<1.4) during high-velocity benchmark swings.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.62,
+            "newValue": 0.64,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.9,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "market",
+          "agentName": "MarketExpert",
+          "arabicName": "خبير السيولة وصناع السوق",
+          "role": "مراقبة عمق دفتر الأوامر واختلال السيولة",
+          "diagnosisPerspectiveAr": "سحب مفاجئ لطلبات الشراء في عمق الأوامر (Liquidity Evaporation) سهل كسر مستوى الدعم.",
+          "diagnosisPerspectiveEn": "Orderbook bid liquidity evaporated, allowing minimal sell pressure to breach support.",
+          "rootCauseAr": "فجوة في دفتر الأوامر سمحت بانزلاق السعر إلى الوقف المحدد.",
+          "rootCauseEn": "Thin bid book depth led to cascading fill slippage into stop loss level.",
+          "proposedParameterFixAr": "رفع الحد الأدنى لعمق دفتر الأوامر المطلوب قبل فتح الصفقة بنسبة 20%.",
+          "proposedParameterFixEn": "Increase minimum top-5 orderbook depth liquidity requirement by +20%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minGuardsQuorum",
+            "oldValue": 5,
+            "newValue": 6,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.91,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "risk",
+          "agentName": "RiskController",
+          "arabicName": "مدير المخاطر الكمي الصارم",
+          "role": "التحكم بالرافعة ونسب التعرض ورأس المال",
+          "diagnosisPerspectiveAr": "الخسارة كانت محدودة ($0.07) بفضل الصرامة في تحديد الوقف، ولم تؤثر على رصيد المحفظة.",
+          "diagnosisPerspectiveEn": "Loss was safely capped at ($0.07) via strict pre-allocated stop boundaries.",
+          "rootCauseAr": "مستوى الوقف كان قريباً نسبياً من ضوضاء السوق اللحظية.",
+          "rootCauseEn": "Stop-loss barrier was placed slightly within micro-noise volatility bandwidth.",
+          "proposedParameterFixAr": "تعديل مضاعف وقف الخسارة بنسبة +10% لإعطاء مساحة كافية للارتداد دون زيادة المخاطرة المالية.",
+          "proposedParameterFixEn": "Widen ATR stop-loss buffer by +10% to prevent noise stop-outs while reducing lot size.",
+          "suggestedStrategyAdjustment": {
+            "param": "stopLossPctMultiplier",
+            "oldValue": 1.06,
+            "newValue": 1.14,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.96,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "wf",
+          "agentName": "WalkForwardGuard",
+          "arabicName": "حارس الاستقرار الزمني (Walk-Forward)",
+          "role": "التأكد من عدم تدهور الاستراتيجية عبر الزمن",
+          "diagnosisPerspectiveAr": "لوحظ انحراف طفيف في كفاءة المعاملات بين النافذة التاريخية والنافذة اللحظية.",
+          "diagnosisPerspectiveEn": "Minor parameter drift detected between lookback window and real-time execution window.",
+          "rootCauseAr": "تغير طفيف في متوسط فترة الارتداد الزمني للعملة.",
+          "rootCauseEn": "Slight drift in empirical half-life of price mean reversion.",
+          "proposedParameterFixAr": "تحديث فترة نصف العمر (Half-life) ديناميكياً كل 10 شموع بدلاً من قيمة ثابتة.",
+          "proposedParameterFixEn": "Dynamically recalculate empirical half-life every 10 bars.",
+          "suggestedStrategyAdjustment": {
+            "param": "cooldownMinutesAfterLoss",
+            "oldValue": 3,
+            "newValue": 4,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.93,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "oos",
+          "agentName": "OutOfSampleGuard",
+          "arabicName": "حارس العينة المجهولة (OOS 30%)",
+          "role": "فحص قوة التعميم على بيانات غير مرئية",
+          "diagnosisPerspectiveAr": "حدث تباين في حركة السعر في العينة غير المرئية أظهر ضرورة تشديد فلاتر الدخول.",
+          "diagnosisPerspectiveEn": "Out-of-sample test showed variance dispersion indicating tighter entry gating is needed.",
+          "rootCauseAr": "تغير طفيف في سرعة الارتداد في النطاق المجهول.",
+          "rootCauseEn": "Slight variance dispersion in unexplored price regime.",
+          "proposedParameterFixAr": "رفع نسبة العينات غير المرئية المطلوبة لتأكيد الدخول إلى 70%.",
+          "proposedParameterFixEn": "Increase required OOS validation threshold to 70%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.62,
+            "newValue": 0.63,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.92,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "stress",
+          "agentName": "StressTestGuard",
+          "arabicName": "حارس الاختبار الصادم (Stress Test 20%)",
+          "role": "حماية الرصيد من الصدمات والانهيارات السريعة",
+          "diagnosisPerspectiveAr": "هبوط مفاجئ سريع لامس حاجز الوقف، مما يثبت نجاح آلية الحماية في منع نزيف رأس المال.",
+          "diagnosisPerspectiveEn": "Rapid localized dip triggered safety stop, confirming risk ceiling successfully prevented catastrophic drawdown.",
+          "rootCauseAr": "شمعة بيع حادة وفورية في إطار 1 دقيقة.",
+          "rootCauseEn": "1-minute aggressive market selling spike tested baseline buffer.",
+          "proposedParameterFixAr": "إلزام تخفيض حجم الصفقة تلقائياً في الفترات التي تتبع تقلبات صادمة.",
+          "proposedParameterFixEn": "Enforce automatic lot scaling reduction immediately following high stress spikes.",
+          "suggestedStrategyAdjustment": {
+            "param": "dynamicLeverageCap",
+            "oldValue": 3,
+            "newValue": 2.8,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.94,
+          "voteOnFix": "ACCEPT"
+        }
+      ],
+      "round2Critiques": [
+        {
+          "fromAgentId": "risk",
+          "fromAgentName": "RiskController",
+          "toAgentId": "trading",
+          "critiqueAr": "تشخيص خبير الصفقات صحيح حول الدخول المبكر، والحل هو رفع عتبة Z-Score وليس زيادة الوقف لتفادي المخاطر.",
+          "critiqueEn": "Trading Engineer correctly identified premature entry. The optimal fix is tightening Z-Score entry threshold rather than widening stop risk.",
+          "counterProposalAr": "رفع شرط Z-Score إلى 2.18 لضمان جودة الإشارة بنسبة 99%.",
+          "counterProposalEn": "Adjust Z-Score entry requirement to 2.18 to ensure 99% signal purity.",
+          "agreementScore": 0.95
+        },
+        {
+          "fromAgentId": "quant",
+          "fromAgentName": "QuantMathematician",
+          "toAgentId": "algo",
+          "critiqueAr": "الانزلاق السعري الطفيف الذي ذكره خبير الخوارزميات يمكن تعويضه بوضع أمر Limit عند منتصف نطاق السيولة بدلاً من أمر Market.",
+          "critiqueEn": "The micro-slippage mentioned by Algo Engineer can be fully mitigated by routing pegged Limit orders at midpoint rather than taking immediate liquidity.",
+          "counterProposalAr": "اعتماد توجيه الأوامر بالـ Midpoint Limit Order في جميع أزواج الـ Testnet.",
+          "counterProposalEn": "Adopt Midpoint Pegged Limit Order routing across all simulated Testnet executions.",
+          "agreementScore": 0.92
+        },
+        {
+          "fromAgentId": "stress",
+          "fromAgentName": "StressTestGuard",
+          "toAgentId": "market",
+          "critiqueAr": "سحب السيولة كان خطيراً ويجب تفعيل الحظر الفوري إذا انخفض عمق الطلبات عن 50,000$.",
+          "critiqueEn": "Orderbook liquidity drainage was hazardous; we must trigger an instant circuit breaker if top-5 depth drops below $50k.",
+          "counterProposalAr": "إضافة فلتر حظر السيولة الضعيفة وربطه بنصاب إجماع الحراس.",
+          "counterProposalEn": "Inject minimum orderbook depth gating into guard quorum consensus.",
+          "agreementScore": 0.89
+        },
+        {
+          "fromAgentId": "wf",
+          "fromAgentName": "WalkForwardGuard",
+          "toAgentId": "oos",
+          "critiqueAr": "يجب ألا نغير أكثر من معاملين اثنين في الجولة الواحدة لتجنب الإفراط في التعديل (Over-optimization).",
+          "critiqueEn": "We must avoid mutating more than two hyperparameters per cycle to prevent over-adaptation.",
+          "counterProposalAr": "حصر التعديل في: عتبة الدخول Z-Score وفلتر التقلب فقط لضمان الثبات.",
+          "counterProposalEn": "Restrict policy mutations strictly to Z-Score Threshold and Volatility Sensitivity for stability.",
+          "agreementScore": 0.97
+        }
+      ],
+      "round3Trials": [
+        {
+          "trialNumber": 1,
+          "testName": "اختبار الصدمات المجهرية والانزلاق (Micro-Shock & Slippage Test)",
+          "candlesTested": 30,
+          "syntheticProfit": -0.03,
+          "syntheticWinRate": 74,
+          "maxDrawdownPct": 0.85,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 1: أظهر التعديل المقترح حماية بنسبة 92% ضد الانزلاق المجهري وخفض التكاليف التشغيلية.",
+          "validationLogEn": "✅ Trial 1: Mutated policy demonstrated 92% resistance to micro-slippage drag with lower fees."
+        },
+        {
+          "trialNumber": 2,
+          "testName": "اختبار مناعة الضوضاء والوقف التكيفي (Noise Immunity & Adaptive Trailing)",
+          "candlesTested": 45,
+          "syntheticProfit": 0.01,
+          "syntheticWinRate": 76.5,
+          "maxDrawdownPct": 0.62,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 2: أثبتت الاستراتيجية المعدلة قدرتها على تجنب ضرب الوقف الوهمي وحجز الأرباح بمرونة.",
+          "validationLogEn": "✅ Trial 2: Strategy mutation prevented false noise stop-outs while locking profits effectively."
+        },
+        {
+          "trialNumber": 3,
+          "testName": "اختبار التعميم في نافذة غير مرئية (Forward Out-of-Sample Consistency)",
+          "candlesTested": 60,
+          "syntheticProfit": 0.02,
+          "syntheticWinRate": 81,
+          "maxDrawdownPct": 0.48,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 3: حققت الاستراتيجية نسبة فوز متفوقة وثباتاً تاماً في نافذة البيانات غير المرئية.",
+          "validationLogEn": "✅ Trial 3: Mutated policy achieved superior win rate and solid expectancy across unseen data."
+        }
+      ],
+      "consensusVerdictAr": "🛡️ إجماع المجلس على تصحيح المعاملات وسد ثغرة الدخول بعد اجتياز 3 اختبارات تأكيدية.",
+      "consensusVerdictEn": "🛡️ Unanimous board consensus: Operational flaw corrected and policy calibrated following 3 validation trials.",
+      "adoptedStrategyPolicy": {
+        "version": 4,
+        "zScoreEntryThreshold": 2.12,
+        "stopLossPctMultiplier": 1.09,
+        "takeProfitPctMultiplier": 1,
+        "minGuardsQuorum": 5,
+        "minApprovalRatio": 0.63,
+        "volatilitySensitivity": 1,
+        "cooldownMinutesAfterLoss": 3,
+        "dynamicLeverageCap": 3,
+        "maxAllowedSlippageBps": 12,
+        "errorReductionScore": 79.5,
+        "totalDeliberationsHeld": 3,
+        "lastOptimizedAt": "2026-10-06T21:02:11.845Z"
+      },
+      "policyMutationSummaryAr": "تم علاج الخطأ التشغيلي بنجاح؛ رفع عتبة الدخول Z-Score إلى 2.12، وتشديد نصاب إجماع الحراس لمنع الصفقات المتسرعة (مؤشر التخلص من الأخطاء: 79.5%).",
+      "policyMutationSummaryEn": "Operational flaw eliminated: Z-Score entry threshold raised to 2.12 with reinforced guard quorum (Error Reduction Score: 79.5%).",
+      "errorReductionScore": 79.5
+    },
+    {
+      "id": "delib-1791320531620-ew62z",
+      "tradeId": "q-train-1791320531620-sook",
+      "symbol": "NEARUSDT",
+      "pnl": -0.12,
+      "pnlPct": -0.75,
+      "isWin": false,
+      "timestamp": "2026-10-06T21:02:11.620Z",
+      "round1Diagnoses": [
+        {
+          "agentId": "algo",
+          "agentName": "AlgoEngineer",
+          "arabicName": "خبير الخوارزميات والهندسة",
+          "role": "فحص سلامة التنفيذ والتعقيد الحسابي",
+          "diagnosisPerspectiveAr": "لوحظ تأخير طفيف في معالجة ميكرو-الشموع (38ms) مما أدى إلى انزلاق سعري بنسبة 0.04% أثر على دقة الوقف.",
+          "diagnosisPerspectiveEn": "Micro-burst execution latency (38ms) introduced a 0.04% entry drag that degraded stop-loss buffer.",
+          "rootCauseAr": "تزاحم في طابور معالجة أوامر الـ WebSocket اللحظية لحظة تقلب السعر.",
+          "rootCauseEn": "WebSocket buffer congestion during high micro-frequency tick burst.",
+          "proposedParameterFixAr": "خفض سقف مهلة الإرسال القصوى إلى 15ms وتفعيل التنفيذ المسبق للأوامر المحددة.",
+          "proposedParameterFixEn": "Tighten async execution timeout to 15ms with pre-staged limit order routing.",
+          "suggestedStrategyAdjustment": {
+            "param": "maxAllowedSlippageBps",
+            "oldValue": 12,
+            "newValue": 11,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.88,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "trading",
+          "agentName": "TradingEngineer",
+          "arabicName": "خبير الصفقات وتطابق الإشارات",
+          "role": "التحقق من تناغم إشارات الدخول والوقف",
+          "diagnosisPerspectiveAr": "الإشارة دخلت مبكراً قبل تأكيد شمعة الارتداد مما عرض الصفقة لكسر وهمي (False Breakout).",
+          "diagnosisPerspectiveEn": "Signal triggered premature entry prior to candle close validation, suffering a false breakout.",
+          "rootCauseAr": "عدم انتظار إغلاق شمعة الدقيقة لتأكيد كسر نطاق التماسك.",
+          "rootCauseEn": "Lack of 1-min candle close confirmation before executing directional order.",
+          "proposedParameterFixAr": "اشتراط تأكيد شمعة الارتداد السعرية قبل إرسال أمر السوق لتقليل الإشارات الخاطئة.",
+          "proposedParameterFixEn": "Require 1-bar price action confirmation before firing market entry.",
+          "suggestedStrategyAdjustment": {
+            "param": "zScoreEntryThreshold",
+            "oldValue": 2.04,
+            "newValue": 2.12,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.89,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "quant",
+          "agentName": "QuantMathematician",
+          "arabicName": "خبير الرياضيات والإحصاء",
+          "role": "فحص الالتواء، التفلطح، والتوزيع الإحصائي",
+          "diagnosisPerspectiveAr": "التفلطح المرتفع (Kurtosis > 5.2) تسبب في حدوث ذيل سميك (Fat Tail) لم يستوعبه النطاق القياسي.",
+          "diagnosisPerspectiveEn": "High kurtosis (Fat-tail > 5.2) caused outlier volatility outside standard Gaussian bell bounds.",
+          "rootCauseAr": "حدوث صدمة سعرية ناتجة عن سيولة مفاجئة كسرت التوزيع الطبيعي.",
+          "rootCauseEn": "Liquidity sweep triggered a localized non-Gaussian jump event.",
+          "proposedParameterFixAr": "توسيع نطاق حساب السيغما وتطبيق تدرج Student-t للتوزيعات ذات الذيول السميكة.",
+          "proposedParameterFixEn": "Apply Student-t distribution heavy-tail adjustment for Kurtosis > 4.5.",
+          "suggestedStrategyAdjustment": {
+            "param": "volatilitySensitivity",
+            "oldValue": 1,
+            "newValue": 1.05,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.95,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "scout",
+          "agentName": "CoinScout",
+          "arabicName": "كشاف الفرص وقوة العملة",
+          "role": "مقارنة الزخم النسبي مع أزواج السوق",
+          "diagnosisPerspectiveAr": "حدوث هبوط جماعي في أزواج السوق جر العملة للأسفل رغم إيجابية المؤشرات الفردية.",
+          "diagnosisPerspectiveEn": "Systemic market-wide market dump dragged the asset downwards despite local indicators.",
+          "rootCauseAr": "ارتباط لحظي مفاجئ مع هبوط البيتكوين اللحظي بنسبة بيتا مرتفعة.",
+          "rootCauseEn": "High instantaneous beta correlation with sudden BTC benchmark drop.",
+          "proposedParameterFixAr": "إضافة فلتر منع الدخول إذا كان مؤشر بيتا مع BTC يتجاوز 1.4 في اللحظة نفسها.",
+          "proposedParameterFixEn": "Impose a BTC Beta cap filter (<1.4) during high-velocity benchmark swings.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.61,
+            "newValue": 0.63,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.9,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "market",
+          "agentName": "MarketExpert",
+          "arabicName": "خبير السيولة وصناع السوق",
+          "role": "مراقبة عمق دفتر الأوامر واختلال السيولة",
+          "diagnosisPerspectiveAr": "سحب مفاجئ لطلبات الشراء في عمق الأوامر (Liquidity Evaporation) سهل كسر مستوى الدعم.",
+          "diagnosisPerspectiveEn": "Orderbook bid liquidity evaporated, allowing minimal sell pressure to breach support.",
+          "rootCauseAr": "فجوة في دفتر الأوامر سمحت بانزلاق السعر إلى الوقف المحدد.",
+          "rootCauseEn": "Thin bid book depth led to cascading fill slippage into stop loss level.",
+          "proposedParameterFixAr": "رفع الحد الأدنى لعمق دفتر الأوامر المطلوب قبل فتح الصفقة بنسبة 20%.",
+          "proposedParameterFixEn": "Increase minimum top-5 orderbook depth liquidity requirement by +20%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minGuardsQuorum",
+            "oldValue": 5,
+            "newValue": 6,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.91,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "risk",
+          "agentName": "RiskController",
+          "arabicName": "مدير المخاطر الكمي الصارم",
+          "role": "التحكم بالرافعة ونسب التعرض ورأس المال",
+          "diagnosisPerspectiveAr": "الخسارة كانت محدودة ($0.12) بفضل الصرامة في تحديد الوقف، ولم تؤثر على رصيد المحفظة.",
+          "diagnosisPerspectiveEn": "Loss was safely capped at ($0.12) via strict pre-allocated stop boundaries.",
+          "rootCauseAr": "مستوى الوقف كان قريباً نسبياً من ضوضاء السوق اللحظية.",
+          "rootCauseEn": "Stop-loss barrier was placed slightly within micro-noise volatility bandwidth.",
+          "proposedParameterFixAr": "تعديل مضاعف وقف الخسارة بنسبة +10% لإعطاء مساحة كافية للارتداد دون زيادة المخاطرة المالية.",
+          "proposedParameterFixEn": "Widen ATR stop-loss buffer by +10% to prevent noise stop-outs while reducing lot size.",
+          "suggestedStrategyAdjustment": {
+            "param": "stopLossPctMultiplier",
+            "oldValue": 1.03,
+            "newValue": 1.11,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.96,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "wf",
+          "agentName": "WalkForwardGuard",
+          "arabicName": "حارس الاستقرار الزمني (Walk-Forward)",
+          "role": "التأكد من عدم تدهور الاستراتيجية عبر الزمن",
+          "diagnosisPerspectiveAr": "لوحظ انحراف طفيف في كفاءة المعاملات بين النافذة التاريخية والنافذة اللحظية.",
+          "diagnosisPerspectiveEn": "Minor parameter drift detected between lookback window and real-time execution window.",
+          "rootCauseAr": "تغير طفيف في متوسط فترة الارتداد الزمني للعملة.",
+          "rootCauseEn": "Slight drift in empirical half-life of price mean reversion.",
+          "proposedParameterFixAr": "تحديث فترة نصف العمر (Half-life) ديناميكياً كل 10 شموع بدلاً من قيمة ثابتة.",
+          "proposedParameterFixEn": "Dynamically recalculate empirical half-life every 10 bars.",
+          "suggestedStrategyAdjustment": {
+            "param": "cooldownMinutesAfterLoss",
+            "oldValue": 3,
+            "newValue": 4,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.93,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "oos",
+          "agentName": "OutOfSampleGuard",
+          "arabicName": "حارس العينة المجهولة (OOS 30%)",
+          "role": "فحص قوة التعميم على بيانات غير مرئية",
+          "diagnosisPerspectiveAr": "حدث تباين في حركة السعر في العينة غير المرئية أظهر ضرورة تشديد فلاتر الدخول.",
+          "diagnosisPerspectiveEn": "Out-of-sample test showed variance dispersion indicating tighter entry gating is needed.",
+          "rootCauseAr": "تغير طفيف في سرعة الارتداد في النطاق المجهول.",
+          "rootCauseEn": "Slight variance dispersion in unexplored price regime.",
+          "proposedParameterFixAr": "رفع نسبة العينات غير المرئية المطلوبة لتأكيد الدخول إلى 70%.",
+          "proposedParameterFixEn": "Increase required OOS validation threshold to 70%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.61,
+            "newValue": 0.62,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.92,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "stress",
+          "agentName": "StressTestGuard",
+          "arabicName": "حارس الاختبار الصادم (Stress Test 20%)",
+          "role": "حماية الرصيد من الصدمات والانهيارات السريعة",
+          "diagnosisPerspectiveAr": "هبوط مفاجئ سريع لامس حاجز الوقف، مما يثبت نجاح آلية الحماية في منع نزيف رأس المال.",
+          "diagnosisPerspectiveEn": "Rapid localized dip triggered safety stop, confirming risk ceiling successfully prevented catastrophic drawdown.",
+          "rootCauseAr": "شمعة بيع حادة وفورية في إطار 1 دقيقة.",
+          "rootCauseEn": "1-minute aggressive market selling spike tested baseline buffer.",
+          "proposedParameterFixAr": "إلزام تخفيض حجم الصفقة تلقائياً في الفترات التي تتبع تقلبات صادمة.",
+          "proposedParameterFixEn": "Enforce automatic lot scaling reduction immediately following high stress spikes.",
+          "suggestedStrategyAdjustment": {
+            "param": "dynamicLeverageCap",
+            "oldValue": 3,
+            "newValue": 2.8,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.94,
+          "voteOnFix": "ACCEPT"
+        }
+      ],
+      "round2Critiques": [
+        {
+          "fromAgentId": "risk",
+          "fromAgentName": "RiskController",
+          "toAgentId": "trading",
+          "critiqueAr": "تشخيص خبير الصفقات صحيح حول الدخول المبكر، والحل هو رفع عتبة Z-Score وليس زيادة الوقف لتفادي المخاطر.",
+          "critiqueEn": "Trading Engineer correctly identified premature entry. The optimal fix is tightening Z-Score entry threshold rather than widening stop risk.",
+          "counterProposalAr": "رفع شرط Z-Score إلى 2.14 لضمان جودة الإشارة بنسبة 99%.",
+          "counterProposalEn": "Adjust Z-Score entry requirement to 2.14 to ensure 99% signal purity.",
+          "agreementScore": 0.95
+        },
+        {
+          "fromAgentId": "quant",
+          "fromAgentName": "QuantMathematician",
+          "toAgentId": "algo",
+          "critiqueAr": "الانزلاق السعري الطفيف الذي ذكره خبير الخوارزميات يمكن تعويضه بوضع أمر Limit عند منتصف نطاق السيولة بدلاً من أمر Market.",
+          "critiqueEn": "The micro-slippage mentioned by Algo Engineer can be fully mitigated by routing pegged Limit orders at midpoint rather than taking immediate liquidity.",
+          "counterProposalAr": "اعتماد توجيه الأوامر بالـ Midpoint Limit Order في جميع أزواج الـ Testnet.",
+          "counterProposalEn": "Adopt Midpoint Pegged Limit Order routing across all simulated Testnet executions.",
+          "agreementScore": 0.92
+        },
+        {
+          "fromAgentId": "stress",
+          "fromAgentName": "StressTestGuard",
+          "toAgentId": "market",
+          "critiqueAr": "سحب السيولة كان خطيراً ويجب تفعيل الحظر الفوري إذا انخفض عمق الطلبات عن 50,000$.",
+          "critiqueEn": "Orderbook liquidity drainage was hazardous; we must trigger an instant circuit breaker if top-5 depth drops below $50k.",
+          "counterProposalAr": "إضافة فلتر حظر السيولة الضعيفة وربطه بنصاب إجماع الحراس.",
+          "counterProposalEn": "Inject minimum orderbook depth gating into guard quorum consensus.",
+          "agreementScore": 0.89
+        },
+        {
+          "fromAgentId": "wf",
+          "fromAgentName": "WalkForwardGuard",
+          "toAgentId": "oos",
+          "critiqueAr": "يجب ألا نغير أكثر من معاملين اثنين في الجولة الواحدة لتجنب الإفراط في التعديل (Over-optimization).",
+          "critiqueEn": "We must avoid mutating more than two hyperparameters per cycle to prevent over-adaptation.",
+          "counterProposalAr": "حصر التعديل في: عتبة الدخول Z-Score وفلتر التقلب فقط لضمان الثبات.",
+          "counterProposalEn": "Restrict policy mutations strictly to Z-Score Threshold and Volatility Sensitivity for stability.",
+          "agreementScore": 0.97
+        }
+      ],
+      "round3Trials": [
+        {
+          "trialNumber": 1,
+          "testName": "اختبار الصدمات المجهرية والانزلاق (Micro-Shock & Slippage Test)",
+          "candlesTested": 30,
+          "syntheticProfit": -0.05,
+          "syntheticWinRate": 74,
+          "maxDrawdownPct": 0.85,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 1: أظهر التعديل المقترح حماية بنسبة 92% ضد الانزلاق المجهري وخفض التكاليف التشغيلية.",
+          "validationLogEn": "✅ Trial 1: Mutated policy demonstrated 92% resistance to micro-slippage drag with lower fees."
+        },
+        {
+          "trialNumber": 2,
+          "testName": "اختبار مناعة الضوضاء والوقف التكيفي (Noise Immunity & Adaptive Trailing)",
+          "candlesTested": 45,
+          "syntheticProfit": 0.02,
+          "syntheticWinRate": 76.5,
+          "maxDrawdownPct": 0.62,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 2: أثبتت الاستراتيجية المعدلة قدرتها على تجنب ضرب الوقف الوهمي وحجز الأرباح بمرونة.",
+          "validationLogEn": "✅ Trial 2: Strategy mutation prevented false noise stop-outs while locking profits effectively."
+        },
+        {
+          "trialNumber": 3,
+          "testName": "اختبار التعميم في نافذة غير مرئية (Forward Out-of-Sample Consistency)",
+          "candlesTested": 60,
+          "syntheticProfit": 0.04,
+          "syntheticWinRate": 81,
+          "maxDrawdownPct": 0.48,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 3: حققت الاستراتيجية نسبة فوز متفوقة وثباتاً تاماً في نافذة البيانات غير المرئية.",
+          "validationLogEn": "✅ Trial 3: Mutated policy achieved superior win rate and solid expectancy across unseen data."
+        }
+      ],
+      "consensusVerdictAr": "🛡️ إجماع المجلس على تصحيح المعاملات وسد ثغرة الدخول بعد اجتياز 3 اختبارات تأكيدية.",
+      "consensusVerdictEn": "🛡️ Unanimous board consensus: Operational flaw corrected and policy calibrated following 3 validation trials.",
+      "adoptedStrategyPolicy": {
+        "version": 3,
+        "zScoreEntryThreshold": 2.08,
+        "stopLossPctMultiplier": 1.06,
+        "takeProfitPctMultiplier": 1,
+        "minGuardsQuorum": 5,
+        "minApprovalRatio": 0.62,
+        "volatilitySensitivity": 1,
+        "cooldownMinutesAfterLoss": 3,
+        "dynamicLeverageCap": 3,
+        "maxAllowedSlippageBps": 12,
+        "errorReductionScore": 79.2,
+        "totalDeliberationsHeld": 2,
+        "lastOptimizedAt": "2026-10-06T21:02:11.620Z"
+      },
+      "policyMutationSummaryAr": "تم علاج الخطأ التشغيلي بنجاح؛ رفع عتبة الدخول Z-Score إلى 2.08، وتشديد نصاب إجماع الحراس لمنع الصفقات المتسرعة (مؤشر التخلص من الأخطاء: 79.2%).",
+      "policyMutationSummaryEn": "Operational flaw eliminated: Z-Score entry threshold raised to 2.08 with reinforced guard quorum (Error Reduction Score: 79.2%).",
+      "errorReductionScore": 79.2
+    },
+    {
+      "id": "delib-1791320531390-2taiz",
+      "tradeId": "q-train-1791320531389-fs0y",
+      "symbol": "NEARUSDT",
+      "pnl": -0.12,
+      "pnlPct": -0.75,
+      "isWin": false,
+      "timestamp": "2026-10-06T21:02:11.390Z",
+      "round1Diagnoses": [
+        {
+          "agentId": "algo",
+          "agentName": "AlgoEngineer",
+          "arabicName": "خبير الخوارزميات والهندسة",
+          "role": "فحص سلامة التنفيذ والتعقيد الحسابي",
+          "diagnosisPerspectiveAr": "لوحظ تأخير طفيف في معالجة ميكرو-الشموع (38ms) مما أدى إلى انزلاق سعري بنسبة 0.04% أثر على دقة الوقف.",
+          "diagnosisPerspectiveEn": "Micro-burst execution latency (38ms) introduced a 0.04% entry drag that degraded stop-loss buffer.",
+          "rootCauseAr": "تزاحم في طابور معالجة أوامر الـ WebSocket اللحظية لحظة تقلب السعر.",
+          "rootCauseEn": "WebSocket buffer congestion during high micro-frequency tick burst.",
+          "proposedParameterFixAr": "خفض سقف مهلة الإرسال القصوى إلى 15ms وتفعيل التنفيذ المسبق للأوامر المحددة.",
+          "proposedParameterFixEn": "Tighten async execution timeout to 15ms with pre-staged limit order routing.",
+          "suggestedStrategyAdjustment": {
+            "param": "maxAllowedSlippageBps",
+            "oldValue": 12,
+            "newValue": 11,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.88,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "trading",
+          "agentName": "TradingEngineer",
+          "arabicName": "خبير الصفقات وتطابق الإشارات",
+          "role": "التحقق من تناغم إشارات الدخول والوقف",
+          "diagnosisPerspectiveAr": "الإشارة دخلت مبكراً قبل تأكيد شمعة الارتداد مما عرض الصفقة لكسر وهمي (False Breakout).",
+          "diagnosisPerspectiveEn": "Signal triggered premature entry prior to candle close validation, suffering a false breakout.",
+          "rootCauseAr": "عدم انتظار إغلاق شمعة الدقيقة لتأكيد كسر نطاق التماسك.",
+          "rootCauseEn": "Lack of 1-min candle close confirmation before executing directional order.",
+          "proposedParameterFixAr": "اشتراط تأكيد شمعة الارتداد السعرية قبل إرسال أمر السوق لتقليل الإشارات الخاطئة.",
+          "proposedParameterFixEn": "Require 1-bar price action confirmation before firing market entry.",
+          "suggestedStrategyAdjustment": {
+            "param": "zScoreEntryThreshold",
+            "oldValue": 2,
+            "newValue": 2.08,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.89,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "quant",
+          "agentName": "QuantMathematician",
+          "arabicName": "خبير الرياضيات والإحصاء",
+          "role": "فحص الالتواء، التفلطح، والتوزيع الإحصائي",
+          "diagnosisPerspectiveAr": "التفلطح المرتفع (Kurtosis > 5.2) تسبب في حدوث ذيل سميك (Fat Tail) لم يستوعبه النطاق القياسي.",
+          "diagnosisPerspectiveEn": "High kurtosis (Fat-tail > 5.2) caused outlier volatility outside standard Gaussian bell bounds.",
+          "rootCauseAr": "حدوث صدمة سعرية ناتجة عن سيولة مفاجئة كسرت التوزيع الطبيعي.",
+          "rootCauseEn": "Liquidity sweep triggered a localized non-Gaussian jump event.",
+          "proposedParameterFixAr": "توسيع نطاق حساب السيغما وتطبيق تدرج Student-t للتوزيعات ذات الذيول السميكة.",
+          "proposedParameterFixEn": "Apply Student-t distribution heavy-tail adjustment for Kurtosis > 4.5.",
+          "suggestedStrategyAdjustment": {
+            "param": "volatilitySensitivity",
+            "oldValue": 1,
+            "newValue": 1.05,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.95,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "scout",
+          "agentName": "CoinScout",
+          "arabicName": "كشاف الفرص وقوة العملة",
+          "role": "مقارنة الزخم النسبي مع أزواج السوق",
+          "diagnosisPerspectiveAr": "حدوث هبوط جماعي في أزواج السوق جر العملة للأسفل رغم إيجابية المؤشرات الفردية.",
+          "diagnosisPerspectiveEn": "Systemic market-wide market dump dragged the asset downwards despite local indicators.",
+          "rootCauseAr": "ارتباط لحظي مفاجئ مع هبوط البيتكوين اللحظي بنسبة بيتا مرتفعة.",
+          "rootCauseEn": "High instantaneous beta correlation with sudden BTC benchmark drop.",
+          "proposedParameterFixAr": "إضافة فلتر منع الدخول إذا كان مؤشر بيتا مع BTC يتجاوز 1.4 في اللحظة نفسها.",
+          "proposedParameterFixEn": "Impose a BTC Beta cap filter (<1.4) during high-velocity benchmark swings.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.6,
+            "newValue": 0.62,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.9,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "market",
+          "agentName": "MarketExpert",
+          "arabicName": "خبير السيولة وصناع السوق",
+          "role": "مراقبة عمق دفتر الأوامر واختلال السيولة",
+          "diagnosisPerspectiveAr": "سحب مفاجئ لطلبات الشراء في عمق الأوامر (Liquidity Evaporation) سهل كسر مستوى الدعم.",
+          "diagnosisPerspectiveEn": "Orderbook bid liquidity evaporated, allowing minimal sell pressure to breach support.",
+          "rootCauseAr": "فجوة في دفتر الأوامر سمحت بانزلاق السعر إلى الوقف المحدد.",
+          "rootCauseEn": "Thin bid book depth led to cascading fill slippage into stop loss level.",
+          "proposedParameterFixAr": "رفع الحد الأدنى لعمق دفتر الأوامر المطلوب قبل فتح الصفقة بنسبة 20%.",
+          "proposedParameterFixEn": "Increase minimum top-5 orderbook depth liquidity requirement by +20%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minGuardsQuorum",
+            "oldValue": 5,
+            "newValue": 6,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.91,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "risk",
+          "agentName": "RiskController",
+          "arabicName": "مدير المخاطر الكمي الصارم",
+          "role": "التحكم بالرافعة ونسب التعرض ورأس المال",
+          "diagnosisPerspectiveAr": "الخسارة كانت محدودة ($0.12) بفضل الصرامة في تحديد الوقف، ولم تؤثر على رصيد المحفظة.",
+          "diagnosisPerspectiveEn": "Loss was safely capped at ($0.12) via strict pre-allocated stop boundaries.",
+          "rootCauseAr": "مستوى الوقف كان قريباً نسبياً من ضوضاء السوق اللحظية.",
+          "rootCauseEn": "Stop-loss barrier was placed slightly within micro-noise volatility bandwidth.",
+          "proposedParameterFixAr": "تعديل مضاعف وقف الخسارة بنسبة +10% لإعطاء مساحة كافية للارتداد دون زيادة المخاطرة المالية.",
+          "proposedParameterFixEn": "Widen ATR stop-loss buffer by +10% to prevent noise stop-outs while reducing lot size.",
+          "suggestedStrategyAdjustment": {
+            "param": "stopLossPctMultiplier",
+            "oldValue": 1,
+            "newValue": 1.08,
+            "action": "EXPAND"
+          },
+          "confidenceScore": 0.96,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "wf",
+          "agentName": "WalkForwardGuard",
+          "arabicName": "حارس الاستقرار الزمني (Walk-Forward)",
+          "role": "التأكد من عدم تدهور الاستراتيجية عبر الزمن",
+          "diagnosisPerspectiveAr": "لوحظ انحراف طفيف في كفاءة المعاملات بين النافذة التاريخية والنافذة اللحظية.",
+          "diagnosisPerspectiveEn": "Minor parameter drift detected between lookback window and real-time execution window.",
+          "rootCauseAr": "تغير طفيف في متوسط فترة الارتداد الزمني للعملة.",
+          "rootCauseEn": "Slight drift in empirical half-life of price mean reversion.",
+          "proposedParameterFixAr": "تحديث فترة نصف العمر (Half-life) ديناميكياً كل 10 شموع بدلاً من قيمة ثابتة.",
+          "proposedParameterFixEn": "Dynamically recalculate empirical half-life every 10 bars.",
+          "suggestedStrategyAdjustment": {
+            "param": "cooldownMinutesAfterLoss",
+            "oldValue": 3,
+            "newValue": 4,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.93,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "oos",
+          "agentName": "OutOfSampleGuard",
+          "arabicName": "حارس العينة المجهولة (OOS 30%)",
+          "role": "فحص قوة التعميم على بيانات غير مرئية",
+          "diagnosisPerspectiveAr": "حدث تباين في حركة السعر في العينة غير المرئية أظهر ضرورة تشديد فلاتر الدخول.",
+          "diagnosisPerspectiveEn": "Out-of-sample test showed variance dispersion indicating tighter entry gating is needed.",
+          "rootCauseAr": "تغير طفيف في سرعة الارتداد في النطاق المجهول.",
+          "rootCauseEn": "Slight variance dispersion in unexplored price regime.",
+          "proposedParameterFixAr": "رفع نسبة العينات غير المرئية المطلوبة لتأكيد الدخول إلى 70%.",
+          "proposedParameterFixEn": "Increase required OOS validation threshold to 70%.",
+          "suggestedStrategyAdjustment": {
+            "param": "minApprovalRatio",
+            "oldValue": 0.6,
+            "newValue": 0.61,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.92,
+          "voteOnFix": "ACCEPT"
+        },
+        {
+          "agentId": "stress",
+          "agentName": "StressTestGuard",
+          "arabicName": "حارس الاختبار الصادم (Stress Test 20%)",
+          "role": "حماية الرصيد من الصدمات والانهيارات السريعة",
+          "diagnosisPerspectiveAr": "هبوط مفاجئ سريع لامس حاجز الوقف، مما يثبت نجاح آلية الحماية في منع نزيف رأس المال.",
+          "diagnosisPerspectiveEn": "Rapid localized dip triggered safety stop, confirming risk ceiling successfully prevented catastrophic drawdown.",
+          "rootCauseAr": "شمعة بيع حادة وفورية في إطار 1 دقيقة.",
+          "rootCauseEn": "1-minute aggressive market selling spike tested baseline buffer.",
+          "proposedParameterFixAr": "إلزام تخفيض حجم الصفقة تلقائياً في الفترات التي تتبع تقلبات صادمة.",
+          "proposedParameterFixEn": "Enforce automatic lot scaling reduction immediately following high stress spikes.",
+          "suggestedStrategyAdjustment": {
+            "param": "dynamicLeverageCap",
+            "oldValue": 3,
+            "newValue": 2.8,
+            "action": "TIGHTEN"
+          },
+          "confidenceScore": 0.94,
+          "voteOnFix": "ACCEPT"
+        }
+      ],
+      "round2Critiques": [
+        {
+          "fromAgentId": "risk",
+          "fromAgentName": "RiskController",
+          "toAgentId": "trading",
+          "critiqueAr": "تشخيص خبير الصفقات صحيح حول الدخول المبكر، والحل هو رفع عتبة Z-Score وليس زيادة الوقف لتفادي المخاطر.",
+          "critiqueEn": "Trading Engineer correctly identified premature entry. The optimal fix is tightening Z-Score entry threshold rather than widening stop risk.",
+          "counterProposalAr": "رفع شرط Z-Score إلى 2.1 لضمان جودة الإشارة بنسبة 99%.",
+          "counterProposalEn": "Adjust Z-Score entry requirement to 2.1 to ensure 99% signal purity.",
+          "agreementScore": 0.95
+        },
+        {
+          "fromAgentId": "quant",
+          "fromAgentName": "QuantMathematician",
+          "toAgentId": "algo",
+          "critiqueAr": "الانزلاق السعري الطفيف الذي ذكره خبير الخوارزميات يمكن تعويضه بوضع أمر Limit عند منتصف نطاق السيولة بدلاً من أمر Market.",
+          "critiqueEn": "The micro-slippage mentioned by Algo Engineer can be fully mitigated by routing pegged Limit orders at midpoint rather than taking immediate liquidity.",
+          "counterProposalAr": "اعتماد توجيه الأوامر بالـ Midpoint Limit Order في جميع أزواج الـ Testnet.",
+          "counterProposalEn": "Adopt Midpoint Pegged Limit Order routing across all simulated Testnet executions.",
+          "agreementScore": 0.92
+        },
+        {
+          "fromAgentId": "stress",
+          "fromAgentName": "StressTestGuard",
+          "toAgentId": "market",
+          "critiqueAr": "سحب السيولة كان خطيراً ويجب تفعيل الحظر الفوري إذا انخفض عمق الطلبات عن 50,000$.",
+          "critiqueEn": "Orderbook liquidity drainage was hazardous; we must trigger an instant circuit breaker if top-5 depth drops below $50k.",
+          "counterProposalAr": "إضافة فلتر حظر السيولة الضعيفة وربطه بنصاب إجماع الحراس.",
+          "counterProposalEn": "Inject minimum orderbook depth gating into guard quorum consensus.",
+          "agreementScore": 0.89
+        },
+        {
+          "fromAgentId": "wf",
+          "fromAgentName": "WalkForwardGuard",
+          "toAgentId": "oos",
+          "critiqueAr": "يجب ألا نغير أكثر من معاملين اثنين في الجولة الواحدة لتجنب الإفراط في التعديل (Over-optimization).",
+          "critiqueEn": "We must avoid mutating more than two hyperparameters per cycle to prevent over-adaptation.",
+          "counterProposalAr": "حصر التعديل في: عتبة الدخول Z-Score وفلتر التقلب فقط لضمان الثبات.",
+          "counterProposalEn": "Restrict policy mutations strictly to Z-Score Threshold and Volatility Sensitivity for stability.",
+          "agreementScore": 0.97
+        }
+      ],
+      "round3Trials": [
+        {
+          "trialNumber": 1,
+          "testName": "اختبار الصدمات المجهرية والانزلاق (Micro-Shock & Slippage Test)",
+          "candlesTested": 30,
+          "syntheticProfit": -0.05,
+          "syntheticWinRate": 74,
+          "maxDrawdownPct": 0.85,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 1: أظهر التعديل المقترح حماية بنسبة 92% ضد الانزلاق المجهري وخفض التكاليف التشغيلية.",
+          "validationLogEn": "✅ Trial 1: Mutated policy demonstrated 92% resistance to micro-slippage drag with lower fees."
+        },
+        {
+          "trialNumber": 2,
+          "testName": "اختبار مناعة الضوضاء والوقف التكيفي (Noise Immunity & Adaptive Trailing)",
+          "candlesTested": 45,
+          "syntheticProfit": 0.02,
+          "syntheticWinRate": 76.5,
+          "maxDrawdownPct": 0.62,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 2: أثبتت الاستراتيجية المعدلة قدرتها على تجنب ضرب الوقف الوهمي وحجز الأرباح بمرونة.",
+          "validationLogEn": "✅ Trial 2: Strategy mutation prevented false noise stop-outs while locking profits effectively."
+        },
+        {
+          "trialNumber": 3,
+          "testName": "اختبار التعميم في نافذة غير مرئية (Forward Out-of-Sample Consistency)",
+          "candlesTested": 60,
+          "syntheticProfit": 0.04,
+          "syntheticWinRate": 81,
+          "maxDrawdownPct": 0.48,
+          "isSuccessful": true,
+          "validationLogAr": "✅ التجربة 3: حققت الاستراتيجية نسبة فوز متفوقة وثباتاً تاماً في نافذة البيانات غير المرئية.",
+          "validationLogEn": "✅ Trial 3: Mutated policy achieved superior win rate and solid expectancy across unseen data."
+        }
+      ],
+      "consensusVerdictAr": "🛡️ إجماع المجلس على تصحيح المعاملات وسد ثغرة الدخول بعد اجتياز 3 اختبارات تأكيدية.",
+      "consensusVerdictEn": "🛡️ Unanimous board consensus: Operational flaw corrected and policy calibrated following 3 validation trials.",
+      "adoptedStrategyPolicy": {
+        "version": 2,
+        "zScoreEntryThreshold": 2.04,
+        "stopLossPctMultiplier": 1.03,
+        "takeProfitPctMultiplier": 1,
+        "minGuardsQuorum": 5,
+        "minApprovalRatio": 0.61,
+        "volatilitySensitivity": 1,
+        "cooldownMinutesAfterLoss": 3,
+        "dynamicLeverageCap": 3,
+        "maxAllowedSlippageBps": 12,
+        "errorReductionScore": 78.8,
+        "totalDeliberationsHeld": 1,
+        "lastOptimizedAt": "2026-10-06T21:02:11.390Z"
+      },
+      "policyMutationSummaryAr": "تم علاج الخطأ التشغيلي بنجاح؛ رفع عتبة الدخول Z-Score إلى 2.04، وتشديد نصاب إجماع الحراس لمنع الصفقات المتسرعة (مؤشر التخلص من الأخطاء: 78.8%).",
+      "policyMutationSummaryEn": "Operational flaw eliminated: Z-Score entry threshold raised to 2.04 with reinforced guard quorum (Error Reduction Score: 78.8%).",
+      "errorReductionScore": 78.8
+    }
+  ]
+}

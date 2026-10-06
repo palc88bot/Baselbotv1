@@ -22,12 +22,20 @@ import {
   WifiOff,
   Radio,
   ShieldCheck,
+  Brain,
+  Users,
   Volume2,
   VolumeX,
   History,
   RefreshCw,
   ArrowUpRight,
   ArrowDownRight,
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  Percent,
+  Send,
+  Server,
 } from 'lucide-react';
 
 import { HolographicQuantumCanvas } from './components/HolographicQuantumCanvas';
@@ -35,6 +43,13 @@ import { HolographicDataVizChart, RealChartPoint } from './components/Holographi
 import { HolographicHUDWidgets } from './components/HolographicHUDWidgets';
 import { HolographicPairSelector, HolographicAsset } from './components/HolographicPairSelector';
 import { HolographicTradeHistory } from './components/HolographicTradeHistory';
+import { HolographicPerformanceHeatmap } from './components/HolographicPerformanceHeatmap';
+import { SubWalletModal } from './components/SubWalletModal';
+import { TelegramNotificationModal } from './components/TelegramNotificationModal';
+import { KeepAliveGuideModal } from './components/KeepAliveGuideModal';
+import { QuantumTrainingModal } from './components/QuantumTrainingModal';
+import { BoardOfDirectorsTab } from './components/BoardOfDirectorsTab';
+import { SubWalletState } from './risk/SubWalletManager';
 
 const INITIAL_MARKETS: HolographicAsset[] = [
   { symbol: 'BTC/USDT', binanceSymbol: 'btcusdt', nameEn: 'Bitcoin', nameAr: 'بتكوين', price: 0, change24h: 0, volume: '0', rsi: 50, high24h: 0, low24h: 0, status: 'ACCUMULATION' },
@@ -72,13 +87,35 @@ export default function CyberPulseNexusApp() {
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const isAr = lang === 'ar';
 
-  const [activeTab, setActiveTab] = useState<'matrix' | 'terminal' | 'history' | 'strategies' | 'risk'>('matrix');
+  const [activeTab, setActiveTab] = useState<'matrix' | 'terminal' | 'board' | 'history' | 'strategies' | 'risk'>('matrix');
   const [isRunning, setIsRunning] = useState<boolean>(true);
   const [executionMode, setExecutionMode] = useState<'TESTNET' | 'LIVE'>('TESTNET');
   const [markets, setMarkets] = useState<HolographicAsset[]>(INITIAL_MARKETS);
   const [selectedAsset, setSelectedAsset] = useState<HolographicAsset>(INITIAL_MARKETS[0]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [boardData, setBoardData] = useState<any>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [showSubWalletModal, setShowSubWalletModal] = useState<boolean>(false);
+  const [showQuantumTrainingModal, setShowQuantumTrainingModal] = useState<boolean>(false);
+  const [showTelegramModal, setShowTelegramModal] = useState<boolean>(false);
+  const [showKeepAliveModal, setShowKeepAliveModal] = useState<boolean>(false);
+  const [subWalletState, setSubWalletState] = useState<SubWalletState | null>({
+    isActive: true,
+    initialAllocation: 25.0,
+    allocatedCapital: 25.0,
+    currentEquity: 25.0,
+    availableMargin: 25.0,
+    usedMargin: 0,
+    realizedProfit: 0,
+    unrealizedPnl: 0,
+    totalTrades: 0,
+    winningTrades: 0,
+    losingTrades: 0,
+    winRate: 0,
+    growthPct: 0,
+    isDepleted: false,
+    lastUpdated: Date.now(),
+  });
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
 
   // Live orderbook & real klines
@@ -149,6 +186,12 @@ export default function CyberPulseNexusApp() {
             openPositions: data.positions || [],
             orders: data.orders || [],
           });
+        }
+        if (data.subWallet) {
+          setSubWalletState(data.subWallet);
+        }
+        if (data.boardOfDirectors) {
+          setBoardData(data.boardOfDirectors);
         }
         if (typeof data.isRunning === 'boolean') {
           setIsRunning(data.isRunning);
@@ -476,6 +519,28 @@ export default function CyberPulseNexusApp() {
   }, [selectedAsset.binanceSymbol]);
 
   // Execute Real Trade through Backend Order Gateway
+  const [closingSymbols, setClosingSymbols] = useState<Record<string, boolean>>({});
+
+  const handleClosePosition = async (symbol: string) => {
+    setClosingSymbols(prev => ({ ...prev, [symbol]: true }));
+    playHoloTone(440, 0.1);
+    try {
+      const res = await fetch('/api/positions/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol, reason: 'Manual operator click in dashboard' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchLiveServerStatus();
+      }
+    } catch (e) {
+      console.error('Failed to close position:', e);
+    } finally {
+      setClosingSymbols(prev => ({ ...prev, [symbol]: false }));
+    }
+  };
+
   const handleExecuteTrade = async (side: 'BUY' | 'SELL') => {
     if (isExecuting || selectedAsset.price <= 0) return;
     setIsExecuting(true);
@@ -523,54 +588,43 @@ export default function CyberPulseNexusApp() {
   };
 
   return (
-    <div className={`min-h-screen bg-[#020409] text-[var(--text)] font-sans relative overflow-x-hidden selection:bg-[var(--cyan)] selection:text-black ${isAr ? 'rtl' : 'ltr'}`}>
+    <div className={`min-h-screen bg-[#06090e] text-slate-100 font-sans relative overflow-x-hidden selection:bg-cyan-500 selection:text-black quant-grid-bg ${isAr ? 'rtl' : 'ltr'}`}>
       
-      {/* 1. Volumetric Neon Lighting & Cyan/Magenta Background Aurora */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute -top-[15%] left-[10%] w-[650px] h-[650px] bg-[radial-gradient(circle,rgba(0,243,255,0.14)_0%,rgba(0,0,0,0)_70%)] blur-[100px]" />
-        <div className="absolute top-[35%] -right-[10%] w-[700px] h-[700px] bg-[radial-gradient(circle,rgba(255,0,127,0.12)_0%,rgba(0,0,0,0)_70%)] blur-[120px]" />
-        <div className="absolute -bottom-[20%] left-[30%] w-[800px] h-[800px] bg-[radial-gradient(circle,rgba(157,0,255,0.08)_0%,rgba(0,0,0,0)_70%)] blur-[140px]" />
-        <div className="absolute inset-0 holo-scanlines opacity-50" />
+      {/* 1. Subtle Background Ambience */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute -top-[10%] left-[15%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(6,182,212,0.06)_0%,rgba(0,0,0,0)_70%)] blur-[90px]" />
+        <div className="absolute top-[40%] -right-[5%] w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(16,185,129,0.05)_0%,rgba(0,0,0,0)_70%)] blur-[90px]" />
       </div>
 
-      {/* 2. TOP HOLOGRAPHIC HUD HEADER */}
-      <header className="sticky top-0 z-50 bg-[#030611]/85 backdrop-blur-2xl border-b border-[rgba(0,243,255,0.2)] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.8)]">
-        {/* Left: Brand Identity */}
-        <div className="flex items-center gap-3">
-          <div className="relative group">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-[var(--cyan)]/25 via-[var(--magenta)]/20 to-[var(--neon-purple)]/30 border border-[var(--cyan)]/60 grid place-items-center shadow-[0_0_20px_rgba(0,243,255,0.4)] group-hover:shadow-[0_0_30px_rgba(255,0,127,0.6)] transition-all">
-              <Cpu className="w-5 h-5 text-[var(--cyan)] animate-pulse" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-[var(--lime)] border-2 border-[#020409] shadow-[0_0_8px_var(--lime)]" />
+      {/* 2. TOP EXECUTIVE BAR (Clean 3-Zone Contract) */}
+      <header className="sticky top-0 z-50 bg-[#06090e]/95 backdrop-blur-md border-b border-white/5 px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-lg">
+        {/* Zone 1: Brand & WebSocket Beacon */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+            <Cpu className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
 
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-mono font-bold text-base sm:text-lg tracking-wider text-white flex items-center gap-1">
-                CYBER<span className="text-[var(--cyan)] neon-cyan-glow">PULSE</span>
-                <span className="text-[var(--magenta)] neon-magenta-glow text-xs font-mono ml-1">HOLO-LIVE</span>
-              </h1>
-              <span className="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded-full bg-gradient-to-r from-[var(--cyan)]/15 to-[var(--magenta)]/15 border border-[var(--cyan)]/40 text-[var(--cyan)]">
-                100% REAL FEED
+              <span className="font-mono font-bold text-sm sm:text-base text-white tracking-wide">
+                BASEL<span className="text-cyan-400 ml-1">ALGOCORE</span>
               </span>
-              <span className="hidden md:inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--lime)]/10 border border-[var(--lime)]/40 text-[var(--lime)] shadow-[0_0_10px_rgba(57,255,20,0.15)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--lime)] animate-ping" />
-                <span>{isAr ? 'محرك تداول مستمر (Zero-Halt)' : 'Zero-Halt Continuous'}</span>
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>{isAr ? 'بث حي ومباشر' : 'Live WebSocket'}</span>
               </span>
             </div>
-            <div className="flex items-center gap-2 font-mono text-[10px] text-[var(--muted)]">
-              <span>{isAr ? 'منصة تداول هولوغرافية ببيانات حية فقط' : 'Binance Live Ticker & WebSocket Engine'}</span>
-              <span>•</span>
-              <span className="flex items-center gap-1 text-[var(--lime)]">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
+              <span className="flex items-center gap-1">
                 {isConnected ? (
                   <>
-                    <Wifi className="w-3 h-3 text-[var(--lime)] animate-pulse" />
-                    <span>{isAr ? 'متصل بـ Binance WebSocket' : 'Binance WebSocket Connected'}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-emerald-400">{isAr ? 'متصل ببايننس' : 'Binance Live'}</span>
                   </>
                 ) : (
                   <>
-                    <WifiOff className="w-3 h-3 text-[var(--amber)]" />
-                    <span className="text-[var(--amber)]">{isAr ? 'جاري الاتصال…' : 'Connecting…'}</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span className="text-amber-400">{isAr ? 'جاري الاتصال…' : 'Connecting…'}</span>
                   </>
                 )}
               </span>
@@ -578,38 +632,59 @@ export default function CyberPulseNexusApp() {
           </div>
         </div>
 
-        {/* Center: Real-Time HUD Ticker Bar */}
-        <div className="hidden lg:flex items-center gap-6 px-5 py-2 rounded-2xl holo-panel border border-[rgba(0,243,255,0.25)]">
-          <div className="flex flex-col text-center">
-            <span className="text-[9px] font-mono text-[var(--muted)] uppercase">{isAr ? 'الأصل الفعال' : 'Active Target'}</span>
-            <span className="font-mono font-bold text-sm text-[var(--cyan)] neon-cyan-glow">{selectedAsset.symbol}</span>
+        {/* Zone 2: Active Target Quick Ticker (Desktop) */}
+        <div className="hidden lg:flex items-center gap-5 px-4 py-1.5 rounded-xl bg-slate-900/60 border border-white/5 text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-400 uppercase">{isAr ? 'الهدف:' : 'Target:'}</span>
+            <span className="font-bold text-cyan-400">{selectedAsset.symbol}</span>
           </div>
-          <div className="h-6 w-[1px] bg-white/10" />
-          <div className="flex flex-col text-center">
-            <span className="text-[9px] font-mono text-[var(--muted)] uppercase">{isAr ? 'سعر السوق الفعلي' : 'Binance Market Price'}</span>
-            <span className="font-mono font-bold text-sm text-white">
-              ${selectedAsset.price > 0 ? (selectedAsset.price >= 1000 ? selectedAsset.price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : selectedAsset.price.toFixed(6)) : '---'}
+          <div className="h-4 w-[1px] bg-white/10" />
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-400 uppercase">{isAr ? 'السعر:' : 'Price:'}</span>
+            <span className="font-bold text-white tabular-nums">
+              ${selectedAsset.price > 0 ? (selectedAsset.price >= 1000 ? selectedAsset.price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : selectedAsset.price.toFixed(5)) : '---'}
             </span>
           </div>
-          <div className="h-6 w-[1px] bg-white/10" />
-          <div className="flex flex-col text-center">
-            <span className="text-[9px] font-mono text-[var(--muted)] uppercase">{isAr ? 'التغير 24س' : '24h Delta'}</span>
-            <span className={`font-mono font-bold text-sm ${selectedAsset.change24h >= 0 ? 'text-[var(--lime)]' : 'text-[var(--magenta)]'}`}>
+          <div className="h-4 w-[1px] bg-white/10" />
+          <div className="flex items-center gap-1.5">
+            <span className={`font-bold tabular-nums ${selectedAsset.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {selectedAsset.change24h >= 0 ? '+' : ''}{selectedAsset.change24h}%
             </span>
           </div>
         </div>
 
-        {/* Right: Quick Controls & Language Switcher */}
+        {/* Zone 3: Actions & Settings */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Sound Toggle */}
+          {/* Quantum Training $200 Sandbox Button */}
           <button
             type="button"
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 rounded-xl holo-panel border border-white/10 text-slate-300 hover:text-[var(--cyan)] hover:border-[var(--cyan)] transition cursor-pointer"
-            title={soundEnabled ? 'Mute Audio' : 'Enable Audio'}
+            onClick={() => {
+              playHoloTone(1150, 0.08);
+              setShowQuantumTrainingModal(true);
+            }}
+            className="px-2.5 sm:px-3 py-1.5 rounded-xl font-mono text-xs font-semibold border border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition cursor-pointer flex items-center gap-1.5 shadow-[0_0_12px_rgba(168,85,247,0.15)]"
           >
-            {soundEnabled ? <Volume2 className="w-4 h-4 text-[var(--cyan)]" /> : <VolumeX className="w-4 h-4 text-[var(--muted)]" />}
+            <Brain className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+            <span className="hidden sm:inline">{isAr ? 'تدريب المجلس' : 'Quant Sandbox'}</span>
+            <span className="px-1.5 py-0.2 text-[10px] rounded bg-purple-500/20 text-purple-200 border border-purple-500/30 tabular-nums">
+              $200
+            </span>
+          </button>
+
+          {/* Sub-Wallet Badge Button */}
+          <button
+            type="button"
+            onClick={() => {
+              playHoloTone(1200, 0.07);
+              setShowSubWalletModal(true);
+            }}
+            className="px-2.5 sm:px-3 py-1.5 rounded-xl font-mono text-xs font-semibold border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition cursor-pointer flex items-center gap-1.5"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="hidden sm:inline">{isAr ? 'المحفظة الثانوية' : 'Sub-Wallet'}</span>
+            <span className="px-1.5 py-0.2 text-[10px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tabular-nums">
+              ${(subWalletState?.currentEquity ?? 25.0).toFixed(1)}
+            </span>
           </button>
 
           {/* Mode Switcher */}
@@ -619,14 +694,24 @@ export default function CyberPulseNexusApp() {
               playHoloTone(950, 0.08);
               setExecutionMode(executionMode === 'TESTNET' ? 'LIVE' : 'TESTNET');
             }}
-            className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-mono text-xs font-bold border transition cursor-pointer flex items-center gap-1 ${
               executionMode === 'TESTNET'
-                ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
-                : 'bg-emerald-500/15 border-emerald-500/50 text-[var(--lime)] shadow-[0_0_12px_rgba(0,255,102,0.3)]'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
             }`}
           >
-            <Radio className="w-3 h-3 animate-pulse" />
+            <Radio className="w-3 h-3 animate-pulse shrink-0" />
             <span>{executionMode}</span>
+          </button>
+
+          {/* Sound Toggle */}
+          <button
+            type="button"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="p-2 rounded-xl bg-slate-900/60 border border-white/10 text-slate-300 hover:text-cyan-400 transition cursor-pointer"
+            title={soundEnabled ? 'Mute Audio' : 'Enable Audio'}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4 text-cyan-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
           </button>
 
           {/* Language Switcher */}
@@ -636,25 +721,109 @@ export default function CyberPulseNexusApp() {
               playHoloTone(1050, 0.06);
               setLang(isAr ? 'en' : 'ar');
             }}
-            className="px-3 py-1.5 rounded-xl holo-panel border border-white/10 text-xs font-mono text-white hover:border-[var(--cyan)] transition cursor-pointer flex items-center gap-1.5"
+            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900/60 border border-white/10 text-xs font-mono text-slate-200 hover:border-cyan-400/40 transition cursor-pointer flex items-center gap-1.5"
           >
-            <Globe className="w-3.5 h-3.5 text-[var(--cyan)]" />
-            <span>{isAr ? 'English' : 'عربي'}</span>
+            <Globe className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{isAr ? 'EN' : 'عربي'}</span>
           </button>
         </div>
       </header>
 
-      {/* 3. MAIN DASHBOARD CONTENT */}
-      <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 relative z-10">
+      {/* 3. MAIN DASHBOARD VIEWPORT */}
+      <main className="max-w-[1700px] mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 space-y-4 sm:space-y-6 relative z-10 pb-mobile-nav">
 
-        {/* TOP LEVEL NAVIGATION TABS (HOLOGRAPHIC GLASS) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        {/* 💎 REALIZED PROFITS STRIP & SUB-WALLET PERFORMANCE */}
+        <div className="quant-card p-3 sm:p-4 border border-cyan-500/20 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-6">
+            {/* Realized PnL Metric */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">
+                  {isAr ? 'الأرباح والخسائر المحققة' : 'Realized Profit / Loss'}
+                </span>
+                <span className={`text-base sm:text-lg font-bold font-mono tabular-nums ${(subWalletState?.realizedProfit ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {(subWalletState?.realizedProfit ?? 0) >= 0 ? '+' : ''}${(subWalletState?.realizedProfit ?? 0).toFixed(2)} USDT
+                </span>
+              </div>
+            </div>
+
+            {/* Sub-Wallet Equity & Growth ROI */}
+            <div className="flex items-center gap-2.5 border-r sm:border-r-0 sm:border-l border-white/10 px-0 sm:px-4">
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                <Wallet className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-slate-400 uppercase block">
+                    {isAr ? 'المحفظة الثانوية ($25)' : 'Sub-Wallet Slice ($25)'}
+                  </span>
+                  <span className={`text-[9px] px-1 rounded font-bold tabular-nums ${(subWalletState?.growthPct ?? 0) >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                    {(subWalletState?.growthPct ?? 0) >= 0 ? '+' : ''}{(subWalletState?.growthPct ?? 0).toFixed(1)}% ROI
+                  </span>
+                </div>
+                <span className="text-base sm:text-lg font-bold font-mono text-cyan-300 tabular-nums">
+                  ${(subWalletState?.currentEquity ?? 25.0).toFixed(2)} <span className="text-[10px] text-slate-500 font-normal">/ $25.00</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Win Rate & Trade Stats */}
+            <div className="hidden sm:flex items-center gap-2.5 border-l border-white/10 px-4">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase block">
+                  {isAr ? 'معدل نجاح الصفقات' : 'Realized Win Rate'}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold font-mono text-white tabular-nums">
+                    {(subWalletState?.winRate ?? 0).toFixed(0)}%
+                  </span>
+                  <span className="text-[10px] text-slate-400 tabular-nums">
+                    ({subWalletState?.winningTrades ?? 0} {isAr ? 'ربح' : 'W'} / {subWalletState?.losingTrades ?? 0} {isAr ? 'خسارة' : 'L'})
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Action & Vault Status */}
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
+            <div className="flex items-center gap-1 text-[11px] text-slate-400">
+              <span>{isAr ? 'الخزينة المحمية:' : 'Master Safe:'}</span>
+              <b className="text-slate-200 tabular-nums">${accountState.totalEquity.toFixed(0)}</b>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                playHoloTone(1150, 0.08);
+                setShowQuantumTrainingModal(true);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-400/40 text-purple-300 text-xs font-mono font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm"
+            >
+              <Brain className="w-3.5 h-3.5 text-purple-400" />
+              <span>{isAr ? 'تدريب وتكرار الصفقات (200$)' : 'Quant Sandbox ($200)'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSubWalletModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-300 text-xs font-mono font-semibold transition cursor-pointer"
+            >
+              {isAr ? 'إدارة المحفظة' : 'Sub-Wallet'}
+            </button>
+          </div>
+        </div>
+
+        {/* DESKTOP NAVIGATION TABS */}
+        <div className="hidden lg:flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-white/5 overflow-x-auto scrollbar-none">
           {[
-            { id: 'matrix', labelEn: 'Holographic Matrix', labelAr: 'المصفوفة الهولوغرافية', icon: Activity },
-            { id: 'terminal', labelEn: 'Execution Terminal', labelAr: 'منصة التنفيذ الفعلي', icon: Terminal },
-            { id: 'history', labelEn: 'Trade History', labelAr: 'سجل الصفقات والأوامر', icon: History },
-            { id: 'strategies', labelEn: 'Active Strategies', labelAr: 'استراتيجيات التداول', icon: Layers },
-            { id: 'risk', labelEn: 'Risk Safeguard', labelAr: 'درع إدارة المخاطر', icon: ShieldCheck }
+            { id: 'matrix', labelEn: 'Market Matrix & Charts', labelAr: 'مصفوفة الأسواق والشارت', icon: Activity },
+            { id: 'board', labelEn: 'Board of Directors (14 Agents)', labelAr: 'مجلس الإدارة الذكي (14 وكيلاً)', icon: Users },
+            { id: 'terminal', labelEn: 'Active Positions & Terminal', labelAr: 'المراكز المفتوحة والتنفيذ', icon: Terminal },
+            { id: 'history', labelEn: 'Executed Trade Ledger', labelAr: 'سجل الصفقات المنفذة', icon: History },
+            { id: 'strategies', labelEn: 'Quantitative Strategies', labelAr: 'النماذج الخوارزمية', icon: Layers },
+            { id: 'risk', labelEn: 'Risk Safeguard & Limits', labelAr: 'درع المخاطر والحماية', icon: ShieldCheck }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -666,21 +835,23 @@ export default function CyberPulseNexusApp() {
                   playHoloTone(850, 0.05);
                   setActiveTab(tab.id as any);
                 }}
-                className={`px-4 sm:px-5 py-2.5 rounded-xl border text-xs font-mono font-semibold flex items-center gap-2.5 transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-4 py-2 rounded-lg text-xs font-mono font-medium flex items-center gap-2 transition cursor-pointer whitespace-nowrap ${
                   isActive
-                    ? 'holo-panel neon-border-cyan text-white shadow-[0_0_25px_rgba(0,243,255,0.3)]'
-                    : 'bg-black/30 border-white/10 text-[var(--muted)] hover:text-white hover:bg-white/5'
+                    ? 'bg-slate-900 text-cyan-300 border border-cyan-500/30 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-[var(--cyan)] animate-pulse' : 'text-[var(--muted)]'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
                 <span>{isAr ? tab.labelAr : tab.labelEn}</span>
               </button>
             );
           })}
         </div>
 
-        {/* HOLOGRAPHIC HUD WIDGETS ROW (100% REAL ACCOUNT & RSI VALUES) */}
+        {/* HUD TELEMETRY WIDGETS */}
         <HolographicHUDWidgets
+          subWallet={subWalletState}
+          onOpenSubWalletModal={() => setShowSubWalletModal(true)}
           symbol={selectedAsset.symbol}
           price={selectedAsset.price}
           change24h={selectedAsset.change24h}
@@ -715,7 +886,7 @@ export default function CyberPulseNexusApp() {
           lang={lang}
         />
 
-        {/* PAIR SELECTOR CARDS (REAL TICKERS) */}
+        {/* PAIR SELECTOR TICKER */}
         <HolographicPairSelector
           markets={markets}
           selectedSymbol={selectedAsset.symbol}
@@ -726,12 +897,12 @@ export default function CyberPulseNexusApp() {
           lang={lang}
         />
 
-        {/* PRIMARY TAB: MATRIX (3D HOLOGRAPHIC CANVAS + REAL KLINE CHART + EVENT STREAM) */}
+        {/* PRIMARY TAB: MATRIX */}
         {activeTab === 'matrix' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-stretch">
             
-            {/* Left Column: 3D Holographic Canvas (7 Cols) */}
-            <div className="lg:col-span-7 h-[420px] sm:h-[480px]">
+            {/* Left Column: 3D Holographic Canvas */}
+            <div className="lg:col-span-7 h-[360px] sm:h-[460px]">
               <HolographicQuantumCanvas
                 currentPrice={selectedAsset.price}
                 symbol={selectedAsset.symbol}
@@ -744,9 +915,8 @@ export default function CyberPulseNexusApp() {
               />
             </div>
 
-            {/* Right Column: 3D Data Viz Chart & Real Event Stream (5 Cols) */}
-            <div className="lg:col-span-5 flex flex-col gap-6">
-              {/* Top: 100% Real Kline & Depth Chart */}
+            {/* Right Column: Chart & Feed */}
+            <div className="lg:col-span-5 flex flex-col gap-4 sm:gap-6">
               <div className="h-[280px]">
                 <HolographicDataVizChart
                   symbol={selectedAsset.symbol}
@@ -757,30 +927,30 @@ export default function CyberPulseNexusApp() {
                 />
               </div>
 
-              {/* Bottom: Real Order & WebSocket Event Stream */}
-              <div className="flex-1 holo-panel rounded-2xl p-4 sm:p-5 border border-[rgba(0,243,255,0.25)] flex flex-col justify-between">
-                <div className="flex items-center justify-between pb-3 border-b border-[rgba(0,243,255,0.15)]">
+              {/* Event Stream */}
+              <div className="flex-1 quant-card p-4 sm:p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between pb-3 border-b border-white/5">
                   <div className="flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-[var(--cyan)]" />
+                    <Terminal className="w-4 h-4 text-cyan-400" />
                     <h3 className="font-mono text-xs font-bold text-white uppercase tracking-wider">
-                      {isAr ? 'سجل أحداث السوق والأوامر الحقيقي' : 'Live Market & Exchange Event Stream'}
+                      {isAr ? 'سجل أحداث السوق والأوامر الحقيقي' : 'Live Market & Event Stream'}
                     </h3>
                   </div>
-                  <span className="w-2 h-2 rounded-full bg-[var(--cyan)] animate-ping" />
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
                 </div>
 
                 <div className="space-y-2 mt-3 max-h-[160px] overflow-y-auto pr-1 text-xs font-mono">
                   {logs.map((log) => (
                     <div
                       key={log.id}
-                      className="p-2.5 rounded-xl bg-black/40 border border-white/5 flex items-start justify-between gap-3 hover:border-[rgba(0,243,255,0.3)] transition"
+                      className="p-2.5 rounded-xl bg-slate-950/60 border border-white/5 flex items-start justify-between gap-3 hover:border-cyan-500/20 transition"
                     >
                       <div>
-                        <span className="text-[10px] text-[var(--muted)] mr-2">{log.time}</span>
-                        <span className="text-white">{isAr ? log.textAr : log.textEn}</span>
+                        <span className="text-[10px] text-slate-500 mr-2 tabular-nums">{log.time}</span>
+                        <span className="text-slate-200">{isAr ? log.textAr : log.textEn}</span>
                       </div>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-bold shrink-0 ${
-                        log.type === 'success' ? 'bg-emerald-500/20 text-[var(--lime)]' : log.type === 'alert' ? 'bg-rose-500/20 text-[var(--magenta)]' : 'bg-cyan-500/20 text-[var(--cyan)]'
+                        log.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : log.type === 'alert' ? 'bg-rose-500/10 text-rose-400' : 'bg-cyan-500/10 text-cyan-400'
                       }`}>
                         {log.type.toUpperCase()}
                       </span>
@@ -804,44 +974,44 @@ export default function CyberPulseNexusApp() {
                     };
                     setLogs((prev) => [newLog, ...prev]);
                   }}
-                  className="w-full mt-3 py-2.5 rounded-xl bg-gradient-to-r from-[var(--cyan)] via-[var(--neon-purple)] to-[var(--magenta)] text-white font-mono font-bold text-xs hover:opacity-90 transition shadow-[0_0_20px_rgba(0,243,255,0.35)] cursor-pointer"
+                  className="w-full mt-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30 font-mono font-bold text-xs transition cursor-pointer min-h-[40px]"
                 >
                   {isAr ? 'تحديث ومزامنة فورية من بايننس' : 'Force Synchronize Binance Feed'}
                 </button>
               </div>
             </div>
 
-            {/* LIVE ACTIVE POSITIONS PANEL (Directly accessible on Primary Dashboard) */}
-            <div className="lg:col-span-12 holo-panel rounded-2xl p-5 border border-[rgba(0,243,255,0.35)] shadow-2xl relative overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[rgba(0,243,255,0.15)]">
+            {/* LIVE ACTIVE POSITIONS CARD */}
+            <div className="lg:col-span-12 quant-card p-4 sm:p-5 border border-cyan-500/20 relative overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3.5 border-b border-white/5">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[rgba(0,243,255,0.15)] border border-[rgba(0,243,255,0.4)] grid place-items-center shadow-[0_0_12px_rgba(0,243,255,0.3)]">
-                    <Activity className="w-4 h-4 text-[var(--cyan)]" />
+                  <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                    <Activity className="w-4 h-4" />
                   </div>
                   <div>
                     <h3 className="font-mono text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                      <span>{isAr ? 'المراكز المفتوحة والصفقات النشطة حالياً' : 'Live Active Exchange Positions'}</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-[var(--cyan)] border border-cyan-500/30">
+                      <span>{isAr ? 'المراكز المفتوحة والصفقات النشطة حالياً' : 'Live Active Positions'}</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 tabular-nums">
                         {accountState.openPositions.length} {isAr ? 'صفقة' : 'Active'}
                       </span>
                     </h3>
-                    <p className="text-[11px] font-mono text-[var(--muted)]">
-                      {isAr ? 'مراقبة حية لحظية من محرك الخوارزميات الذكي مع وقف الخسارة وجني الأرباح التلقائي' : 'Real-time microsecond tracking with trailing stop and take-profit algorithms'}
+                    <p className="text-[11px] text-slate-400">
+                      {isAr ? 'مراقبة حية لحظية من محرك الخوارزميات الذكي مع وقف الخسارة وجني الأرباح التلقائي' : 'Real-time tracking with automated trailing stop and take-profit algorithms'}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <div className="text-right rtl:text-left font-mono">
-                    <span className="text-[10px] text-[var(--muted)] block">{isAr ? 'إجمالي الربح العائم' : 'Total Unrealized PnL'}</span>
-                    <span className={`text-sm font-bold ${accountState.unrealizedPnl >= 0 ? 'text-[var(--lime)]' : 'text-[var(--magenta)]'}`}>
+                    <span className="text-[10px] text-slate-400 block">{isAr ? 'إجمالي الربح العائم' : 'Total Unrealized PnL'}</span>
+                    <span className={`text-sm font-bold tabular-nums ${accountState.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {accountState.unrealizedPnl >= 0 ? '+' : ''}${accountState.unrealizedPnl.toFixed(2)} USDT
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={fetchLiveServerStatus}
-                    className="p-2 rounded-xl bg-black/40 border border-white/10 hover:border-[var(--cyan)] text-white hover:text-[var(--cyan)] transition cursor-pointer"
+                    className="p-2 rounded-xl bg-slate-900 border border-white/10 hover:border-cyan-400/40 text-slate-300 hover:text-cyan-400 transition cursor-pointer"
                     title={isAr ? 'تحديث فوري' : 'Refresh Now'}
                   >
                     <RefreshCw className="w-4 h-4" />
@@ -850,13 +1020,13 @@ export default function CyberPulseNexusApp() {
               </div>
 
               {accountState.openPositions.length === 0 ? (
-                <div className="py-8 text-center font-mono text-xs text-[var(--muted)] space-y-1">
-                  <ShieldCheck className="w-8 h-8 text-[var(--cyan)] mx-auto opacity-50 mb-2" />
+                <div className="py-8 text-center font-mono text-xs text-slate-400 space-y-1">
+                  <ShieldCheck className="w-8 h-8 text-cyan-400 mx-auto opacity-50 mb-2" />
                   <p className="text-white font-semibold">{isAr ? 'لا توجد مراكز مفتوحة حالياً' : 'No active positions open'}</p>
-                  <p className="text-[11px] text-[var(--muted)]">{isAr ? 'رأس المال في أمان تام بنسبة 100% والمحرك يترقب إشارات الدخول المثالية.' : 'Capital is 100% preserved. Engine is scanning for optimal high-probability entries.'}</p>
+                  <p className="text-[11px] text-slate-400">{isAr ? 'رأس المال في أمان تام بنسبة 100% والمحرك يترقب إشارات الدخول المثالية.' : 'Capital is preserved. Engine is scanning for optimal high-probability entries.'}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mt-4">
                   {accountState.openPositions.map((pos, idx) => {
                     const isLong = pos.size > 0;
                     const pnl = pos.unrealizedPnl || 0;
@@ -865,31 +1035,31 @@ export default function CyberPulseNexusApp() {
                     return (
                       <div
                         key={idx}
-                        className={`p-4 rounded-xl border relative overflow-hidden backdrop-blur-md transition-all ${
+                        className={`p-4 rounded-xl border relative overflow-hidden transition-all ${
                           isLong
-                            ? 'bg-emerald-500/5 border-emerald-500/30 hover:border-emerald-500/50'
-                            : 'bg-rose-500/5 border-rose-500/30 hover:border-rose-500/50'
+                            ? 'bg-emerald-500/5 border-emerald-500/25 hover:border-emerald-500/40'
+                            : 'bg-rose-500/5 border-rose-500/25 hover:border-rose-500/40'
                         }`}
                       >
-                        <div className="flex items-center justify-between pb-2.5 border-b border-white/10">
+                        <div className="flex items-center justify-between pb-2 border-b border-white/5">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-sm font-bold text-white">{pos.symbol}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 ${
-                              isLong ? 'bg-emerald-500/20 text-[var(--lime)]' : 'bg-rose-500/20 text-[var(--magenta)]'
+                              isLong ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
                             }`}>
                               {isLong ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                               {isLong ? (isAr ? 'شراء (LONG)' : 'LONG') : (isAr ? 'بيع (SHORT)' : 'SHORT')}
                             </span>
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/10 text-white font-semibold">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/5 text-slate-300 font-semibold tabular-nums">
                               {pos.leverage || 3}x
                             </span>
                           </div>
 
                           <div className="text-right rtl:text-left font-mono">
-                            <span className={`text-sm font-bold ${pnl >= 0 ? 'text-[var(--lime)]' : 'text-[var(--magenta)]'}`}>
+                            <span className={`text-sm font-bold tabular-nums ${pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} USDT
                             </span>
-                            <span className={`text-[10px] block ${pnlPct >= 0 ? 'text-[var(--lime)]' : 'text-[var(--magenta)]'}`}>
+                            <span className={`text-[10px] block tabular-nums ${pnlPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                               ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%)
                             </span>
                           </div>
@@ -897,31 +1067,36 @@ export default function CyberPulseNexusApp() {
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 text-xs font-mono">
                           <div>
-                            <span className="text-[10px] text-[var(--muted)] block">{isAr ? 'حجم المركز:' : 'Size:'}</span>
-                            <span className="text-white font-semibold">{Math.abs(pos.size)}</span>
+                            <span className="text-[10px] text-slate-400 block">{isAr ? 'حجم المركز:' : 'Size:'}</span>
+                            <span className="text-white font-semibold tabular-nums">{Math.abs(pos.size)}</span>
                           </div>
                           <div>
-                            <span className="text-[10px] text-[var(--muted)] block">{isAr ? 'سعر الدخول:' : 'Entry:'}</span>
-                            <span className="text-white font-semibold">${pos.entryPrice >= 100 ? pos.entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : pos.entryPrice.toFixed(4)}</span>
+                            <span className="text-[10px] text-slate-400 block">{isAr ? 'سعر الدخول:' : 'Entry:'}</span>
+                            <span className="text-white font-semibold tabular-nums">${pos.entryPrice >= 100 ? pos.entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : pos.entryPrice.toFixed(4)}</span>
                           </div>
                           <div>
-                            <span className="text-[10px] text-[var(--muted)] block">{isAr ? 'السعر الحالي:' : 'Current:'}</span>
-                            <span className="text-white font-semibold">${currentP >= 100 ? currentP.toLocaleString(undefined, { minimumFractionDigits: 2 }) : currentP.toFixed(4)}</span>
+                            <span className="text-[10px] text-slate-400 block">{isAr ? 'السعر الحالي:' : 'Current:'}</span>
+                            <span className="text-white font-semibold tabular-nums">${currentP >= 100 ? currentP.toLocaleString(undefined, { minimumFractionDigits: 2 }) : currentP.toFixed(4)}</span>
                           </div>
                           <div>
-                            <span className="text-[10px] text-[var(--muted)] block">{isAr ? 'الهامش المحجوز:' : 'Margin:'}</span>
-                            <span className="text-white font-semibold">${(pos.marginUsed || 0).toFixed(2)}</span>
+                            <span className="text-[10px] text-slate-400 block">{isAr ? 'الهامش المحجوز:' : 'Margin:'}</span>
+                            <span className="text-white font-semibold tabular-nums">${(pos.marginUsed || 0).toFixed(2)}</span>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between pt-2.5 mt-3 border-t border-white/5 text-[11px] font-mono">
-                          <span className="text-[var(--lime)] flex items-center gap-1">
+                        <div className="flex items-center justify-between pt-2.5 mt-3 border-t border-white/5 text-[11px] font-mono gap-2">
+                          <span className="text-emerald-400 flex items-center gap-1 text-[10px]">
                             <ShieldCheck className="w-3.5 h-3.5" />
-                            {isAr ? 'محمي بوقف خسارة وربح متحرك' : 'Protected by Trailing SL/TP'}
+                            {isAr ? 'محمي بوقف خسارة وربح تلقائي' : 'Auto SL/TP Protected'}
                           </span>
-                          <span className="text-[var(--muted)] text-[10px]">
-                            {isAr ? 'إدارة خوارزمية ذكية' : 'Algorithmic Managed'}
-                          </span>
+                          <button
+                            type="button"
+                            disabled={closingSymbols[pos.symbol]}
+                            onClick={() => handleClosePosition(pos.symbol)}
+                            className="px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 text-xs font-semibold transition cursor-pointer disabled:opacity-50 flex items-center gap-1 min-h-[32px]"
+                          >
+                            {closingSymbols[pos.symbol] ? (isAr ? 'جاري الإغلاق...' : 'Closing...') : (isAr ? 'إغلاق فوري على بايننس' : 'Close on Binance')}
+                          </button>
                         </div>
                       </div>
                     );
@@ -930,58 +1105,73 @@ export default function CyberPulseNexusApp() {
               )}
             </div>
 
+            {/* 🌡️ PERFORMANCE HEATMAP */}
+            <div className="lg:col-span-12">
+              <HolographicPerformanceHeatmap
+                markets={markets}
+                positions={accountState.openPositions}
+                selectedSymbol={selectedAsset.symbol}
+                onSelectSymbol={(asset) => {
+                  playHoloTone(1100, 0.06);
+                  setSelectedAsset(asset);
+                }}
+                lang={lang}
+                playTone={playHoloTone}
+              />
+            </div>
+
           </div>
         )}
 
-        {/* TAB 2: EXECUTION TERMINAL (REAL ORDERS) */}
+        {/* TAB 2: TERMINAL */}
         {activeTab === 'terminal' && (
-          <div className="holo-panel rounded-2xl p-6 border border-[rgba(0,243,255,0.3)] space-y-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-[rgba(0,243,255,0.15)]">
+          <div className="quant-card p-4 sm:p-6 space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-white/5">
               <div className="flex items-center gap-2">
-                <Terminal className="w-5 h-5 text-[var(--cyan)]" />
+                <Terminal className="w-5 h-5 text-cyan-400" />
                 <h2 className="font-mono text-base font-bold text-white tracking-wider">
-                  {isAr ? 'منصة تنفيذ الأوامر المباشرة للمنصة' : 'Direct Exchange Order Routing Terminal'}
+                  {isAr ? 'منصة تنفيذ الأوامر المباشرة' : 'Exchange Routing & Orders'}
                 </h2>
               </div>
-              <span className="text-xs font-mono text-[var(--lime)] px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/30">
+              <span className="text-xs font-mono text-emerald-400 px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/30">
                 100% REAL BINANCE LIVE API
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2">
-                <span className="text-xs font-mono text-[var(--muted)] block">{isAr ? 'الزوج المستهدف' : 'Target Pair'}</span>
-                <div className="text-base font-mono font-bold text-white">{selectedAsset.symbol} - {selectedAsset.nameEn}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+                <span className="text-xs text-slate-400 block">{isAr ? 'الزوج المستهدف' : 'Target Pair'}</span>
+                <div className="text-base font-mono font-bold text-white">{selectedAsset.symbol}</div>
               </div>
-              <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2">
-                <span className="text-xs font-mono text-[var(--muted)] block">{isAr ? 'سعر السوق اللحظي الفعلي' : 'Real-Time Price'}</span>
-                <div className="text-xl font-mono font-bold text-[var(--cyan)] neon-cyan-glow">
-                  ${selectedAsset.price > 0 ? (selectedAsset.price >= 1000 ? selectedAsset.price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : selectedAsset.price.toFixed(6)) : 'Connecting...'}
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+                <span className="text-xs text-slate-400 block">{isAr ? 'سعر السوق اللحظي الفعلي' : 'Real-Time Price'}</span>
+                <div className="text-xl font-mono font-bold text-cyan-400 tabular-nums">
+                  ${selectedAsset.price > 0 ? (selectedAsset.price >= 1000 ? selectedAsset.price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : selectedAsset.price.toFixed(5)) : 'Connecting...'}
                 </div>
               </div>
-              <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2">
-                <span className="text-xs font-mono text-[var(--muted)] block">{isAr ? 'حجم السيولة الفعلي 24س' : '24h Real Volume'}</span>
-                <div className="text-base font-mono font-bold text-[var(--magenta)]">{selectedAsset.volume}</div>
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+                <span className="text-xs text-slate-400 block">{isAr ? 'حجم السيولة 24س' : '24h Real Volume'}</span>
+                <div className="text-base font-mono font-bold text-slate-200">{selectedAsset.volume}</div>
               </div>
             </div>
 
-            {/* Open Positions List */}
-            <div className="p-4 rounded-xl bg-black/40 border border-white/10">
+            {/* Active Exchange Positions */}
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5">
               <h3 className="font-mono text-xs font-bold text-white mb-3">
                 {isAr ? 'المراكز المفتوحة حالياً في الحساب:' : 'Active Exchange Positions:'}
               </h3>
               {accountState.openPositions.length === 0 ? (
-                <div className="text-xs font-mono text-[var(--muted)] py-3 text-center">
+                <div className="text-xs font-mono text-slate-400 py-4 text-center">
                   {isAr ? 'لا توجد صفقات مفتوحة حالياً (الحساب في وضع الأمان).' : 'No active positions open. Capital is preserved.'}
                 </div>
               ) : (
                 <div className="space-y-2">
                   {accountState.openPositions.map((pos, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs font-mono p-2.5 rounded-lg bg-black/60 border border-white/5">
+                    <div key={idx} className="flex items-center justify-between text-xs font-mono p-3 rounded-lg bg-slate-900 border border-white/5">
                       <span className="text-white font-bold">{pos.symbol}</span>
-                      <span className="text-[var(--cyan)]">{pos.size > 0 ? 'LONG' : 'SHORT'} {Math.abs(pos.size)}</span>
-                      <span className="text-[var(--muted)]">Entry: ${pos.entryPrice}</span>
-                      <span className={pos.unrealizedPnl >= 0 ? 'text-[var(--lime)]' : 'text-[var(--magenta)]'}>
+                      <span className="text-cyan-400">{pos.size > 0 ? 'LONG' : 'SHORT'} {Math.abs(pos.size)}</span>
+                      <span className="text-slate-400 tabular-nums">Entry: ${pos.entryPrice}</span>
+                      <span className={`font-bold tabular-nums ${pos.unrealizedPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         PnL: ${pos.unrealizedPnl}
                       </span>
                     </div>
@@ -989,29 +1179,21 @@ export default function CyberPulseNexusApp() {
                 </div>
               )}
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <button
-                type="button"
-                disabled={isExecuting || selectedAsset.price <= 0}
-                onClick={() => handleExecuteTrade('BUY')}
-                className="py-4 rounded-xl bg-gradient-to-r from-emerald-500/20 to-[var(--cyan)]/30 border border-[var(--cyan)] text-white hover:bg-[var(--cyan)] hover:text-black transition-all font-mono font-bold text-sm shadow-[0_0_25px_rgba(0,243,255,0.3)] cursor-pointer disabled:opacity-50"
-              >
-                {isAr ? `إرسال أمر شراء LONG للأصل ${selectedAsset.symbol}` : `BUY LONG ${selectedAsset.symbol} @ MARKET`}
-              </button>
-              <button
-                type="button"
-                disabled={isExecuting || selectedAsset.price <= 0}
-                onClick={() => handleExecuteTrade('SELL')}
-                className="py-4 rounded-xl bg-gradient-to-r from-rose-500/20 to-[var(--magenta)]/30 border border-[var(--magenta)] text-white hover:bg-[var(--magenta)] hover:text-white transition-all font-mono font-bold text-sm shadow-[0_0_25px_rgba(255,0,127,0.3)] cursor-pointer disabled:opacity-50"
-              >
-                {isAr ? `إرسال أمر بيع SHORT للأصل ${selectedAsset.symbol}` : `SELL SHORT ${selectedAsset.symbol} @ MARKET`}
-              </button>
-            </div>
           </div>
         )}
 
-        {/* TAB: TRADE HISTORY (REAL EXECUTED AND COMPLETED ORDERS) */}
+        {/* TAB: BOARD OF DIRECTORS (14 QUANTUM AGENTS) */}
+        {activeTab === 'board' && (
+          <BoardOfDirectorsTab
+            boardData={boardData}
+            selectedSymbol={selectedAsset.symbol}
+            isAr={isAr}
+            onRefresh={fetchLiveServerStatus}
+            playTone={playHoloTone}
+          />
+        )}
+
+        {/* TAB: TRADE HISTORY */}
         {activeTab === 'history' && (
           <HolographicTradeHistory
             lang={lang}
@@ -1021,24 +1203,24 @@ export default function CyberPulseNexusApp() {
 
         {/* TAB 3: REAL STRATEGIES */}
         {activeTab === 'strategies' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             {[
               { id: 'm1', nameEn: 'Statistical Mean Reversion', nameAr: 'ارتداد المتوسط الإحصائي', logic: 'Z-Score Ornstein-Uhlenbeck', target: 'Liquidity Pools' },
               { id: 'm2', nameEn: 'Microstructure Order Flow', nameAr: 'مقتنص تدفق السيولة الحية', logic: 'Bid/Ask Book Imbalance', target: 'Fast Execution' },
               { id: 'm3', nameEn: 'Volatility Breakout Scanner', nameAr: 'كاشف اختراق التقلب اللحظي', logic: 'ATR & Volume Spike Filter', target: 'Breakouts' }
             ].map((model) => (
-              <div key={model.id} className="holo-panel rounded-2xl p-5 border border-[rgba(0,243,255,0.25)] space-y-4 holo-card-hover">
+              <div key={model.id} className="quant-card p-5 space-y-4 border border-cyan-500/20">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-[var(--cyan)] font-bold">READY</span>
-                  <span className="font-mono text-xs font-bold text-[var(--lime)]">{model.logic}</span>
+                  <span className="font-mono text-xs text-cyan-400 font-bold">READY</span>
+                  <span className="font-mono text-xs font-bold text-emerald-400">{model.logic}</span>
                 </div>
                 <h3 className="font-mono font-bold text-base text-white">{isAr ? model.nameAr : model.nameEn}</h3>
-                <p className="text-xs text-[var(--muted)] font-mono">
+                <p className="text-xs text-slate-400">
                   {isAr ? 'استراتيجية حسابية تعتمد مباشرة على تدفق أسعار بايننس الحية وعمق دفتر الأوامر دون أي مدخلات وهمية.' : 'Executes strictly on live Binance orderbook depths and statistical market features.'}
                 </p>
-                <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs font-mono">
-                  <span className="text-[var(--muted)]">{isAr ? 'الهدف:' : 'Target:'} <b className="text-white">{model.target}</b></span>
-                  <span className="text-[var(--cyan)]">{isAr ? 'بث حي' : 'Live Stream'}</span>
+                <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs font-mono">
+                  <span className="text-slate-400">{isAr ? 'الهدف:' : 'Target:'} <b className="text-slate-200">{model.target}</b></span>
+                  <span className="text-cyan-400">{isAr ? 'بث حي' : 'Live Stream'}</span>
                 </div>
               </div>
             ))}
@@ -1047,26 +1229,26 @@ export default function CyberPulseNexusApp() {
 
         {/* TAB 4: RISK SHIELD */}
         {activeTab === 'risk' && (
-          <div className="holo-panel rounded-2xl p-6 border border-[rgba(0,255,102,0.3)] space-y-6 shadow-2xl">
+          <div className="quant-card p-4 sm:p-6 space-y-6 border border-emerald-500/20">
             <div className="flex items-center gap-3">
-              <ShieldCheck className="w-6 h-6 text-[var(--lime)]" />
+              <ShieldCheck className="w-6 h-6 text-emerald-400" />
               <h2 className="font-mono text-base font-bold text-white tracking-wider">
-                {isAr ? 'إدارة المخاطر ومفتاح إيقاف الطوارئ' : 'Real Risk Management & Kill Switch'}
+                {isAr ? 'إدارة المخاطر ومفتاح إيقاف الطوارئ' : 'Risk Safeguard & Circuit Breakers'}
               </h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2">
-                <span className="text-xs font-mono text-[var(--muted)] block">{isAr ? 'رصيد المحفظة الفعلي' : 'Current Real Equity'}</span>
-                <div className="text-xl font-mono font-bold text-white">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+                <span className="text-xs text-slate-400 block">{isAr ? 'رصيد المحفظة الفعلي' : 'Current Real Equity'}</span>
+                <div className="text-xl font-mono font-bold text-white tabular-nums">
                   ${accountState.totalEquity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
-              <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2">
-                <span className="text-xs font-mono text-[var(--muted)] block">{isAr ? 'أقصى نسبة خسارة مسموحة' : 'Max Allowed Drawdown'}</span>
-                <div className="text-xl font-mono font-bold text-[var(--lime)]">3.0% (Hard Stop)</div>
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
+                <span className="text-xs text-slate-400 block">{isAr ? 'أقصى نسبة خسارة مسموحة' : 'Max Allowed Drawdown'}</span>
+                <div className="text-xl font-mono font-bold text-emerald-400">3.0% (Hard Stop)</div>
               </div>
-              <div className="p-4 rounded-xl bg-black/40 border border-white/10 space-y-2">
-                <span className="text-xs font-mono text-[var(--muted)] block">{isAr ? 'مفتاح إيقاف الطوارئ وإغلاق المراكز' : 'Emergency Close All'}</span>
+              <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-2">
+                <span className="text-xs text-slate-400 block">{isAr ? 'مفتاح إيقاف الطوارئ وإغلاق المراكز' : 'Emergency Close All'}</span>
                 <button
                   type="button"
                   onClick={async () => {
@@ -1085,7 +1267,7 @@ export default function CyberPulseNexusApp() {
                       await fetchLiveServerStatus();
                     } catch {}
                   }}
-                  className="px-4 py-2 rounded-xl bg-rose-500/20 border border-rose-500/50 text-[var(--magenta)] font-mono text-xs font-bold hover:bg-rose-500/30 transition cursor-pointer"
+                  className="w-full py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold hover:bg-rose-500/25 transition cursor-pointer min-h-[40px]"
                 >
                   {isAr ? 'إغلاق كافة الصفقات فوراً' : 'Close All Positions'}
                 </button>
@@ -1096,11 +1278,114 @@ export default function CyberPulseNexusApp() {
 
       </main>
 
-      {/* 4. FUTURISTIC FOOTER */}
-      <footer className="mt-12 py-6 border-t border-[rgba(0,243,255,0.15)] text-center font-mono text-xs text-[var(--muted)]">
-        CYBERPULSE HOLOGRAPHIC QUANTUM MATRIX // 100% REAL-TIME BINANCE WEBSOCKET // BASEL QUANTUM LABS
+      {/* 4. MOBILE FLOATING BOTTOM NAVIGATION DOCK (Thumb Ergonomics) */}
+      <nav aria-label="Mobile Navigation" className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#06090e]/95 backdrop-blur-lg border-t border-white/10 px-2 py-1.5 flex items-center justify-around shadow-2xl">
+        {[
+          { id: 'matrix', labelEn: 'Markets', labelAr: 'الأسواق', icon: Activity },
+          { id: 'board', labelEn: 'Board', labelAr: 'المجلس', icon: Users },
+          { id: 'terminal', labelEn: 'Positions', labelAr: 'المراكز', icon: Terminal, badge: accountState.openPositions.length },
+          { id: 'history', labelEn: 'History', labelAr: 'السجل', icon: History },
+          { id: 'risk', labelEn: 'Risk', labelAr: 'المخاطر', icon: ShieldCheck }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                playHoloTone(850, 0.05);
+                setActiveTab(tab.id as any);
+              }}
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition cursor-pointer relative min-h-[44px] min-w-[54px] ${
+                isActive ? 'text-cyan-400' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <div className="relative">
+                <Icon className={`w-5 h-5 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
+                {typeof tab.badge === 'number' && tab.badge > 0 && (
+                  <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-cyan-500 text-black font-mono font-bold text-[9px] flex items-center justify-center">
+                    {tab.badge}
+                  </span>
+                )}
+              </div>
+              <span className={`text-[10px] font-mono mt-0.5 ${isActive ? 'font-bold text-cyan-400' : 'text-slate-400'}`}>
+                {isAr ? tab.labelAr : tab.labelEn}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* 5. MINIMALIST FOOTER */}
+      <footer className="mt-8 py-6 border-t border-white/5 text-center font-mono text-xs text-slate-500">
+        BASEL QUANTUM QUANTITATIVE TERMINAL · 100% REAL-TIME BINANCE WEBSOCKET
       </footer>
 
+      {/* MODALS */}
+      <SubWalletModal
+        isOpen={showSubWalletModal}
+        onClose={() => setShowSubWalletModal(false)}
+        subWallet={subWalletState}
+        masterBalance={accountState.totalEquity}
+        lang={lang}
+        onRealignAllTrades={async () => {
+          try {
+            const res = await fetch('/api/trades/reset-and-realign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+            });
+            const data = await res.json();
+            if (data.success) {
+              setAccountState((prev) => ({ ...prev, unrealizedPnl: 0, openPositionsCount: 0 }));
+              setSubWalletState((prev) => prev ? ({ ...prev, currentEquity: 25.0, availableMargin: 25.0, usedMargin: 0, unrealizedPnl: 0 }) : prev);
+            }
+          } catch (e) {
+            console.error('Failed to realign trades:', e);
+          }
+        }}
+        onResetSubWallet={async () => {
+          try {
+            const res = await fetch('/api/sub-wallet/reset', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ amount: 25.0 })
+            });
+            const data = await res.json();
+            if (data.boardOfDirectors) {
+              setBoardData(data.boardOfDirectors);
+            }
+            if (data.subWallet) {
+              setSubWalletState(data.subWallet);
+            }
+          } catch (e) {
+            console.error('Failed to reset sub-wallet:', e);
+          }
+        }}
+      />
+
+      <TelegramNotificationModal
+        isOpen={showTelegramModal}
+        onClose={() => setShowTelegramModal(false)}
+        lang={lang}
+        playTone={playHoloTone}
+      />
+
+      <KeepAliveGuideModal
+        isOpen={showKeepAliveModal}
+        onClose={() => setShowKeepAliveModal(false)}
+        lang={lang}
+        playTone={playHoloTone}
+      />
+
+      {/* 🎓 Quantum Board of Directors $200 Training Simulator Modal */}
+      <QuantumTrainingModal
+        isOpen={showQuantumTrainingModal}
+        onClose={() => setShowQuantumTrainingModal(false)}
+        lang={lang}
+        playTone={playHoloTone}
+        onRefreshBoard={fetchLiveServerStatus}
+      />
     </div>
   );
 }

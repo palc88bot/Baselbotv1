@@ -8,6 +8,7 @@ import { TradingPipeline } from "./src/app/TradingPipeline";
 import { TelegramService } from "./src/services/TelegramService";
 import { BacktestEngine } from "./src/backtest/BacktestEngine";
 import { RegimeDetector } from "./src/risk/RegimeDetector";
+import { QuantumTrainingSimulator } from "./src/strategies/QuantumTrainingSimulator";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { CloudDatabaseService } from "./src/storage/CloudDatabaseService.ts";
@@ -92,6 +93,29 @@ async function startServer() {
     });
   });
 
+  app.get(["/api/ping", "/api/keep-alive"], (req, res) => {
+    res.json({
+      status: "alive",
+      timestamp: Date.now(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      botIsRunning: pipeline.getIsRunning(),
+      message: "24/7 Keep-Alive heartbeat acknowledged. Server is active."
+    });
+  });
+
+  // 🔄 24/7 Autonomous Keep-Alive Self-Pinger:
+  // Regularly triggers internal routes to prevent event loop idling
+  const keepAliveInterval = setInterval(async () => {
+    try {
+      const pingUrl = process.env.APP_URL && !process.env.APP_URL.includes("MY_APP_URL")
+        ? `${process.env.APP_URL}/api/ping`
+        : "http://localhost:3000/api/ping";
+      await fetch(pingUrl).catch(() => {});
+    } catch {
+      // Non-blocking keep-alive ping
+    }
+  }, 25000);
+
   // User Sync & Auth Initialization
   app.post("/api/auth/sync", requireAuth, async (req: AuthRequest, res) => {
     try {
@@ -132,8 +156,10 @@ async function startServer() {
       const target = running !== undefined ? running : (isRunning !== undefined ? isRunning : !pipeline.getIsRunning());
       if (target) {
         await pipeline.startAutonomousTrading();
+        await telegramService.sendMessage('🚀 <b>تم تفعيل خط التداول الآلي (Basel AlgoCore)</b>\n\n✅ البوت قيد التشغيل الآن وسيتم إرسال إشعار فحص دوري كل 30 دقيقة.').catch(() => {});
       } else {
         pipeline.stop();
+        await telegramService.sendMessage('🛑 <b>تم إيقاف خط التداول الآلي (Basel AlgoCore)</b>\n\n⚠️ البوت متوقف عن التداول حالياً وسيتم إشعارك بالحالة كل 30 دقيقة.').catch(() => {});
       }
       res.json({ success: true, isRunning: pipeline.getIsRunning() });
     } catch (error: any) {
@@ -223,48 +249,134 @@ async function startServer() {
     }
   });
 
+  app.post(["/api/protected/positions/scale-up", "/api/positions/scale-up"], async (req: AuthRequest, res) => {
+    try {
+      const targetMargin = parseFloat(req.body?.targetMargin) || 6.0;
+      const result = await pipeline.scaleUpCurrentPositions(targetMargin);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ==========================================
+  // QUANTUM BOARD $200 SIMULATOR & TRAINING API
+  // ==========================================
+  const quantumSimulator = QuantumTrainingSimulator.getInstance();
+
+  app.get(["/api/quantum-training/status", "/api/protected/quantum-training/status"], async (req: AuthRequest, res) => {
+    try {
+      res.json({
+        success: true,
+        wallet: quantumSimulator.getWalletState(),
+        recentTrades: quantumSimulator.getRecentTrades(60),
+        activePolicy: quantumSimulator.getActivePolicy(),
+        deliberations: quantumSimulator.getDeliberations(),
+        binanceQuota: quantumSimulator.getBinanceQuotaMetrics()
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get(["/api/quantum-training/deliberations", "/api/protected/quantum-training/deliberations"], async (req: AuthRequest, res) => {
+    try {
+      res.json({
+        success: true,
+        deliberations: quantumSimulator.getDeliberations(),
+        activePolicy: quantumSimulator.getActivePolicy()
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get(["/api/quantum-training/policy", "/api/protected/quantum-training/policy"], async (req: AuthRequest, res) => {
+    try {
+      res.json({
+        success: true,
+        policy: quantumSimulator.getActivePolicy()
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post(["/api/quantum-training/batch", "/api/protected/quantum-training/batch"], async (req: AuthRequest, res) => {
+    try {
+      const count = parseInt(req.body?.count, 10) || 25;
+      const result = await quantumSimulator.runBatchTraining(count);
+      res.json({
+        success: true,
+        ...result
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post(["/api/quantum-training/toggle-auto", "/api/protected/quantum-training/toggle-auto"], async (req: AuthRequest, res) => {
+    try {
+      const enable = req.body?.enable !== undefined ? Boolean(req.body.enable) : undefined;
+      const isAuto = quantumSimulator.toggleAutoTraining(enable);
+      res.json({
+        success: true,
+        isAutoTraining: isAuto,
+        wallet: quantumSimulator.getWalletState()
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post(["/api/quantum-training/reset", "/api/protected/quantum-training/reset"], async (req: AuthRequest, res) => {
+    try {
+      const amount = parseFloat(req.body?.amount) || 200.0;
+      const wallet = quantumSimulator.resetTrainingWallet(amount);
+      res.json({
+        success: true,
+        wallet
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   app.get("/api/protected/order-history", async (req: AuthRequest, res) => {
     try {
-      const orders = pipeline.getOrderGateway().getOrders();
-      // Completed orders: FILLED, CANCELLED, REJECTED, EXPIRED, or PARTIALLY_FILLED
-      const completedStatuses = ['FILLED', 'CANCELLED', 'REJECTED', 'EXPIRED'];
-      const history: any[] = [...orders.filter((o) => completedStatuses.includes(o.status) || o.filledQuantity > 0)];
+      // Fetch genuine trades recorded in persistent DB
+      const dbTrades = await (pipeline.getDatabase() as any).getAllTrades?.() || await pipeline.getDatabase().getOpenTrades();
       
-      // Also enrich with trades from database (both adopted and open trades)
-      try {
-        const dbTrades = await pipeline.getDatabase().getOpenTrades();
-        for (const t of dbTrades) {
-          if (!history.some(h => h.id === t.id)) {
-            history.unshift({
-              id: t.id,
-              clientOrderId: `DB-${t.id}`,
-              symbol: t.symbol,
-              side: t.side,
-              type: 'MARKET',
-              price: t.price,
-              quantity: t.quantity,
-              filledQuantity: t.quantity,
-              remainingQuantity: 0,
-              avgFillPrice: t.price,
-              status: 'FILLED',
-              timestamp: t.timestamp,
-              updatedAt: t.timestamp,
-              strategyId: t.strategy,
-              executionTag: t.strategy,
-            });
-          }
-        }
-      } catch (dbErr) {
-        // Continue with memory orders if db fetch fails
-      }
+      const genuineOrders: any[] = dbTrades.map((t: any) => ({
+        id: t.id,
+        clientOrderId: `DB-${t.id}`,
+        symbol: t.symbol,
+        side: t.side,
+        type: 'MARKET',
+        price: t.price,
+        quantity: t.quantity,
+        filledQuantity: t.quantity,
+        remainingQuantity: 0,
+        avgFillPrice: t.price,
+        status: t.status === 'CLOSED' ? 'FILLED' : (t.status === 'OPEN' ? 'OPEN' : t.status),
+        pnl: t.pnl || 0,
+        exitPrice: t.exitPrice,
+        closedAt: t.closedAt,
+        timestamp: t.timestamp,
+        updatedAt: t.closedAt || t.timestamp,
+        strategyId: t.strategy || 'BASEL-ALGOCORE',
+        executionTag: t.strategy || 'REAL-EXCHANGE',
+      }));
 
-      // Also enrich with fills if available
+      // Sort by newest first
+      genuineOrders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
       const fills = pipeline.getUserDataStream().getFills();
       
       res.json({
         success: true,
-        count: history.length,
-        orders: history,
+        count: genuineOrders.length,
+        orders: genuineOrders,
         totalFills: fills.length,
         timestamp: Date.now(),
       });
@@ -409,22 +521,47 @@ async function startServer() {
     }
   });
 
-  app.post("/api/protected/telegram/test", async (req: AuthRequest, res) => {
+  app.get('/api/telegram/status', (req, res) => {
     try {
-      const success = await telegramService.sendMessage(
-        '🟢 <b>Baselbot Test</b>\n\n✅ تم الاتصال بنجاح! البوت جاهز لإرسال التنبيهات التلقائية والتنفيذية.'
-      );
-      res.json({ success, message: success ? 'Test message sent successfully!' : 'Failed to send. Please check Bot Token and Chat ID.' });
+      res.json({
+        ...telegramService.getConfigStatus(),
+        heartbeat: pipeline.getHeartbeatStatus()
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/telegram/config', async (req, res) => {
+    try {
+      const { chatId, isEnabled, botToken, heartbeatEnabled, intervalMinutes } = req.body || {};
+      telegramService.updateConfig(chatId, isEnabled, botToken, heartbeatEnabled, intervalMinutes);
+      pipeline.initHeartbeatTimer();
+      res.json({
+        success: true,
+        status: telegramService.getConfigStatus(),
+        heartbeat: pipeline.getHeartbeatStatus()
+      });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }
   });
 
-  app.get('/api/telegram/status', (req, res) => {
+  app.post(['/api/telegram/heartbeat/send-now', '/api/protected/telegram/test'], async (req, res) => {
     try {
-      res.json(telegramService.getConfigStatus());
+      const result = await pipeline.sendHeartbeatNotification(true);
+      res.json({
+        success: result.success,
+        message: result.success 
+          ? (result.isRunning 
+              ? '✅ تم إرسال إشعار نصف ساعوي: البوت يعمل بنجاح (RUNNING)!' 
+              : '🛑 تم إرسال إشعار نصف ساعوي: البوت متوقف حالياً (STOPPED)!') 
+          : '⚠️ تعذر الإرسال لتليجرام. يرجى التأكد من إدخال رمز البوت (Bot Token) ومعرف القناة/المحادثة (Chat ID).',
+        isRunning: result.isRunning,
+        heartbeat: pipeline.getHeartbeatStatus()
+      });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
@@ -487,6 +624,50 @@ async function startServer() {
   app.get('/api/protected/scale-in-status', handleScaleInStatus);
   app.get('/api/qualified-assets', handleQualifiedAssets);
   app.get('/api/protected/qualified-assets', handleQualifiedAssets);
+  // --- Sub-Wallet & Realignment Endpoints ---
+  app.get('/api/sub-wallet/state', (req, res) => {
+    try {
+      res.json({ success: true, subWallet: pipeline.getSubWallet().getState() });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/sub-wallet/reset', async (req, res) => {
+    try {
+      const amount = Number(req.body?.amount) || 25.0;
+      const newState = pipeline.getSubWallet().resetSubWallet(amount);
+      res.json({ success: true, subWallet: newState });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+    // Close single position on Binance & Bot
+  const handleClosePosition = async (req: express.Request, res: express.Response) => {
+    try {
+      const symbol = req.body?.symbol;
+      if (!symbol) {
+        return res.status(400).json({ success: false, error: 'Symbol is required' });
+      }
+      const result = await pipeline.closeSinglePositionOnExchange(symbol, req.body?.reason || 'Manual Dashboard Close');
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  };
+  app.post('/api/positions/close', handleClosePosition);
+  app.post('/api/protected/positions/close', handleClosePosition);
+
+  app.post('/api/trades/reset-and-realign', async (req, res) => {
+    try {
+      await pipeline.liquidateAndResetForNewWallet();
+      res.json({ success: true, message: 'All trades liquidated and realigned to 5 sub-wallet successfully' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
 
   // --- Backtesting API Endpoint ---
   app.post('/api/protected/backtest/run', async (req: AuthRequest, res) => {
@@ -678,6 +859,76 @@ async function startServer() {
     }
   });
 
+
+  // --- 🏛️ Board of Directors (14 Autonomous Agents) Endpoints ---
+  app.get('/api/board/status', (req, res) => {
+    try {
+      res.json({ success: true, report: pipeline.getBoardOfDirectors().getStatusReport() });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/board/hold-meeting', (req, res) => {
+    try {
+      const symbol = req.body?.symbol || 'BTC/USDT';
+      const candles = pipeline.getMarketData().getCandles(symbol) || [];
+      const features = pipeline.getLastFeatures().get(symbol);
+      const activeSymbols = pipeline.getConfig().activeSymbols || [symbol];
+      const candlesMap: Record<string, any> = {};
+      for (const sym of activeSymbols) {
+        candlesMap[sym] = pipeline.getMarketData().getCandles(sym) || [];
+      }
+      const signals = Array.from(pipeline.getLastSignals().values()).filter(s => s.symbol === symbol);
+      const regime = pipeline.getRegimeDetector().analyze();
+      const capital = pipeline.getSubWallet().getCurrentEquity();
+
+      const decision = pipeline.getBoardOfDirectors().holdMeeting({
+        symbol,
+        candles,
+        candlesMap,
+        signals,
+        features,
+        regime,
+        capital,
+        latencyMs: 12
+      });
+
+      res.json({ success: true, decision });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/board/learn', (req, res) => {
+    try {
+      const pnl = Number(req.body?.pnl) || 0;
+      const symbol = req.body?.symbol || 'BTC/USDT';
+      const event = pipeline.getBoardOfDirectors().learnFromOutcome(pnl, symbol);
+      const report = pipeline.getBoardOfDirectors().getStatusReport();
+
+      // Broadcast to WebSocket clients
+      try {
+        const wss = expressWsInstance.getWss();
+        const payload = JSON.stringify({
+          type: "BOARD_LEARNED",
+          data: { event, report }
+        });
+        wss.clients.forEach((client: any) => {
+          if (client.readyState === 1) {
+            client.send(payload);
+          }
+        });
+      } catch (wsErr) {
+        // ignore ws broadcast err
+      }
+
+      res.json({ success: true, event, report });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.get('/api/strategies/screener', (req, res) => {
     try {
       const screener = pipeline.getStrategyScreener();
@@ -736,10 +987,13 @@ async function startServer() {
         featuresDict,
         regime,
         riskDecision,
-        portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
+        subWallet: pipeline.getSubWallet().getState(),
+            portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
         qualifiedAssets: pipeline.getAssetScreener().getReport(),
         strategies: pipeline.getStrategies(),
         strategyScreener: pipeline.getStrategyScreener(),
+        boardOfDirectors: pipeline.getBoardOfDirectors().getStatusReport(),
+        quantumTrainingWallet: quantumSimulator.getWalletState(),
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to get live status' });
@@ -985,6 +1239,7 @@ async function startServer() {
             featuresDict,
             regime,
             riskDecision,
+            subWallet: pipeline.getSubWallet().getState(),
             portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
             qualifiedAssets: pipeline.getAssetScreener().getReport(),
             strategies: pipeline.getStrategies(),
@@ -1086,10 +1341,12 @@ async function startServer() {
           featuresDict,
           regime,
           riskDecision,
-          portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
+          subWallet: pipeline.getSubWallet().getState(),
+            portfolioTier: pipeline.getPortfolioSizer().getPortfolioReport(),
           qualifiedAssets: pipeline.getAssetScreener().getReport(),
           strategies: pipeline.getStrategies(),
           strategyScreener: pipeline.getStrategyScreener(),
+          boardOfDirectors: pipeline.getBoardOfDirectors().getStatusReport(),
         },
       });
 
@@ -1113,6 +1370,29 @@ async function startServer() {
 
   server.on("close", () => {
     clearInterval(broadcastInterval);
+  });
+
+  
+  // Reset and realign all trades for sub-wallet
+    
+  app.post('/api/trades/reset-and-realign', async (req, res) => {
+    try {
+      await pipeline.liquidateAndResetForNewWallet();
+      res.json({ success: true, message: 'All trades liquidated and realigned to 5 sub-wallet successfully' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Sub-Wallet Reset endpoint
+  app.post('/api/sub-wallet/reset', async (req, res) => {
+    try {
+      const amount = Number(req.body?.amount) || 25.0;
+      const newState = pipeline.getSubWallet().resetSubWallet(amount);
+      res.json({ success: true, subWallet: newState });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // 4. Vite Middleware Setup for Frontend SPA

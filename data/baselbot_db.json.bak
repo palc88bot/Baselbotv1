@@ -1,5 +1,549 @@
 {
   "trades": {
+    "ORD-mu8r4t0d-1": {
+      "id": "ORD-mu8r4t0d-1",
+      "timestamp": 1789844383454,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1106,
+      "price": 81383,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8r4t0g-2": {
+      "id": "ORD-mu8r4t0g-2",
+      "timestamp": 1789844383458,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1106,
+      "price": 81383,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8rvero-1": {
+      "id": "ORD-mu8rvero-1",
+      "timestamp": 1789845624709,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1106,
+      "price": 81382.9,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8rverp-2": {
+      "id": "ORD-mu8rverp-2",
+      "timestamp": 1789845624711,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1106,
+      "price": 81382.9,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x04hs-1": {
+      "id": "ORD-mu8x04hs-1",
+      "timestamp": 1789854242755,
+      "symbol": "ETH/USDT",
+      "side": "BUY",
+      "quantity": 3.4321,
+      "price": 2622.32,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x0k2d-2": {
+      "id": "ORD-mu8x0k2d-2",
+      "timestamp": 1789854262936,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.319,
+      "price": 2622.52,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x0vq0-3": {
+      "id": "ORD-mu8x0vq0-3",
+      "timestamp": 1789854278042,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 2.7825,
+      "price": 2622.59,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x17ct-4": {
+      "id": "ORD-mu8x17ct-4",
+      "timestamp": 1789854293118,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 2.4357,
+      "price": 2622.83,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x1iy3-5": {
+      "id": "ORD-mu8x1iy3-5",
+      "timestamp": 1789854308141,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.4309,
+      "price": 2623.24,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x1ktt-6": {
+      "id": "ORD-mu8x1ktt-6",
+      "timestamp": 1789854310578,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 77.9739,
+      "price": 110.52,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x1wc9-7": {
+      "id": "ORD-mu8x1wc9-7",
+      "timestamp": 1789854325498,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.3098,
+      "price": 2623.3,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x221i-8": {
+      "id": "ORD-mu8x221i-8",
+      "timestamp": 1789854332887,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 69.547,
+      "price": 110.52,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x284w-9": {
+      "id": "ORD-mu8x284w-9",
+      "timestamp": 1789854340785,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.43,
+      "price": 2623.87,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x2fon-10": {
+      "id": "ORD-mu8x2fon-10",
+      "timestamp": 1789854350569,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 55.6461,
+      "price": 110.5,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x2jpu-11": {
+      "id": "ORD-mu8x2jpu-11",
+      "timestamp": 1789854355794,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.4288,
+      "price": 2624.84,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x2t3n-12": {
+      "id": "ORD-mu8x2t3n-12",
+      "timestamp": 1789854367957,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 56.4152,
+      "price": 110.52,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x2ywl-13": {
+      "id": "ORD-mu8x2ywl-13",
+      "timestamp": 1789854375478,
+      "symbol": "ETH/USDT",
+      "side": "SELL",
+      "quantity": 3.4286,
+      "price": 2625.01,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x3iae-14": {
+      "id": "ORD-mu8x3iae-14",
+      "timestamp": 1789854400599,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 56.8961,
+      "price": 110.54,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x3vtq-15": {
+      "id": "ORD-mu8x3vtq-15",
+      "timestamp": 1789854418143,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 57.8171,
+      "price": 110.56,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x49ap-16": {
+      "id": "ORD-mu8x49ap-16",
+      "timestamp": 1789854435602,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 59.5441,
+      "price": 110.56,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x4mqx-17": {
+      "id": "ORD-mu8x4mqx-17",
+      "timestamp": 1789854453034,
+      "symbol": "SOL/USDT",
+      "side": "SELL",
+      "quantity": 81.1908,
+      "price": 110.85,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0
+    },
+    "ORD-mu8x5fsy-1": {
+      "id": "ORD-mu8x5fsy-1",
+      "timestamp": 1789854490691,
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.1111,
+      "price": 81005.1,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "closedAt": 1791152001897,
+      "pnl": 0
+    },
+    "ORD-mu8x5gq4-2": {
+      "id": "ORD-mu8x5gq4-2",
+      "timestamp": 1789854491885,
+      "symbol": "QNT/USDT",
+      "side": "BUY",
+      "quantity": 137.2998,
+      "price": 65.55,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791123717824
+    },
+    "ORD-mu8x5gq7-3": {
+      "id": "ORD-mu8x5gq7-3",
+      "timestamp": 1789854491887,
+      "symbol": "ETH/USDT",
+      "side": "BUY",
+      "quantity": 3.428,
+      "price": 2625.4,
+      "strategy": "OU-QUBO-COMPOUND",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791123717824
+    },
+    "ADOPTED-muu4xrco-LINKUSDT": {
+      "id": "ADOPTED-muu4xrco-LINKUSDT",
+      "symbol": "LINK/USDT",
+      "side": "SELL",
+      "quantity": 0.01,
+      "price": 14.007,
+      "timestamp": 1791137359032,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791152001897
+    },
+    "ORD-muudnmvp-1-0e4c3c": {
+      "id": "ORD-muudnmvp-1-0e4c3c",
+      "timestamp": 1791152003222,
+      "symbol": "ZEC/USDT",
+      "side": "BUY",
+      "quantity": 0.0041,
+      "price": 1350.3,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "closedAt": 1791152869586,
+      "pnl": 0
+    },
+    "ORD-muudnn40-2-e70502": {
+      "id": "ORD-muudnn40-2-e70502",
+      "timestamp": 1791152003520,
+      "symbol": "LINK/USDT",
+      "side": "SELL",
+      "quantity": 0.3846,
+      "price": 14.299,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "closedAt": 1791152869586,
+      "pnl": 0
+    },
+    "ORD-muudnn43-3-65fa7b": {
+      "id": "ORD-muudnn43-3-65fa7b",
+      "timestamp": 1791152003523,
+      "symbol": "XTZ/USDT",
+      "side": "SELL",
+      "quantity": 16.5364,
+      "price": 0.3326,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "closedAt": 1791152869586,
+      "pnl": 0
+    },
+    "ORD-muudnn47-4-78efed": {
+      "id": "ORD-muudnn47-4-78efed",
+      "timestamp": 1791152003527,
+      "symbol": "ETC/USDT",
+      "side": "SELL",
+      "quantity": 0.6145,
+      "price": 8.951,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "closedAt": 1791152869586,
+      "pnl": 0
+    },
+    "ORD-muudnn4d-5-f8d278": {
+      "id": "ORD-muudnn4d-5-f8d278",
+      "timestamp": 1791152003533,
+      "symbol": "BCH/USDT",
+      "side": "SELL",
+      "quantity": 0.0173,
+      "price": 317.28,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "closedAt": 1791152869586,
+      "pnl": 0
+    },
+    "ORD-muudnn4g-6-e1878e": {
+      "id": "ORD-muudnn4g-6-e1878e",
+      "timestamp": 1791152003536,
+      "symbol": "LTC/USDT",
+      "side": "SELL",
+      "quantity": 0.0778,
+      "price": 70.65,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "closedAt": 1791152869586,
+      "pnl": 0
+    },
+    "ORD-muudnn4i-7-2c20a1": {
+      "id": "ORD-muudnn4i-7-2c20a1",
+      "timestamp": 1791152003538,
+      "symbol": "XLM/USDT",
+      "side": "SELL",
+      "quantity": 24.758,
+      "price": 0.22215,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "closedAt": 1791152869586,
+      "pnl": 0
+    },
+    "ADOPTED-muudnutn-BTCUSDT": {
+      "id": "ADOPTED-muudnutn-BTCUSDT",
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.0032,
+      "price": 83882.40000000001,
+      "timestamp": 1791152013515,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791152869586
+    },
+    "ADOPTED-muue682o-ZECUSDT": {
+      "id": "ADOPTED-muue682o-ZECUSDT",
+      "symbol": "ZEC/USDT",
+      "side": "BUY",
+      "quantity": 0.004,
+      "price": 1350.46,
+      "timestamp": 1791152870496,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153353194
+    },
+    "ADOPTED-muue6842-BCHUSDT": {
+      "id": "ADOPTED-muue6842-BCHUSDT",
+      "symbol": "BCH/USDT",
+      "side": "SELL",
+      "quantity": 0.017,
+      "price": 317.06,
+      "timestamp": 1791152870546,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153353194
+    },
+    "ADOPTED-muue686q-XTZUSDT": {
+      "id": "ADOPTED-muue686q-XTZUSDT",
+      "symbol": "XTZ/USDT",
+      "side": "SELL",
+      "quantity": 16.5,
+      "price": 0.33249999999999996,
+      "timestamp": 1791152870642,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153353194
+    },
+    "ADOPTED-muue687z-ETCUSDT": {
+      "id": "ADOPTED-muue687z-ETCUSDT",
+      "symbol": "ETC/USDT",
+      "side": "SELL",
+      "quantity": 0.61,
+      "price": 8.907,
+      "timestamp": 1791152870688,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153353194
+    },
+    "ADOPTED-muue689a-LTCUSDT": {
+      "id": "ADOPTED-muue689a-LTCUSDT",
+      "symbol": "LTC/USDT",
+      "side": "SELL",
+      "quantity": 0.077,
+      "price": 70.64,
+      "timestamp": 1791152870734,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153353194
+    },
+    "ADOPTED-muue6beu-LINKUSDT": {
+      "id": "ADOPTED-muue6beu-LINKUSDT",
+      "symbol": "LINK/USDT",
+      "side": "SELL",
+      "quantity": 0.39,
+      "price": 14.285666666666666,
+      "timestamp": 1791152874822,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153353194
+    },
+    "ADOPTED-muue6bh2-BTCUSDT": {
+      "id": "ADOPTED-muue6bh2-BTCUSDT",
+      "symbol": "BTC/USDT",
+      "side": "BUY",
+      "quantity": 0.0032,
+      "price": 83882.40000000001,
+      "timestamp": 1791152874902,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153353194
+    },
+    "ADOPTED-muue6bic-XLMUSDT": {
+      "id": "ADOPTED-muue6bic-XLMUSDT",
+      "symbol": "XLM/USDT",
+      "side": "SELL",
+      "quantity": 24,
+      "price": 0.22163000000000002,
+      "timestamp": 1791152874948,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153353194
+    },
+    "ORD-muuegkz2-9-8bcb90": {
+      "id": "ORD-muuegkz2-9-8bcb90",
+      "timestamp": 1791153353774,
+      "symbol": "ADA/USDT",
+      "side": "SELL",
+      "quantity": 20.8018,
+      "price": 0.2644,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153374229,
+      "exitPrice": 0.2644
+    },
+    "ADOPTED-muueiel1-ZECUSDT": {
+      "id": "ADOPTED-muueiel1-ZECUSDT",
+      "symbol": "ZEC/USDT",
+      "side": "BUY",
+      "quantity": 0.004,
+      "price": 1352.91,
+      "timestamp": 1791153438806,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153443622
+    },
+    "ADOPTED-muueieo9-BCHUSDT": {
+      "id": "ADOPTED-muueieo9-BCHUSDT",
+      "symbol": "BCH/USDT",
+      "side": "BUY",
+      "quantity": 0.017,
+      "price": 318.17,
+      "timestamp": 1791153438921,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153443622
+    },
+    "ADOPTED-muueietr-XTZUSDT": {
+      "id": "ADOPTED-muueietr-XTZUSDT",
+      "symbol": "XTZ/USDT",
+      "side": "SELL",
+      "quantity": 16.4,
+      "price": 0.3337,
+      "timestamp": 1791153439119,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153443622
+    },
+    "ADOPTED-muueieuw-ETCUSDT": {
+      "id": "ADOPTED-muueieuw-ETCUSDT",
+      "symbol": "ETC/USDT",
+      "side": "SELL",
+      "quantity": 0.61,
+      "price": 8.978,
+      "timestamp": 1791153439178,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153443622
+    },
+    "ADOPTED-muueiewo-DASHUSDT": {
+      "id": "ADOPTED-muueiewo-DASHUSDT",
+      "symbol": "DASH/USDT",
+      "side": "BUY",
+      "quantity": 0.092,
+      "price": 59.44,
+      "timestamp": 1791153439224,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791153443622
+    },
     "ADOPTED-muueijmf-LTCUSDT": {
       "id": "ADOPTED-muueijmf-LTCUSDT",
       "symbol": "LTC/USDT",
@@ -8,10 +552,20 @@
       "price": 70.61,
       "timestamp": 1791153445336,
       "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "OPEN",
+      "pnl": 0
+    },
+    "ADOPTED-muueino8-XRPUSDT": {
+      "id": "ADOPTED-muueino8-XRPUSDT",
+      "symbol": "XRP/USDT",
+      "side": "BUY",
+      "quantity": 3.6,
+      "price": 1.5186000000000002,
+      "timestamp": 1791153450584,
+      "strategy": "Orphan-Adopted-Protective-Manager",
       "status": "CLOSED",
-      "pnl": -0.1293,
-      "closedAt": 1791320627163,
-      "exitPrice": 69
+      "pnl": 0,
+      "closedAt": 1791153459404
     },
     "ADOPTED-muueiuh8-BCHUSDT": {
       "id": "ADOPTED-muueiuh8-BCHUSDT",
@@ -34,6 +588,18 @@
       "strategy": "Orphan-Adopted-Protective-Manager",
       "status": "OPEN",
       "pnl": 0
+    },
+    "ADOPTED-muueium3-DASHUSDT": {
+      "id": "ADOPTED-muueium3-DASHUSDT",
+      "symbol": "DASH/USDT",
+      "side": "SELL",
+      "quantity": 0.092,
+      "price": 59.49,
+      "timestamp": 1791153459579,
+      "strategy": "Orphan-Adopted-Protective-Manager",
+      "status": "CLOSED",
+      "pnl": 0,
+      "closedAt": 1791210161624
     },
     "ADOPTED-muueiupi-LINKUSDT": {
       "id": "ADOPTED-muueiupi-LINKUSDT",
@@ -60,105 +626,1440 @@
       "pnl": 0.17304000000000053,
       "closedAt": 1791211199871,
       "exitPrice": 0.21621
-    },
-    "ORD-mux61uc5-1-0d89de": {
-      "id": "ORD-mux61uc5-1-0d89de",
-      "timestamp": 1791320627670,
-      "symbol": "BAT/USDT",
-      "side": "BUY",
-      "quantity": 54.6611,
-      "price": 0.10062,
-      "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
-    },
-    "ORD-mux61uce-2-2db8ee": {
-      "id": "ORD-mux61uce-2-2db8ee",
-      "timestamp": 1791320627678,
-      "symbol": "LTC/USDT",
-      "side": "BUY",
-      "quantity": 0.0797,
-      "price": 69,
-      "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
-    },
-    "ORD-mux61udu-3-e29413": {
-      "id": "ORD-mux61udu-3-e29413",
-      "timestamp": 1791320627730,
-      "symbol": "IOST/USDT",
-      "side": "SELL",
-      "quantity": 6481.2633,
-      "price": 0.0008486,
-      "strategy": "OU-DECISION-ENGINE",
-      "status": "CLOSED",
-      "pnl": -0.0049,
-      "closedAt": 1791320629610,
-      "exitPrice": 0.0008485
-    },
-    "ORD-mux61ue3-4-482d5e": {
-      "id": "ORD-mux61ue3-4-482d5e",
-      "timestamp": 1791320627739,
-      "symbol": "BCH/USDT",
-      "side": "SELL",
-      "quantity": 0.0175,
-      "price": 314.06,
-      "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
-    },
-    "ORD-mux61uiw-5-642374": {
-      "id": "ORD-mux61uiw-5-642374",
-      "timestamp": 1791320627913,
-      "symbol": "XRP/USDT",
-      "side": "BUY",
-      "quantity": 3.6681,
-      "price": 1.4994,
-      "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
-    },
-    "ORD-mux61ung-6-2b4749": {
-      "id": "ORD-mux61ung-6-2b4749",
-      "timestamp": 1791320628076,
-      "symbol": "ONT/USDT",
-      "side": "BUY",
-      "quantity": 91.0445,
-      "price": 0.06041,
-      "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
-    },
-    "ADOPTED-mux66l1h-QTUMUSDT": {
-      "id": "ADOPTED-mux66l1h-QTUMUSDT",
-      "symbol": "QTUM/USDT",
-      "side": "BUY",
-      "quantity": 0.1,
-      "price": 0.9746,
-      "timestamp": 1791320848901,
-      "strategy": "Orphan-Adopted-Protective-Manager",
-      "status": "OPEN",
-      "pnl": 0
-    },
-    "ADOPTED-mux66l40-IOTAUSDT": {
-      "id": "ADOPTED-mux66l40-IOTAUSDT",
-      "symbol": "IOTA/USDT",
-      "side": "SELL",
-      "quantity": 95.6,
-      "price": 0.057569999999999996,
-      "timestamp": 1791320848992,
-      "strategy": "Orphan-Adopted-Protective-Manager",
-      "status": "OPEN",
-      "pnl": 0
-    },
-    "ADOPTED-mux66l64-NEOUSDT": {
-      "id": "ADOPTED-mux66l64-NEOUSDT",
-      "symbol": "NEO/USDT",
-      "side": "BUY",
-      "quantity": 2.16,
-      "price": 2.537,
-      "timestamp": 1791320849068,
-      "strategy": "Orphan-Adopted-Protective-Manager",
-      "status": "OPEN",
-      "pnl": 0
     }
   },
   "signals": [
+    {
+      "id": "SIG-mu8r4t0a",
+      "timestamp": 1789844383450,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.124,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8r4t0c",
+      "timestamp": 1789844383452,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.124,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8rverk",
+      "timestamp": 1789845624704,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -4.927,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8rverm",
+      "timestamp": 1789845624706,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -4.927,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x0465",
+      "timestamp": 1789854242333,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x04aa",
+      "timestamp": 1789854242482,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x04bk",
+      "timestamp": 1789854242528,
+      "symbol": "ETH/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.34,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x04iv",
+      "timestamp": 1789854242791,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x05tc",
+      "timestamp": 1789854244464,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x05wx",
+      "timestamp": 1789854244593,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x060y",
+      "timestamp": 1789854244738,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0651",
+      "timestamp": 1789854244885,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x06an",
+      "timestamp": 1789854245087,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x06ql",
+      "timestamp": 1789854245661,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.575,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x07oj",
+      "timestamp": 1789854246883,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x07rl",
+      "timestamp": 1789854246993,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x07vr",
+      "timestamp": 1789854247143,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x09r1",
+      "timestamp": 1789854249565,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x09vr",
+      "timestamp": 1789854249735,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0bge",
+      "timestamp": 1789854251774,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0bgh",
+      "timestamp": 1789854251777,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0dih",
+      "timestamp": 1789854254441,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0dil",
+      "timestamp": 1789854254445,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0g3o",
+      "timestamp": 1789854257796,
+      "symbol": "SOL/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.576,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x0jvw",
+      "timestamp": 1789854262700,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.96712,
+      "zScore": 2.363,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x0vje",
+      "timestamp": 1789854277802,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.8687199999999999,
+      "zScore": 1.953,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x154x",
+      "timestamp": 1789854290241,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 5.046,
+      "executed": false
+    },
+    {
+      "id": "SIG-mu8x176g",
+      "timestamp": 1789854292888,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.81904,
+      "zScore": 1.746,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x1irk",
+      "timestamp": 1789854307904,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 2.54,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x1knr",
+      "timestamp": 1789854310359,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.95752,
+      "zScore": 2.323,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x1w5r",
+      "timestamp": 1789854325263,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.96472,
+      "zScore": 2.353,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x20bg",
+      "timestamp": 1789854330652,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.91504,
+      "zScore": 2.146,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x27yc",
+      "timestamp": 1789854340548,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 3.831,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x2fia",
+      "timestamp": 1789854350338,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.78832,
+      "zScore": 1.618,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x2jji",
+      "timestamp": 1789854355566,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 6.371,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x2sx2",
+      "timestamp": 1789854367718,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.7993600000000001,
+      "zScore": 1.664,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x2yq1",
+      "timestamp": 1789854375241,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 5.764,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x3i3x",
+      "timestamp": 1789854400365,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.80632,
+      "zScore": 1.693,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x3vnd",
+      "timestamp": 1789854417913,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.81952,
+      "zScore": 1.748,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x4947",
+      "timestamp": 1789854435367,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.8440000000000001,
+      "zScore": 1.85,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x4mk8",
+      "timestamp": 1789854452792,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 1,
+      "zScore": 5.076,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x4xr5",
+      "timestamp": 1789854467297,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.98008,
+      "zScore": 2.417,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x5fmg",
+      "timestamp": 1789854490456,
+      "symbol": "BTC/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -6.848,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x5fxm",
+      "timestamp": 1789854490858,
+      "symbol": "QNT/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.606,
+      "executed": true
+    },
+    {
+      "id": "SIG-mu8x5fzg",
+      "timestamp": 1789854490924,
+      "symbol": "ETH/USDT",
+      "type": "BUY",
+      "strength": 1,
+      "zScore": -7.497,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muubj5eg-ETHUSDT",
+      "timestamp": 1791148434712,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1303.28,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5eh-SOLUSDT",
+      "timestamp": 1791148434713,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.735,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5eh-XRPUSDT",
+      "timestamp": 1791148434713,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.245,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5eh-AVAXUSDT",
+      "timestamp": 1791148434713,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.474,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5eh-ADAUSDT",
+      "timestamp": 1791148434713,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.874,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5eh-BNBUSDT",
+      "timestamp": 1791148434713,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.41,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5eh-DOGEUSDT",
+      "timestamp": 1791148434713,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.952,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5ei-SUIUSDT",
+      "timestamp": 1791148434714,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.398,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5ej-NEARUSDT",
+      "timestamp": 1791148434715,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.535,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubj5ej-RENDERUSDT",
+      "timestamp": 1791148434715,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.008,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm8z-ETHUSDT",
+      "timestamp": 1791148643171,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1303.36,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm8z-SOLUSDT",
+      "timestamp": 1791148643171,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.775,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm8z-XRPUSDT",
+      "timestamp": 1791148643171,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.244,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm8z-AVAXUSDT",
+      "timestamp": 1791148643171,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.475,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm8z-ADAUSDT",
+      "timestamp": 1791148643171,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.874,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm90-BNBUSDT",
+      "timestamp": 1791148643172,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 346.805,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm90-DOGEUSDT",
+      "timestamp": 1791148643172,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.952,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm91-SUIUSDT",
+      "timestamp": 1791148643173,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.398,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm91-NEARUSDT",
+      "timestamp": 1791148643173,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.539,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muubnm91-RENDERUSDT",
+      "timestamp": 1791148643173,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.008,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6nr-ETHUSDT",
+      "timestamp": 1791150069303,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1302.1,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6ns-SOLUSDT",
+      "timestamp": 1791150069304,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.67,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6ns-XRPUSDT",
+      "timestamp": 1791150069304,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.245,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6ns-AVAXUSDT",
+      "timestamp": 1791150069304,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.478,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6ns-ADAUSDT",
+      "timestamp": 1791150069304,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.874,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6ns-BNBUSDT",
+      "timestamp": 1791150069304,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.2,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6nt-DOGEUSDT",
+      "timestamp": 1791150069305,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.951,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6nt-SUIUSDT",
+      "timestamp": 1791150069305,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.396,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6nu-NEARUSDT",
+      "timestamp": 1791150069306,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.535,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muuci6nu-RENDERUSDT",
+      "timestamp": 1791150069306,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.011,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosuo-ETHUSDT",
+      "timestamp": 1791150378000,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1303.23,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosuo-SOLUSDT",
+      "timestamp": 1791150378000,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.715,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosup-XRPUSDT",
+      "timestamp": 1791150378001,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.245,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosup-AVAXUSDT",
+      "timestamp": 1791150378001,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.478,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosup-ADAUSDT",
+      "timestamp": 1791150378001,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.874,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosup-BNBUSDT",
+      "timestamp": 1791150378001,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.26,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosup-DOGEUSDT",
+      "timestamp": 1791150378001,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.951,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosuq-SUIUSDT",
+      "timestamp": 1791150378002,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.396,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosur-NEARUSDT",
+      "timestamp": 1791150378003,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.535,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucosur-RENDERUSDT",
+      "timestamp": 1791150378003,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.012,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowgz-ETHUSDT",
+      "timestamp": 1791150382691,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1302.96,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh0-SOLUSDT",
+      "timestamp": 1791150382692,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.715,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh0-XRPUSDT",
+      "timestamp": 1791150382692,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.245,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh0-AVAXUSDT",
+      "timestamp": 1791150382692,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.478,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh0-ADAUSDT",
+      "timestamp": 1791150382692,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.874,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh1-BNBUSDT",
+      "timestamp": 1791150382693,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.265,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh1-DOGEUSDT",
+      "timestamp": 1791150382693,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.951,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh3-SUIUSDT",
+      "timestamp": 1791150382695,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.396,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh3-NEARUSDT",
+      "timestamp": 1791150382695,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.535,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucowh3-RENDERUSDT",
+      "timestamp": 1791150382695,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.012,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyuks-ETHUSDT",
+      "timestamp": 1791150846796,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1302.185,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyuks-SOLUSDT",
+      "timestamp": 1791150846796,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.665,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyukt-XRPUSDT",
+      "timestamp": 1791150846797,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.244,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyukt-AVAXUSDT",
+      "timestamp": 1791150846797,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.474,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyukt-ADAUSDT",
+      "timestamp": 1791150846797,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.873,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyukt-BNBUSDT",
+      "timestamp": 1791150846797,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.105,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyuku-DOGEUSDT",
+      "timestamp": 1791150846798,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.952,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyuku-SUIUSDT",
+      "timestamp": 1791150846798,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.398,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyukv-NEARUSDT",
+      "timestamp": 1791150846799,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.535,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muucyukv-RENDERUSDT",
+      "timestamp": 1791150846799,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.015,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem09-ETHUSDT",
+      "timestamp": 1791151582185,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1306.595,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem09-SOLUSDT",
+      "timestamp": 1791151582185,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.955,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem0a-XRPUSDT",
+      "timestamp": 1791151582186,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.241,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem0a-AVAXUSDT",
+      "timestamp": 1791151582186,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.453,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem0a-ADAUSDT",
+      "timestamp": 1791151582186,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.872,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem0a-BNBUSDT",
+      "timestamp": 1791151582186,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.69,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem0a-DOGEUSDT",
+      "timestamp": 1791151582186,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.952,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem0b-SUIUSDT",
+      "timestamp": 1791151582187,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.395,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem0b-NEARUSDT",
+      "timestamp": 1791151582187,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.498,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudem0b-RENDERUSDT",
+      "timestamp": 1791151582187,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.013,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepop-ETHUSDT",
+      "timestamp": 1791151586953,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1307.61,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepop-SOLUSDT",
+      "timestamp": 1791151586953,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 11.01,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepop-XRPUSDT",
+      "timestamp": 1791151586953,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.24,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepop-AVAXUSDT",
+      "timestamp": 1791151586953,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.453,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepop-ADAUSDT",
+      "timestamp": 1791151586953,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.872,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepoq-BNBUSDT",
+      "timestamp": 1791151586954,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.77,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepoq-DOGEUSDT",
+      "timestamp": 1791151586954,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.952,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepor-SUIUSDT",
+      "timestamp": 1791151586955,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.394,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepor-NEARUSDT",
+      "timestamp": 1791151586955,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.495,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudepor-RENDERUSDT",
+      "timestamp": 1791151586955,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.013,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwn-ETHUSDT",
+      "timestamp": 1791151999367,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1306.72,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwn-SOLUSDT",
+      "timestamp": 1791151999367,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.945,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwn-XRPUSDT",
+      "timestamp": 1791151999367,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.241,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwo-AVAXUSDT",
+      "timestamp": 1791151999368,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.459,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwo-ADAUSDT",
+      "timestamp": 1791151999368,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.872,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwo-BNBUSDT",
+      "timestamp": 1791151999368,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.45,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwo-DOGEUSDT",
+      "timestamp": 1791151999368,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.952,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwp-SUIUSDT",
+      "timestamp": 1791151999369,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.397,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwq-NEARUSDT",
+      "timestamp": 1791151999370,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.51,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnjwq-RENDERUSDT",
+      "timestamp": 1791151999370,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.014,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnmj8-ZECUSDT",
+      "timestamp": 1791152002772,
+      "symbol": "ZEC/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -23.501,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muudnmrd-BCHUSDT",
+      "timestamp": 1791152003065,
+      "symbol": "BCH/USDT",
+      "type": "SELL",
+      "strength": 0.67,
+      "zScore": 5.255,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muudnmre-LTCUSDT",
+      "timestamp": 1791152003066,
+      "symbol": "LTC/USDT",
+      "type": "SELL",
+      "strength": 0.67,
+      "zScore": 1.926,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muudnmre-ETCUSDT",
+      "timestamp": 1791152003066,
+      "symbol": "ETC/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 2.694,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muudnmrf-LINKUSDT",
+      "timestamp": 1791152003067,
+      "symbol": "LINK/USDT",
+      "type": "SELL",
+      "strength": 0.67,
+      "zScore": 294.176,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muudnmrf-XLMUSDT",
+      "timestamp": 1791152003067,
+      "symbol": "XLM/USDT",
+      "type": "SELL",
+      "strength": 0.67,
+      "zScore": 11.024,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muudnmrg-XTZUSDT",
+      "timestamp": 1791152003068,
+      "symbol": "XTZ/USDT",
+      "type": "SELL",
+      "strength": 0.67,
+      "zScore": 2.337,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muudnu3y-ETHUSDT",
+      "timestamp": 1791152012590,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1307.2,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu3z-SOLUSDT",
+      "timestamp": 1791152012591,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 10.98,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu3z-XRPUSDT",
+      "timestamp": 1791152012591,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.241,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu3z-AVAXUSDT",
+      "timestamp": 1791152012591,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.456,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu3z-ADAUSDT",
+      "timestamp": 1791152012591,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.872,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu3z-BNBUSDT",
+      "timestamp": 1791152012591,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.615,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu3z-DOGEUSDT",
+      "timestamp": 1791152012591,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.952,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu40-SUIUSDT",
+      "timestamp": 1791152012592,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.396,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu40-NEARUSDT",
+      "timestamp": 1791152012592,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.507,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muudnu40-RENDERUSDT",
+      "timestamp": 1791152012592,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.014,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muue0xul-ETHUSDT",
+      "timestamp": 1791152623965,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1313.88,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muue0xul-SOLUSDT",
+      "timestamp": 1791152623965,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 11.055,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muue0xul-XRPUSDT",
+      "timestamp": 1791152623965,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.24,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muue0xul-AVAXUSDT",
+      "timestamp": 1791152623965,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.449,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muue0xum-ADAUSDT",
+      "timestamp": 1791152623966,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.871,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muue0xum-BNBUSDT",
+      "timestamp": 1791152623966,
+      "symbol": "BNB/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 347.92,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muue0xum-DOGEUSDT",
+      "timestamp": 1791152623966,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.952,
+      "executed": false
+    },
     {
       "id": "SIG-MULTI-muue0xun-SUIUSDT",
       "timestamp": 1791152623967,
@@ -2894,1770 +4795,6 @@
       "strength": 0.59,
       "zScore": -48.919,
       "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtpr-ETHUSDT",
-      "timestamp": 1791313441839,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1294.545,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtpr-SOLUSDT",
-      "timestamp": 1791313441839,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.365,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtps-XRPUSDT",
-      "timestamp": 1791313441840,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.249,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtps-AVAXUSDT",
-      "timestamp": 1791313441840,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.272,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtpt-ADAUSDT",
-      "timestamp": 1791313441841,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.864,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtpt-BNBUSDT",
-      "timestamp": 1791313441841,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 340.53,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtpt-DOGEUSDT",
-      "timestamp": 1791313441841,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtpu-SUIUSDT",
-      "timestamp": 1791313441842,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.406,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtpu-NEARUSDT",
-      "timestamp": 1791313441842,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.466,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1rtpv-RENDERUSDT",
-      "timestamp": 1791313441843,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.919,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4of-ETHUSDT",
-      "timestamp": 1791313549359,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1294.84,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4og-SOLUSDT",
-      "timestamp": 1791313549360,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.405,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4og-XRPUSDT",
-      "timestamp": 1791313549360,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.249,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4oh-AVAXUSDT",
-      "timestamp": 1791313549361,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.265,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4oh-ADAUSDT",
-      "timestamp": 1791313549361,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.864,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4oh-BNBUSDT",
-      "timestamp": 1791313549361,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 340.545,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4oh-DOGEUSDT",
-      "timestamp": 1791313549361,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4oi-SUIUSDT",
-      "timestamp": 1791313549362,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.406,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4oj-NEARUSDT",
-      "timestamp": 1791313549363,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.463,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1u4oj-RENDERUSDT",
-      "timestamp": 1791313549363,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.919,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhua-ETHUSDT",
-      "timestamp": 1791313613074,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1294.5,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhub-SOLUSDT",
-      "timestamp": 1791313613075,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.38,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhub-XRPUSDT",
-      "timestamp": 1791313613075,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.25,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhuc-AVAXUSDT",
-      "timestamp": 1791313613076,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.262,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhuc-ADAUSDT",
-      "timestamp": 1791313613076,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.864,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhuc-BNBUSDT",
-      "timestamp": 1791313613076,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 340.54,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhuc-DOGEUSDT",
-      "timestamp": 1791313613076,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhud-SUIUSDT",
-      "timestamp": 1791313613077,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.406,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhue-NEARUSDT",
-      "timestamp": 1791313613078,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.462,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux1vhue-RENDERUSDT",
-      "timestamp": 1791313613078,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.918,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e90w-ETHUSDT",
-      "timestamp": 1791314488112,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1292.18,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e90w-SOLUSDT",
-      "timestamp": 1791314488112,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.2,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e90x-XRPUSDT",
-      "timestamp": 1791314488113,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.252,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e90x-AVAXUSDT",
-      "timestamp": 1791314488113,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.3,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e90y-ADAUSDT",
-      "timestamp": 1791314488114,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e90y-BNBUSDT",
-      "timestamp": 1791314488114,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.73,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e90z-DOGEUSDT",
-      "timestamp": 1791314488115,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e910-SUIUSDT",
-      "timestamp": 1791314488116,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.41,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e911-NEARUSDT",
-      "timestamp": 1791314488117,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.469,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2e911-RENDERUSDT",
-      "timestamp": 1791314488117,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.923,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52d-ETHUSDT",
-      "timestamp": 1791314576293,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1291.895,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52e-SOLUSDT",
-      "timestamp": 1791314576294,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.19,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52e-XRPUSDT",
-      "timestamp": 1791314576294,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.252,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52g-AVAXUSDT",
-      "timestamp": 1791314576296,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.3,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52g-ADAUSDT",
-      "timestamp": 1791314576296,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52g-BNBUSDT",
-      "timestamp": 1791314576296,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.65,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52h-DOGEUSDT",
-      "timestamp": 1791314576297,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52i-SUIUSDT",
-      "timestamp": 1791314576298,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.41,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52j-NEARUSDT",
-      "timestamp": 1791314576299,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.472,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2g52j-RENDERUSDT",
-      "timestamp": 1791314576299,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.925,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdan-ETHUSDT",
-      "timestamp": 1791314866895,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1292.255,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdao-SOLUSDT",
-      "timestamp": 1791314866896,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.205,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdao-XRPUSDT",
-      "timestamp": 1791314866896,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.251,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdao-AVAXUSDT",
-      "timestamp": 1791314866896,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.314,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdap-ADAUSDT",
-      "timestamp": 1791314866897,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdap-BNBUSDT",
-      "timestamp": 1791314866897,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.515,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdap-DOGEUSDT",
-      "timestamp": 1791314866897,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdaq-SUIUSDT",
-      "timestamp": 1791314866898,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.41,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdaq-NEARUSDT",
-      "timestamp": 1791314866898,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.468,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mdar-RENDERUSDT",
-      "timestamp": 1791314866899,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.929,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmrb-ETHUSDT",
-      "timestamp": 1791314879159,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1292.255,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmrb-SOLUSDT",
-      "timestamp": 1791314879159,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.205,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmrc-XRPUSDT",
-      "timestamp": 1791314879160,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.251,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmrc-AVAXUSDT",
-      "timestamp": 1791314879160,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.312,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmrc-ADAUSDT",
-      "timestamp": 1791314879160,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmrd-BNBUSDT",
-      "timestamp": 1791314879161,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.535,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmrd-DOGEUSDT",
-      "timestamp": 1791314879161,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmre-SUIUSDT",
-      "timestamp": 1791314879162,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.41,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmre-NEARUSDT",
-      "timestamp": 1791314879162,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.468,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux2mmre-RENDERUSDT",
-      "timestamp": 1791314879162,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.929,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213h-ETHUSDT",
-      "timestamp": 1791315597581,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1294.13,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213i-SOLUSDT",
-      "timestamp": 1791315597582,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.31,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213i-XRPUSDT",
-      "timestamp": 1791315597582,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.25,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213j-AVAXUSDT",
-      "timestamp": 1791315597583,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.288,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213j-ADAUSDT",
-      "timestamp": 1791315597583,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213j-BNBUSDT",
-      "timestamp": 1791315597583,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.795,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213j-DOGEUSDT",
-      "timestamp": 1791315597583,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213k-SUIUSDT",
-      "timestamp": 1791315597584,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.408,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213l-NEARUSDT",
-      "timestamp": 1791315597585,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.474,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3213l-RENDERUSDT",
-      "timestamp": 1791315597585,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.925,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c06-ETHUSDT",
-      "timestamp": 1791315611718,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1294.015,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c07-SOLUSDT",
-      "timestamp": 1791315611719,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.3,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c07-XRPUSDT",
-      "timestamp": 1791315611719,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.25,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c08-AVAXUSDT",
-      "timestamp": 1791315611720,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.288,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c08-ADAUSDT",
-      "timestamp": 1791315611720,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c08-BNBUSDT",
-      "timestamp": 1791315611720,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.83,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c08-DOGEUSDT",
-      "timestamp": 1791315611720,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c09-SUIUSDT",
-      "timestamp": 1791315611721,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.408,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c0a-NEARUSDT",
-      "timestamp": 1791315611722,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.474,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux32c0a-RENDERUSDT",
-      "timestamp": 1791315611722,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.926,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3ongx-ETHUSDT",
-      "timestamp": 1791316653009,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1295.025,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3ongx-SOLUSDT",
-      "timestamp": 1791316653009,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.405,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3ongy-XRPUSDT",
-      "timestamp": 1791316653010,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.249,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3ongz-AVAXUSDT",
-      "timestamp": 1791316653011,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.274,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3ongz-ADAUSDT",
-      "timestamp": 1791316653011,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3onh0-BNBUSDT",
-      "timestamp": 1791316653012,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 340.065,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3onh0-DOGEUSDT",
-      "timestamp": 1791316653012,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3onh1-SUIUSDT",
-      "timestamp": 1791316653013,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.407,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3onh2-NEARUSDT",
-      "timestamp": 1791316653014,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.453,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux3onh2-RENDERUSDT",
-      "timestamp": 1791316653014,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.92,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406ab-ETHUSDT",
-      "timestamp": 1791317190611,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1295.88,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406ac-SOLUSDT",
-      "timestamp": 1791317190612,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.405,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406ac-XRPUSDT",
-      "timestamp": 1791317190612,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.249,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406ad-AVAXUSDT",
-      "timestamp": 1791317190613,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.278,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406ad-ADAUSDT",
-      "timestamp": 1791317190613,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406ad-BNBUSDT",
-      "timestamp": 1791317190613,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.745,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406ad-DOGEUSDT",
-      "timestamp": 1791317190613,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406ae-SUIUSDT",
-      "timestamp": 1791317190614,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.407,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406af-NEARUSDT",
-      "timestamp": 1791317190615,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.444,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux406af-RENDERUSDT",
-      "timestamp": 1791317190615,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.919,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wj-ETHUSDT",
-      "timestamp": 1791318351331,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1296.405,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wj-SOLUSDT",
-      "timestamp": 1791318351331,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.56,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wk-XRPUSDT",
-      "timestamp": 1791318351332,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.248,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wk-AVAXUSDT",
-      "timestamp": 1791318351332,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.294,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wl-ADAUSDT",
-      "timestamp": 1791318351333,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.864,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wl-BNBUSDT",
-      "timestamp": 1791318351333,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.915,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wl-DOGEUSDT",
-      "timestamp": 1791318351333,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wm-SUIUSDT",
-      "timestamp": 1791318351334,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.405,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wm-NEARUSDT",
-      "timestamp": 1791318351334,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.419,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4p1wn-RENDERUSDT",
-      "timestamp": 1791318351335,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.923,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr5-ETHUSDT",
-      "timestamp": 1791318365393,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1296.405,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr5-SOLUSDT",
-      "timestamp": 1791318365393,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.58,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr5-XRPUSDT",
-      "timestamp": 1791318365393,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.247,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr6-AVAXUSDT",
-      "timestamp": 1791318365394,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.29,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr6-ADAUSDT",
-      "timestamp": 1791318365394,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.864,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr6-BNBUSDT",
-      "timestamp": 1791318365394,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.95,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr6-DOGEUSDT",
-      "timestamp": 1791318365394,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr7-SUIUSDT",
-      "timestamp": 1791318365395,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.404,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr8-NEARUSDT",
-      "timestamp": 1791318365396,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.419,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux4pcr8-RENDERUSDT",
-      "timestamp": 1791318365396,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.923,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asux-ETHUSDT",
-      "timestamp": 1791319366041,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1297.925,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asux-SOLUSDT",
-      "timestamp": 1791319366041,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.46,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asux-XRPUSDT",
-      "timestamp": 1791319366042,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.249,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asuy-AVAXUSDT",
-      "timestamp": 1791319366042,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.308,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asuy-ADAUSDT",
-      "timestamp": 1791319366042,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asuy-BNBUSDT",
-      "timestamp": 1791319366042,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.905,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asuz-DOGEUSDT",
-      "timestamp": 1791319366043,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asuz-SUIUSDT",
-      "timestamp": 1791319366043,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.407,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asv0-NEARUSDT",
-      "timestamp": 1791319366044,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.413,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5asv0-RENDERUSDT",
-      "timestamp": 1791319366044,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.931,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bacq-ETHUSDT",
-      "timestamp": 1791319388714,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1298.065,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bacr-SOLUSDT",
-      "timestamp": 1791319388715,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.465,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bacr-XRPUSDT",
-      "timestamp": 1791319388715,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.249,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bacs-AVAXUSDT",
-      "timestamp": 1791319388716,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.309,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bacs-ADAUSDT",
-      "timestamp": 1791319388716,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bact-BNBUSDT",
-      "timestamp": 1791319388717,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.955,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bact-DOGEUSDT",
-      "timestamp": 1791319388717,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bacu-SUIUSDT",
-      "timestamp": 1791319388718,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.407,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bacv-NEARUSDT",
-      "timestamp": 1791319388719,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.413,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5bacv-RENDERUSDT",
-      "timestamp": 1791319388719,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.931,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op79-ETHUSDT",
-      "timestamp": 1791320014485,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1298.395,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op79-SOLUSDT",
-      "timestamp": 1791320014485,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.505,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op7a-XRPUSDT",
-      "timestamp": 1791320014486,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.249,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op7b-AVAXUSDT",
-      "timestamp": 1791320014487,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.295,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op7b-ADAUSDT",
-      "timestamp": 1791320014487,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op7b-BNBUSDT",
-      "timestamp": 1791320014487,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.825,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op7b-DOGEUSDT",
-      "timestamp": 1791320014487,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op7c-SUIUSDT",
-      "timestamp": 1791320014488,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.407,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op7d-NEARUSDT",
-      "timestamp": 1791320014489,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.414,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5op7d-RENDERUSDT",
-      "timestamp": 1791320014489,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.928,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcv-ETHUSDT",
-      "timestamp": 1791320530495,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1298.925,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcv-SOLUSDT",
-      "timestamp": 1791320530495,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.485,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcw-XRPUSDT",
-      "timestamp": 1791320530496,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.249,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcw-AVAXUSDT",
-      "timestamp": 1791320530496,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.284,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcw-ADAUSDT",
-      "timestamp": 1791320530496,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcx-BNBUSDT",
-      "timestamp": 1791320530497,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 340.115,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcx-DOGEUSDT",
-      "timestamp": 1791320530497,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcy-SUIUSDT",
-      "timestamp": 1791320530498,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.407,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcy-NEARUSDT",
-      "timestamp": 1791320530498,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.414,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux5zrcz-RENDERUSDT",
-      "timestamp": 1791320530499,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.931,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603jy-ETHUSDT",
-      "timestamp": 1791320546302,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1298.435,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603jz-SOLUSDT",
-      "timestamp": 1791320546303,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.445,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603jz-XRPUSDT",
-      "timestamp": 1791320546303,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.25,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603k0-AVAXUSDT",
-      "timestamp": 1791320546304,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.288,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603k0-ADAUSDT",
-      "timestamp": 1791320546304,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603k1-BNBUSDT",
-      "timestamp": 1791320546305,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 340.055,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603k1-DOGEUSDT",
-      "timestamp": 1791320546305,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603k2-SUIUSDT",
-      "timestamp": 1791320546306,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.408,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603k3-NEARUSDT",
-      "timestamp": 1791320546307,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.416,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux603k3-RENDERUSDT",
-      "timestamp": 1791320546307,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.931,
-      "executed": false
-    },
-    {
-      "id": "SIG-TREND-mux61tyc-BATUSDT",
-      "timestamp": 1791320627172,
-      "symbol": "BAT/USDT",
-      "type": "BUY",
-      "strength": 0.735,
-      "zScore": 0.134,
-      "executed": true
-    },
-    {
-      "id": "SIG-MULTI-mux61tyx-LTCUSDT",
-      "timestamp": 1791320627193,
-      "symbol": "LTC/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -3.401,
-      "executed": true
-    },
-    {
-      "id": "SIG-MULTI-mux61u07-IOSTUSDT",
-      "timestamp": 1791320627239,
-      "symbol": "IOST/USDT",
-      "type": "SELL",
-      "strength": 0.63,
-      "zScore": 0.001,
-      "executed": true
-    },
-    {
-      "id": "SIG-TREND-mux61u0e-BCHUSDT",
-      "timestamp": 1791320627246,
-      "symbol": "BCH/USDT",
-      "type": "SELL",
-      "strength": 0.87,
-      "zScore": -3.017,
-      "executed": true
-    },
-    {
-      "id": "SIG-MULTI-mux61u0s-XRPUSDT",
-      "timestamp": 1791320627260,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.67,
-      "zScore": -2.52,
-      "executed": true
-    },
-    {
-      "id": "SIG-TREND-mux61uag-ONTUSDT",
-      "timestamp": 1791320627608,
-      "symbol": "ONT/USDT",
-      "type": "BUY",
-      "strength": 0.747,
-      "zScore": 0.071,
-      "executed": true
-    },
-    {
-      "id": "SIG-MULTI-mux6bxt7-ETHUSDT",
-      "timestamp": 1791321098731,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1297.585,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxt8-SOLUSDT",
-      "timestamp": 1791321098732,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.385,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxt9-XRPUSDT",
-      "timestamp": 1791321098733,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.25,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxt9-AVAXUSDT",
-      "timestamp": 1791321098733,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.29,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxta-ADAUSDT",
-      "timestamp": 1791321098734,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.865,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxta-BNBUSDT",
-      "timestamp": 1791321098734,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 339.995,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxta-DOGEUSDT",
-      "timestamp": 1791321098734,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.953,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxtb-SUIUSDT",
-      "timestamp": 1791321098735,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.408,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxtc-NEARUSDT",
-      "timestamp": 1791321098736,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.42,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-mux6bxtc-RENDERUSDT",
-      "timestamp": 1791321098736,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -48.934,
-      "executed": false
     }
   ],
   "balanceSnapshots": [
@@ -6568,367 +6705,13 @@
       "total_equity": 4592.37,
       "free_margin": 4570.67,
       "unrealized_pnl": 0.34
-    },
-    {
-      "timestamp": 1791313413380,
-      "total_equity": 4592.37,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.34
-    },
-    {
-      "timestamp": 1791313415685,
-      "total_equity": 4592.37,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.34
-    },
-    {
-      "timestamp": 1791313441834,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791313549354,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791313613069,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791313913158,
-      "total_equity": 4592.34,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.31
-    },
-    {
-      "timestamp": 1791313915333,
-      "total_equity": 4592.34,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.31
-    },
-    {
-      "timestamp": 1791314213162,
-      "total_equity": 4592.34,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.31
-    },
-    {
-      "timestamp": 1791314215332,
-      "total_equity": 4592.34,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.31
-    },
-    {
-      "timestamp": 1791314488104,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791314576285,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791314866890,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791314879153,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791315179248,
-      "total_equity": 4592.38,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791315181492,
-      "total_equity": 4592.38,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791315479282,
-      "total_equity": 4592.38,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791315481491,
-      "total_equity": 4592.38,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791315597576,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791315611712,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791315911744,
-      "total_equity": 4592.39,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791315913751,
-      "total_equity": 4592.39,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791316211753,
-      "total_equity": 4592.39,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791316213750,
-      "total_equity": 4592.39,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791316511793,
-      "total_equity": 4592.39,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791316513751,
-      "total_equity": 4592.39,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.36
-    },
-    {
-      "timestamp": 1791316653000,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791316953301,
-      "total_equity": 4592.48,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.46
-    },
-    {
-      "timestamp": 1791316955383,
-      "total_equity": 4592.48,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.46
-    },
-    {
-      "timestamp": 1791317190605,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791317490651,
-      "total_equity": 4592.45,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.43
-    },
-    {
-      "timestamp": 1791317492757,
-      "total_equity": 4592.45,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.43
-    },
-    {
-      "timestamp": 1791317790667,
-      "total_equity": 4592.45,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.43
-    },
-    {
-      "timestamp": 1791317792757,
-      "total_equity": 4592.45,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.43
-    },
-    {
-      "timestamp": 1791318090680,
-      "total_equity": 4592.45,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.43
-    },
-    {
-      "timestamp": 1791318092758,
-      "total_equity": 4592.45,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.43
-    },
-    {
-      "timestamp": 1791318351326,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791318365388,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791318665497,
-      "total_equity": 4592.42,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.4
-    },
-    {
-      "timestamp": 1791318667692,
-      "total_equity": 4592.42,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.4
-    },
-    {
-      "timestamp": 1791318965577,
-      "total_equity": 4592.42,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.4
-    },
-    {
-      "timestamp": 1791318967691,
-      "total_equity": 4592.42,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.4
-    },
-    {
-      "timestamp": 1791319265619,
-      "total_equity": 4592.42,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.4
-    },
-    {
-      "timestamp": 1791319267690,
-      "total_equity": 4592.42,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.4
-    },
-    {
-      "timestamp": 1791319366034,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791319388707,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791319688715,
-      "total_equity": 4592.44,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.41
-    },
-    {
-      "timestamp": 1791319690847,
-      "total_equity": 4592.44,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.41
-    },
-    {
-      "timestamp": 1791319988726,
-      "total_equity": 4592.44,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.41
-    },
-    {
-      "timestamp": 1791319990847,
-      "total_equity": 4592.44,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.41
-    },
-    {
-      "timestamp": 1791320014429,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791320314457,
-      "total_equity": 4592.42,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.39
-    },
-    {
-      "timestamp": 1791320316862,
-      "total_equity": 4592.42,
-      "free_margin": 4570.67,
-      "unrealized_pnl": 0.39
-    },
-    {
-      "timestamp": 1791320530489,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791320546291,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791320846384,
-      "total_equity": 4592.27,
-      "free_margin": 4592.21,
-      "unrealized_pnl": 0.06
-    },
-    {
-      "timestamp": 1791320848612,
-      "total_equity": 4592.27,
-      "free_margin": 4592.21,
-      "unrealized_pnl": 0.06
-    },
-    {
-      "timestamp": 1791321098723,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791321112237,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
-    },
-    {
-      "timestamp": 1791321358798,
-      "total_equity": 0,
-      "free_margin": 0,
-      "unrealized_pnl": 0
     }
   ],
   "prices": {},
   "botState": {
     "last_balance": {
-      "equity": 4592.21193968,
-      "timestamp": 1791321359390
+      "equity": 4592.0274649,
+      "timestamp": 1791313115965
     }
   }
 }

@@ -109,6 +109,16 @@ export class UserDataStream {
     return Array.from(this.positions.values()).filter((p) => p.size !== 0);
   }
 
+  public removePosition(symbol: AssetSymbol) {
+    this.positions.delete(symbol);
+    const totalUnrealized = Array.from(this.positions.values()).reduce((sum, p) => sum + (p.unrealizedPnl || 0), 0);
+    this.balance.unrealizedPnl = totalUnrealized;
+    this.balance.totalEquity = this.balance.availableCash + totalUnrealized;
+    for (const cl of this.closedListeners) cl(symbol);
+    for (const l of this.balanceListeners) l(this.getBalance());
+    if (this.onEvent) this.onEvent("position_update", this.getPositions());
+  }
+
   public closeAllPositions() {
     this.positions.clear();
     this.balance.usedMargin = 0;

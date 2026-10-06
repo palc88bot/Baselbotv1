@@ -61,6 +61,7 @@ export class DatabaseService {
             botState: {}
         };
         this.load();
+        this.sanitizeLegacyTrades();
         console.log(`🗄️ Database Service initialized at ${this.filePath}`);
     }
 
@@ -135,6 +136,39 @@ export class DatabaseService {
             return list.filter(t => t.symbol === symbol);
         }
         return list;
+    }
+
+    public sanitizeLegacyTrades(): void {
+        const sanitized: Record<string, TradeRecord> = {};
+        for (const [id, t] of Object.entries(this.data.trades)) {
+            // Keep genuine closed trades with real realized pnl OR active live open positions
+            if (t.status === 'OPEN' || (t.pnl !== undefined && Math.abs(t.pnl) > 0.0001)) {
+                sanitized[id] = t;
+            }
+        }
+        this.data.trades = sanitized;
+        this.save();
+    }
+
+    public async getAllTrades(symbol?: string): Promise<TradeRecord[]> {
+        const list = Object.values(this.data.trades).filter(t => {
+            return t.status === 'OPEN' || (t.pnl !== undefined && Math.abs(t.pnl) > 0.0001);
+        });
+        if (symbol) {
+            return list.filter(t => t.symbol === symbol);
+        }
+        return list;
+    }
+
+    public async resetAllTrades(): Promise<void> {
+        for (const t of Object.values(this.data.trades)) {
+            if (t.status === 'OPEN') {
+                t.status = 'CLOSED';
+                t.closedAt = Date.now();
+                t.pnl = 0;
+            }
+        }
+        this.save();
     }
 
     public async closeTrade(id: string, pnl: number, exitPrice?: number, fee?: number) {

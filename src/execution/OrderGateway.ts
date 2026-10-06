@@ -798,6 +798,138 @@ export class OrderGateway {
     return false;
   }
 
+    public async cancelAllOpenOrdersForSymbol(symbol: string): Promise<boolean> {
+    if (this.executionMode === "PAPER" || !this.apiKey || !this.apiSecret) return true;
+    try {
+      const cleanSymbol = symbol.replace("/", "");
+      const timestamp = Date.now();
+      const query = "symbol=" + cleanSymbol + "&timestamp=" + timestamp;
+      const signature = crypto.createHmac("sha256", this.apiSecret).update(query).digest("hex");
+      const res = await fetch(this.apiBaseUrl + "/fapi/v1/allOpenOrders?" + query + "&signature=" + signature, {
+        method: "DELETE",
+        headers: { "X-MBX-APIKEY": this.apiKey }
+      });
+      return res.ok;
+    } catch (e) {
+      console.error("❌ Failed to cancel open orders on Binance for " + symbol, e);
+      return false;
+    }
+  }
+
+  public async closePositionDirectlyOnBinance(symbol: AssetSymbol, size?: number): Promise<{ success: boolean; qty: number }> {
+    if (this.executionMode === "PAPER" || !this.apiKey || !this.apiSecret) {
+      return { success: true, qty: size || 0 };
+    }
+    try {
+      const cleanSymbol = symbol.replace("/", "");
+      let currentAmt = size;
+      if (currentAmt === undefined || currentAmt === 0) {
+        const ts = Date.now();
+        const query = "timestamp=" + ts;
+        const sig = crypto.createHmac("sha256", this.apiSecret).update(query).digest("hex");
+        const res = await fetch(this.apiBaseUrl + "/fapi/v2/account?" + query + "&signature=" + sig, {
+          headers: { "X-MBX-APIKEY": this.apiKey }
+        });
+        const data = await res.json();
+        const pos = (data.positions || []).find((p: any) => p.symbol === cleanSymbol);
+        if (pos) {
+          currentAmt = parseFloat(pos.positionAmt);
+        }
+      }
+
+      if (!currentAmt || Math.abs(currentAmt) < 0.00001) {
+        console.log("ℹ️ [EXCHANGE CLOSE] No active position on Binance for " + symbol);
+        return { success: true, qty: 0 };
+      }
+
+      const closeSide: OrderSide = currentAmt > 0 ? "SELL" : "BUY";
+      const qty = Math.abs(currentAmt);
+
+      // 1. Cancel open orders for symbol
+      await this.cancelAllOpenOrdersForSymbol(symbol);
+      await this.cancelProtectiveOrders(symbol);
+
+      // 2. Send MARKET order with reduceOnly=true
+      const orderTs = Date.now();
+      const orderQuery = "symbol=" + cleanSymbol + "&side=" + closeSide + "&type=MARKET&quantity=" + qty + "&reduceOnly=true&timestamp=" + orderTs;
+      const orderSig = crypto.createHmac("sha256", this.apiSecret).update(orderQuery).digest("hex");
+      const orderRes = await fetch(this.apiBaseUrl + "/fapi/v1/order?" + orderQuery + "&signature=" + orderSig, {
+        method: "POST",
+        headers: { "X-MBX-APIKEY": this.apiKey }
+      });
+      const orderData = await orderRes.json();
+      if (orderRes.ok) {
+        console.log("✅ [EXCHANGE CLOSE SUCCESS] Closed " + symbol + " on Binance (" + closeSide + " " + qty + ")");
+        return { success: true, qty };
+      } else {
+        console.warn("⚠️ [EXCHANGE CLOSE REJECTED] for " + symbol, orderData);
+        return { success: false, qty: 0 };
+      }
+    } catch (e) {
+      console.error("❌ [EXCHANGE CLOSE ERROR] " + symbol, e);
+      return { success: false, qty: 0 };
+    }
+  }
+
+  public async closeAllPositionsOnExchange(positions?: { symbol: AssetSymbol; size: number }[]): Promise<number> {
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) {
+      return 0;
+    }
+    let closedCount = 0;
+    try {
+      const ts = Date.now();
+      const query = 'timestamp=' + ts;
+      const sig = crypto.createHmac('sha256', this.apiSecret).update(query).digest('hex');
+      const res = await fetch(this.apiBaseUrl + '/fapi/v2/account?' + query + '&signature=' + sig, {
+        headers: { 'X-MBX-APIKEY': this.apiKey }
+      });
+      const data = await res.json();
+      const openPos = (data.positions || []).filter((p: any) => parseFloat(p.positionAmt) !== 0);
+      console.log("⚡ [EXCHANGE LIQUIDATION] Liquidating " + openPos.length + " positions on Binance...");
+
+      for (const pos of openPos) {
+        const sym = pos.symbol;
+        const amt = parseFloat(pos.positionAmt);
+        const closeSide = amt > 0 ? 'SELL' : 'BUY';
+        const qty = Math.abs(amt);
+
+        // 1. Cancel open orders for symbol
+        try {
+          const cancelTs = Date.now();
+          const cancelQuery = 'symbol=' + sym + '&timestamp=' + cancelTs;
+          const cancelSig = crypto.createHmac('sha256', this.apiSecret).update(cancelQuery).digest('hex');
+          await fetch(this.apiBaseUrl + '/fapi/v1/allOpenOrders?' + cancelQuery + '&signature=' + cancelSig, {
+            method: 'DELETE',
+            headers: { 'X-MBX-APIKEY': this.apiKey }
+          });
+        } catch {}
+
+        // 2. Submit Market order with reduceOnly=true
+        try {
+          const orderTs = Date.now();
+          const orderQuery = 'symbol=' + sym + '&side=' + closeSide + '&type=MARKET&quantity=' + qty + '&reduceOnly=true&timestamp=' + orderTs;
+          const orderSig = crypto.createHmac('sha256', this.apiSecret).update(orderQuery).digest('hex');
+          const orderRes = await fetch(this.apiBaseUrl + '/fapi/v1/order?' + orderQuery + '&signature=' + orderSig, {
+            method: 'POST',
+            headers: { 'X-MBX-APIKEY': this.apiKey }
+          });
+          const orderData = await orderRes.json();
+          if (orderRes.ok) {
+            closedCount++;
+            console.log("Closed " + sym + " " + closeSide + " " + qty);
+          } else {
+            console.warn("Rejection for " + sym, orderData);
+          }
+        } catch (e) {
+          console.error("Error closing " + sym, e);
+        }
+      }
+    } catch (err) {
+      console.error('❌ Failed during full exchange liquidation:', err);
+    }
+    return closedCount;
+  }
+
   public cancelAllOrders(reason: string = 'Emergency KillSwitch activated'): number {
     let cancelled = 0;
     for (const order of this.getActiveOrders()) {

@@ -40,17 +40,18 @@ export const HolographicPairSelector: React.FC<HolographicPairSelectorProps> = (
     <div className="w-full">
       <div className="flex items-center justify-between pb-2 mb-2">
         <div className="flex items-center gap-2">
-          <Radio className="w-3.5 h-3.5 text-[var(--cyan)] animate-pulse" />
-          <span className="font-mono text-xs font-bold text-white uppercase tracking-wider">
-            {isAr ? 'أصول التداول الحية المتاحة (Binance WebSocket)' : 'Live Hologram Target Pairs'}
+          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="text-xs font-semibold text-slate-200 uppercase tracking-wider">
+            {isAr ? 'أصول التداول المباشرة (Binance WebSocket)' : 'Live Binance Streams'}
           </span>
         </div>
-        <span className="text-[10px] font-mono text-[var(--cyan)]">
-          {markets.length} {isAr ? 'أزواج نشطة' : 'Active Streams'}
+        <span className="text-[11px] font-mono text-cyan-400">
+          {markets.length} {isAr ? 'أزواج نشطة' : 'Active Pairs'}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+      {/* Mobile Horizontal Snap-Scroll + Desktop/Tablet Grid */}
+      <div className="flex md:grid md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3 overflow-x-auto pb-2 md:pb-0 scrollbar-none snap-x snap-mandatory touch-pan-x -mx-1 px-1">
         {markets.map((asset) => {
           const isSelected = asset.symbol === selectedSymbol;
           const isUp = asset.change24h >= 0;
@@ -60,36 +61,36 @@ export const HolographicPairSelector: React.FC<HolographicPairSelectorProps> = (
               key={asset.symbol}
               type="button"
               onClick={() => onSelectSymbol(asset)}
-              className={`p-3 rounded-xl border text-left rtl:text-right transition-all cursor-pointer relative overflow-hidden group holo-card-hover ${
+              className={`min-w-[155px] sm:min-w-[170px] md:min-w-0 p-3 rounded-xl border text-left rtl:text-right transition-all cursor-pointer relative overflow-hidden group snap-start shrink-0 md:shrink ${
                 isSelected
-                  ? 'holo-panel neon-border-cyan shadow-[0_0_20px_rgba(0,243,255,0.35)]'
-                  : 'bg-[rgba(6,12,24,0.5)] border-white/10 hover:border-[rgba(0,243,255,0.3)] hover:bg-[rgba(10,20,40,0.6)]'
+                  ? 'bg-slate-900/90 border-cyan-400/60 shadow-[0_0_15px_rgba(6,182,212,0.15)] ring-1 ring-cyan-400/30'
+                  : 'bg-slate-950/60 border-white/5 hover:border-cyan-500/30 hover:bg-slate-900/40'
               }`}
             >
               {isSelected && (
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[var(--cyan)] to-[var(--magenta)] shadow-[0_0_8px_var(--cyan)]" />
+                <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-400 to-emerald-400" />
               )}
 
               <div className="flex items-center justify-between pb-1">
-                <span className="font-mono text-xs font-bold text-white group-hover:text-[var(--cyan)] transition-colors">
+                <span className="font-mono text-xs font-bold text-white group-hover:text-cyan-300 transition-colors">
                   {asset.symbol}
                 </span>
                 <span
-                  className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
-                    isUp ? 'text-[var(--lime)] bg-emerald-500/10' : 'text-[var(--magenta)] bg-rose-500/10'
+                  className={`text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded tabular-nums ${
+                    isUp ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
                   }`}
                 >
                   {isUp ? '+' : ''}{asset.change24h}%
                 </span>
               </div>
 
-              <div className="font-mono font-bold text-xs sm:text-sm text-[var(--cyan)] tracking-wide mt-1">
+              <div className="font-mono font-bold text-xs sm:text-sm text-cyan-400 tracking-wide mt-1 tabular-nums">
                 ${asset.price > 0 ? (asset.price >= 1000 ? asset.price.toLocaleString(undefined, { maximumFractionDigits: 1 }) : asset.price.toFixed(5)) : '...'}
               </div>
 
-              <div className="flex items-center justify-between text-[9px] font-mono text-[var(--muted)] mt-1.5 pt-1.5 border-t border-white/5">
-                <span>RSI: <b className="text-white">{asset.rsi}</b></span>
-                <span className="text-[var(--magenta)]">{asset.volume.replace(' USDT', '')}</span>
+              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-1.5 pt-1.5 border-t border-white/5">
+                <span>RSI: <b className="text-slate-200 tabular-nums">{asset.rsi}</b></span>
+                <span className="text-slate-400 truncate max-w-[65px]">{asset.volume.replace(' USDT', '')}</span>
               </div>
             </button>
           );

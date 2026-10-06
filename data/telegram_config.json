@@ -1,0 +1,8 @@
+{
+  "chatId": "@baselsnipertest",
+  "isEnabled": true,
+  "botToken": "",
+  "heartbeatEnabled": true,
+  "heartbeatIntervalMinutes": 30,
+  "lastHeartbeatSent": 1791309637558
+}

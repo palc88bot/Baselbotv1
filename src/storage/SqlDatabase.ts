@@ -50,6 +50,15 @@ export class SqlDatabaseStore {
         this.data = JSON.parse(raw);
         if (!this.data.trades) this.data.trades = {};
         if (!this.data.audit_logs) this.data.audit_logs = [];
+
+        // Exclude legacy ghost trades with 0 PnL and no exit price
+        const sanitized: Record<string, StoredTrade> = {};
+        for (const [id, t] of Object.entries(this.data.trades)) {
+          if (t.status === 'OPEN' || ((t as any).pnl !== undefined && Math.abs((t as any).pnl) > 0.0001)) {
+            sanitized[id] = t;
+          }
+        }
+        this.data.trades = sanitized;
       }
     } catch (err) {
       console.error("Error loading persistent database:", err);
