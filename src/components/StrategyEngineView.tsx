@@ -7,6 +7,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { BotStrategy, StrategyScreenerItem, TradingSignal, AssetSymbol } from '../domain/types';
+import { fetchWithAuth } from '../lib/api.ts';
 import { DEFAULT_BOT_STRATEGIES } from '../strategies/StrategyManager';
 import {
   Cpu,
@@ -60,6 +61,14 @@ interface StrategyEngineViewProps {
   lang: 'ar' | 'en';
   reduceMotion?: boolean;
 }
+
+// Metrics are shown only when they really exist: never a made-up default (the old code displayed e.g. 79.2% win rate / 2.95 Sharpe).
+const fmtMetric = (v: unknown, digits = 2, suffix = ''): string =>
+  typeof v === 'number' && Number.isFinite(v) ? `${v.toFixed(digits)}${suffix}` : '—';
+const fmtSigned = (v: unknown, digits = 2, suffix = ''): string =>
+  typeof v === 'number' && Number.isFinite(v) ? `${v >= 0 ? '+' : '-'}${Math.abs(v).toFixed(digits)}${suffix}` : '—';
+const fmtPnl = (v: unknown): string =>
+  typeof v === 'number' && Number.isFinite(v) ? `${v >= 0 ? '+' : '-'}$${Math.abs(v).toLocaleString()}` : '—';
 
 export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
   strategies,
@@ -165,7 +174,6 @@ export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
   };
 
   // Run quick parameter simulation
-  
   const handleRunMonteCarlo = () => {
     setMcSimulationRunning(true);
     setTimeout(() => {
@@ -207,9 +215,8 @@ export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
   const handleRunQuickBacktest = async (strategyId: string) => {
     setQuickBacktestRunning(true);
     try {
-      const res = await fetch('/api/protected/backtest/run', {
+      const data = await fetchWithAuth('/api/protected/backtest/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'],
           startDate: '2024-01-01',
@@ -218,21 +225,14 @@ export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
           strategyId,
         }),
       });
-      const data = await res.json();
       if (data.success) {
         setBacktestOutput(data.result);
+      } else {
+        setBacktestOutput(null);
       }
     } catch (err) {
-      // Fallback simulation representation
-      setBacktestOutput({
-        totalTrades: 218,
-        winRatePct: 79.2,
-        profitFactor: 2.64,
-        sharpeRatio: 2.95,
-        maxDrawdownPct: 2.18,
-        netReturnPct: 48.6,
-        alphaVsBtcPct: 18.4,
-      });
+      console.error('Backtest request failed; no result is available:', err);
+      setBacktestOutput(null);
     } finally {
       setQuickBacktestRunning(false);
     }
@@ -490,7 +490,7 @@ export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
                         {isAr ? 'معامل الربح' : 'Profit Factor'}
                       </span>
                       <span className="text-xs font-bold text-[var(--cyan)]">
-                        {strat.metrics?.profitFactor?.toFixed(2) || '2.40'}
+                        {fmtMetric(strat.metrics?.profitFactor)}
                       </span>
                     </div>
 
@@ -499,7 +499,7 @@ export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
                         {isAr ? 'شارب ريشيو' : 'Sharpe'}
                       </span>
                       <span className="text-xs font-bold text-[var(--text)]">
-                        {strat.metrics?.sharpeRatio?.toFixed(2) || '2.80'}
+                        {fmtMetric(strat.metrics?.sharpeRatio)}
                       </span>
                     </div>
 
@@ -508,7 +508,7 @@ export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
                         {isAr ? 'الأرباح المحققة' : 'Realized PnL'}
                       </span>
                       <span className="text-xs font-bold text-emerald-400">
-                        +${(strat.metrics?.realizedPnl || 0).toLocaleString()}
+                        {fmtPnl(strat.metrics?.realizedPnl)}
                       </span>
                     </div>
                   </div>
@@ -609,21 +609,21 @@ export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       {isAr ? 'نتائج المحاكاة السريعة للنموذج:' : 'Quick Simulation Performance:'}
                     </span>
-                    <span>+{backtestOutput.netReturnPct || 48.6}% PnL</span>
+                    <span>{fmtSigned(backtestOutput.netReturnPct ?? backtestOutput.totalReturnPct, 2, '%')} PnL</span>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 text-[10px] text-[var(--text-3)] pt-1">
                     <div>
                       <span>{isAr ? 'نسبة الفوز:' : 'Win Rate:'}</span>
-                      <p className="font-bold text-[var(--text)]">{backtestOutput.winRatePct || 79.2}%</p>
+                      <p className="font-bold text-[var(--text)]">{fmtMetric(backtestOutput.winRatePct, 1, '%')}</p>
                     </div>
                     <div>
                       <span>{isAr ? 'معامل الربح:' : 'Profit Factor:'}</span>
-                      <p className="font-bold text-[var(--cyan)]">{backtestOutput.profitFactor || 2.64}</p>
+                      <p className="font-bold text-[var(--cyan)]">{fmtMetric(backtestOutput.profitFactor)}</p>
                     </div>
                     <div>
                       <span>{isAr ? 'شارب ريشيو:' : 'Sharpe:'}</span>
-                      <p className="font-bold text-emerald-400">{backtestOutput.sharpeRatio || 2.95}</p>
+                      <p className="font-bold text-emerald-400">{fmtMetric(backtestOutput.sharpeRatio)}</p>
                     </div>
                   </div>
                 </div>
@@ -919,7 +919,7 @@ export const StrategyEngineView: React.FC<StrategyEngineViewProps> = ({
                 </span>
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-emerald-400">
-                    +${(strat.metrics?.realizedPnl || 0).toLocaleString()}
+                    {fmtPnl(strat.metrics?.realizedPnl)}
                   </span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">
                     {strat.metrics?.winRatePct || 0}% WR

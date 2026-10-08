@@ -12,7 +12,7 @@ import { QuantumTrainingSimulator } from "./src/strategies/QuantumTrainingSimula
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { CloudDatabaseService } from "./src/storage/CloudDatabaseService.ts";
-import { isLiveTradingConfirmed, normalizeExecutionMode } from "./src/domain/types";
+import { isLiveTradingConfirmed } from "./src/domain/types";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -45,51 +45,27 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Explicit Direct Attachment Download for Deploy Zip
-  app.get(["/quantum-bot-deploy.zip", "/api/download-zip", "/download/quantum-bot-deploy.zip"], (req, res) => {
-    const zipPath = path.join(process.cwd(), "public", "quantum-bot-deploy.zip");
-    const fallbackPath = path.join(process.cwd(), "quantum-bot-deploy.zip");
-    const targetFile = fs.existsSync(zipPath) ? zipPath : fs.existsSync(fallbackPath) ? fallbackPath : null;
-
-    if (targetFile) {
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", 'attachment; filename="quantum-bot-deploy.zip"');
-      return res.sendFile(targetFile);
-    }
-    return res.status(404).send("ZIP file not found");
-  });
-
-  // CORS Middleware - Secured Restricted Origin Handling
-  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || '';
-  const allowedOriginsList = allowedOriginsEnv
-    .split(',')
-    .map((o) => o.trim().toLowerCase())
-    .filter(Boolean);
-
+  // CORS: never reflect arbitrary origins when credentials are enabled.
+  const allowedOrigins = new Set(
+    (process.env.CORS_ALLOWED_ORIGINS || process.env.APP_URL || '')
+      .split(',').map((value) => value.trim()).filter(Boolean),
+  );
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin) {
-      const lowerOrigin = origin.toLowerCase();
-      const isAllowed = 
-        lowerOrigin.includes('localhost') || 
-        lowerOrigin.includes('127.0.0.1') || 
-        lowerOrigin.endsWith('.run.app') || 
-        lowerOrigin.includes('botkeep.cloud') ||
-        allowedOriginsList.includes(lowerOrigin);
-
-      if (isAllowed) {
+      let sameHost = false;
+      try { sameHost = new URL(origin).host === req.headers.host; } catch { sameHost = false; }
+      if (allowedOrigins.has(origin) || sameHost) {
         res.setHeader("Access-Control-Allow-Origin", origin);
         res.setHeader("Access-Control-Allow-Credentials", "true");
-      } else {
-        res.setHeader("Access-Control-Allow-Origin", "null");
+        res.setHeader("Vary", "Origin");
       }
-    } else {
-      res.setHeader("Access-Control-Allow-Origin", "*");
     }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE");
-    res.setHeader("Access-Control-Allow-Headers", "X-Requested-With,Content-Type,Authorization,X-Operator-Secret");
+    res.setHeader("Access-Control-Allow-Headers", "X-Requested-With,content-type,Authorization");
     if (req.method === "OPTIONS") {
-      res.sendStatus(204);
+      if (origin && !res.getHeader("Access-Control-Allow-Origin")) res.sendStatus(403);
+      else res.sendStatus(200);
     } else {
       next();
     }
@@ -105,32 +81,15 @@ async function startServer() {
   }
   const pipeline = new TradingPipeline(telegramService);
 
-  // Auto-start autonomous trading pipeline on boot (ONLY when AUTO_START_TRADING=true, and for LIVE with CONFIRM_LIVE_TRADING=true)
-  const autoStartTrading = process.env.AUTO_START_TRADING === 'true';
-  const confirmLive = process.env.CONFIRM_LIVE_TRADING === 'true' || process.env.CONFIRM_LIVE_TRADING === 'yes';
-
-  if (pipeline.getExecutionMode() === 'LIVE') {
-    if (autoStartTrading && confirmLive) {
-      console.log('⚡ Starting LIVE autonomous trading pipeline on boot (confirmed)...');
-      pipeline.startAutonomousTrading().catch(err => {
-        console.error("❌ Failed to auto-start LIVE pipeline on boot:", err);
-      });
-    } else {
-      console.warn('🛡️ [SAFETY LOCK] Pipeline initialized in LIVE execution mode. Auto-start on boot is DISABLED for capital protection.');
-      console.warn('🛡️ Explicit manual start by authorized operator required via UI or /api/protected/toggle-trading.');
-      telegramService.sendMessage(`
-🔒 <b>تنبيه أمان التداول الحقيقي (LIVE Mode)</b>
-━━━━━━━━━━━━━━━━
-تم إقلاع البوت في وضع التداول الحي (LIVE)، ولكن التشغيل التلقائي معطّل أمنياً لمنع أي تداول دون مراجعة المشغل.
-يرجى الضغط على زر التشغيل في لوحة التحكم بعد التحقق من الرصيد والاتصال.
-      `).catch(() => {});
-    }
-  } else if (autoStartTrading) {
+  // Trading must be explicitly enabled; LIVE also requires a separate env confirmation.
+  const autoStartEnabled = process.env.AUTO_START_TRADING === 'true';
+  const liveMode = pipeline.getOrderGateway().getExecutionMode() === 'LIVE';
+  if (autoStartEnabled && (!liveMode || isLiveTradingConfirmed())) {
     pipeline.startAutonomousTrading().catch(err => {
-      console.error("❌ Failed to auto-start pipeline on boot:", err);
+      console.error("❌ Failed to auto-start pipeline:", err);
     });
   } else {
-    console.log('⏸️ Autonomous pipeline initialized. Auto-start is OFF (AUTO_START_TRADING="false"). Start manually via UI.');
+    console.info('Trading pipeline remains stopped; enable it through authenticated control or AUTO_START_TRADING=true.');
   }
   
   // Shared Cloud DB Service (will be linked after user sync)
@@ -203,14 +162,53 @@ async function startServer() {
     }
   });
 
-  // Protected routes below
-  app.use("/api/protected", requireAuth);
+  // Protect every API route by default. Only public market-data GETs are allowlisted;
+  // health/ping routes above are intentionally registered before this middleware.
+  const publicRateBuckets = new Map<string, { start: number; count: number }>();
+  const publicMarketDataPaths = new Set([
+    '/api/binance/tickers',
+    '/api/binance/klines',
+    '/api/binance/depth',
+  ]);
+  app.use('/api', (req, res, next) => {
+    const pathname = new URL(req.originalUrl, 'http://localhost').pathname;
+    if (req.method === 'GET' && publicMarketDataPaths.has(pathname)) {
+      const q = req.query as Record<string, any>;
+      const lim = q.limit === undefined ? 0 : Number(q.limit);
+      const validInterval = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
+      if (
+        (q.symbol !== undefined && !/^[A-Za-z0-9]{3,20}$/.test(String(q.symbol))) ||
+        (q.interval !== undefined && !validInterval.includes(String(q.interval))) ||
+        !Number.isFinite(lim) || lim < 0 || lim > 1000
+      ) {
+        res.status(400).json({ success: false, error: 'Invalid market-data query' });
+        return;
+      }
+      const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
+      const nowMs = Date.now();
+      const bucket = publicRateBuckets.get(ip);
+      if (!bucket || nowMs - bucket.start > 60_000) {
+        publicRateBuckets.set(ip, { start: nowMs, count: 1 });
+      } else if (++bucket.count > 120) {
+        res.status(429).json({ success: false, error: 'Too many requests' });
+        return;
+      }
+      if (publicRateBuckets.size > 5000) publicRateBuckets.clear();
+      next();
+      return;
+    }
+    void requireAuth(req as AuthRequest, res, next);
+  });
 
   app.post(["/api/protected/toggle-trading", "/api/control/run"], async (req: AuthRequest, res) => {
     try {
       const { running, isRunning } = req.body || {};
       const target = running !== undefined ? running : (isRunning !== undefined ? isRunning : !pipeline.getIsRunning());
       if (target) {
+        if (pipeline.getOrderGateway().getExecutionMode() === 'LIVE' && !isLiveTradingConfirmed()) {
+          res.status(409).json({ success: false, error: 'LIVE mode requires CONFIRM_LIVE_TRADING=true before starting.' });
+          return;
+        }
         await pipeline.startAutonomousTrading();
         await telegramService.sendMessage('🚀 <b>تم تفعيل خط التداول الآلي (Basel AlgoCore)</b>\n\n✅ البوت قيد التشغيل الآن وسيتم إرسال إشعار فحص دوري كل 30 دقيقة.').catch(() => {});
       } else {
@@ -296,12 +294,24 @@ async function startServer() {
     }
   });
 
-  app.get(["/api/download-zip", "/quantum-bot-deploy.zip"], (req, res) => {
-    const zipPath = path.join(process.cwd(), "public", "quantum-bot-deploy.zip");
-    if (fs.existsSync(zipPath)) {
-      res.download(zipPath, "quantum-bot-deploy.zip");
-    } else {
-      res.status(404).send("ZIP file not found");
+  app.post("/api/protected/manual-order", async (req: AuthRequest, res) => {
+    try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const { symbol, side, type, quantity, price, timeInForce } = body;
+      if (typeof symbol !== 'string' || !pipeline.getConfig().activeSymbols.includes(symbol)
+        || !['BUY', 'SELL'].includes(side)
+        || !['MARKET', 'LIMIT'].includes(type)
+        || !Number.isFinite(quantity) || quantity <= 0
+        || !Number.isFinite(price) || price <= 0
+        || (timeInForce !== undefined && !['GTC', 'IOC', 'FOK'].includes(timeInForce))) {
+        res.status(400).json({ success: false, error: 'Invalid manual order payload.' });
+        return;
+      }
+      const order = pipeline.getOrderGateway().submitOrder({ symbol, side, type, quantity, price, timeInForce });
+      const accepted = order.status !== 'REJECTED';
+      res.status(accepted ? 202 : 422).json({ success: accepted, order, error: order.errorMessage });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
@@ -358,7 +368,7 @@ async function startServer() {
     }
   });
 
-  app.post(["/api/quantum-training/batch", "/api/protected/quantum-training/batch"], requireAuth, async (req: AuthRequest, res) => {
+  app.post(["/api/quantum-training/batch", "/api/protected/quantum-training/batch"], async (req: AuthRequest, res) => {
     try {
       const count = parseInt(req.body?.count, 10) || 25;
       const result = await quantumSimulator.runBatchTraining(count);
@@ -371,7 +381,7 @@ async function startServer() {
     }
   });
 
-  app.post(["/api/quantum-training/toggle-auto", "/api/protected/quantum-training/toggle-auto"], requireAuth, async (req: AuthRequest, res) => {
+  app.post(["/api/quantum-training/toggle-auto", "/api/protected/quantum-training/toggle-auto"], async (req: AuthRequest, res) => {
     try {
       const enable = req.body?.enable !== undefined ? Boolean(req.body.enable) : undefined;
       const isAuto = quantumSimulator.toggleAutoTraining(enable);
@@ -385,7 +395,7 @@ async function startServer() {
     }
   });
 
-  app.post(["/api/quantum-training/reset", "/api/protected/quantum-training/reset"], requireAuth, async (req: AuthRequest, res) => {
+  app.post(["/api/quantum-training/reset", "/api/protected/quantum-training/reset"], async (req: AuthRequest, res) => {
     try {
       const amount = parseFloat(req.body?.amount) || 200.0;
       const wallet = quantumSimulator.resetTrainingWallet(amount);
@@ -441,124 +451,17 @@ async function startServer() {
     }
   });
 
-  app.post(["/api/protected/cancel-order", "/api/cancel-order"], requireAuth, async (req: AuthRequest, res) => {
+  app.post("/api/protected/cancel-order", async (req: AuthRequest, res) => {
     try {
       const { orderId, reason } = req.body;
-      if (!orderId) {
-        return res.status(400).json({ success: false, error: 'orderId is required' });
-      }
-      const cancelled = await pipeline.getOrderGateway().cancelOrder(orderId, reason || 'User requested cancellation');
+      const cancelled = pipeline.getOrderGateway().cancelOrder(orderId, reason || 'User requested cancellation');
       res.json({ success: cancelled });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }
   });
 
-  app.post(["/api/protected/manual-order", "/api/manual-order"], requireAuth, async (req: AuthRequest, res) => {
-    try {
-      const { symbol, side, type = 'MARKET', quantity, notionalUsd, price, stopLoss, takeProfit } = req.body || {};
-      if (!symbol || !side) {
-        return res.status(400).json({ success: false, error: 'Symbol and side are required' });
-      }
-
-      const formattedSym = (symbol.includes('/') ? symbol : `${symbol}/USDT`) as any;
-      const filter = pipeline.getOrderGateway().getSymbolFilter(formattedSym);
-      const currentPrice = price || pipeline.getMarketData().getPrice(formattedSym);
-
-      if (!currentPrice || currentPrice <= 0) {
-        return res.status(400).json({ success: false, error: `Cannot determine current market price for ${formattedSym}` });
-      }
-
-      let finalQty = Number(quantity);
-      if ((!finalQty || isNaN(finalQty) || finalQty <= 0) && notionalUsd) {
-        finalQty = Number(notionalUsd) / currentPrice;
-      }
-      if (!finalQty || isNaN(finalQty) || finalQty <= 0) {
-        return res.status(400).json({ success: false, error: 'Valid quantity or notionalUsd is required' });
-      }
-
-      // Format to step size
-      const step = filter?.stepSize || 0.001;
-      finalQty = Math.round(finalQty / step) * step;
-      finalQty = Number(finalQty.toFixed(4));
-      if (finalQty === 0) finalQty = Number((finalQty).toFixed(6));
-
-      const minQty = filter?.minQty || 0.001;
-      if (finalQty < minQty) {
-        return res.status(400).json({
-          success: false,
-          error: `Quantity ${finalQty} is below minimum allowed ${minQty} for ${formattedSym}`
-        });
-      }
-
-      const notional = finalQty * currentPrice;
-      const minNotional = filter?.minNotional || 5.0;
-      if (notional < minNotional) {
-        return res.status(400).json({
-          success: false,
-          error: `Order notional $${notional.toFixed(2)} is below minimum $${minNotional}`
-        });
-      }
-
-      // Submit real order through Order Gateway
-      const order = pipeline.getOrderGateway().submitOrder({
-        symbol: formattedSym,
-        side,
-        type: type || 'MARKET',
-        quantity: finalQty,
-        price: currentPrice,
-        strategyId: 'MANUAL_OPERATOR',
-        executionTag: 'UI-MANUAL',
-      });
-
-      // Save trade to persistent DB
-      await pipeline.getDatabase().saveTrade({
-        id: order.id,
-        symbol: formattedSym,
-        side,
-        quantity: finalQty,
-        price: currentPrice,
-        timestamp: Date.now(),
-        strategy: 'MANUAL_OPERATOR',
-        status: 'OPEN',
-        pnl: 0,
-      });
-
-      // Register protective orders (1.5% SL / 3.0% TP default)
-      const sl = stopLoss || (side === 'BUY' ? currentPrice * 0.985 : currentPrice * 1.015);
-      const tp = takeProfit || (side === 'BUY' ? currentPrice * 1.030 : currentPrice * 0.970);
-      await pipeline.getOrderGateway().sendProtectiveOrders(
-        formattedSym,
-        side,
-        finalQty,
-        currentPrice,
-        sl,
-        tp,
-        order.id
-      );
-
-      pipeline.getPartialProfitManager().registerPosition(
-        order.id,
-        formattedSym,
-        side,
-        currentPrice,
-        finalQty
-      );
-
-      res.json({
-        success: true,
-        order,
-        notionalUsd: notional,
-        sl,
-        tp,
-        message: `Manual ${side} order submitted for ${finalQty} ${formattedSym} ($${notional.toFixed(2)})`
-      });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.post(["/api/protected/close-all", "/api/close-all"], requireAuth, async (req: AuthRequest, res) => {
+  app.post("/api/protected/close-all", async (req: AuthRequest, res) => {
     try {
       const result = await pipeline.closeAllPositions();
       res.status(result.success ? 200 : 502).json(result);
@@ -641,6 +544,20 @@ async function startServer() {
     }
   });
 
+  // NOTE: the pipeline is started above ONLY when AUTO_START_TRADING=true (and, for LIVE, CONFIRM_LIVE_TRADING).
+  // An unconditional pipeline.start() used to live here and silently bypassed both safeguards.
+
+  // Telegram Start Notification
+  telegramService.sendMessage(`
+🚀 <b>تم تشغيل نظام باسل الحسابي الكمي بنجاح</b>
+━━━━━━━━━━━━━━━━
+⏰ التوقيت: ${new Date().toLocaleTimeString('ar-EG')}
+🎯 البيئة: ${process.env.NODE_ENV || 'production'}
+📊 عدد أزواج التداول النشطة: ${pipeline.getConfig().activeSymbols.length}
+━━━━━━━━━━━━━━━━
+✅ محرك التداول الآلي المستمر (Zero-Halt) نشط الآن وجاهز لاقتناص الفرص!
+  `);
+
   app.get("/api/protected/system-health", async (req: AuthRequest, res) => {
     const db = pipeline.getDatabase();
     const metrics = await db.getPerformanceMetrics();
@@ -679,7 +596,7 @@ async function startServer() {
     }
   });
 
-  app.post(['/api/telegram/config', '/api/protected/telegram/config'], requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/telegram/config', async (req, res) => {
     try {
       const { chatId, isEnabled, botToken, heartbeatEnabled, intervalMinutes } = req.body || {};
       telegramService.updateConfig(chatId, isEnabled, botToken, heartbeatEnabled, intervalMinutes);
@@ -694,7 +611,7 @@ async function startServer() {
     }
   });
 
-  app.post(['/api/telegram/heartbeat/send-now', '/api/protected/telegram/test'], requireAuth, async (req: AuthRequest, res) => {
+  app.post(['/api/telegram/heartbeat/send-now', '/api/protected/telegram/test'], async (req, res) => {
     try {
       const result = await pipeline.sendHeartbeatNotification(true);
       res.json({
@@ -780,7 +697,7 @@ async function startServer() {
     }
   });
 
-  app.post(['/api/sub-wallet/reset', '/api/protected/sub-wallet/reset'], requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/sub-wallet/reset', async (req, res) => {
     try {
       const amount = Number(req.body?.amount) || 25.0;
       const newState = pipeline.getSubWallet().resetSubWallet(amount);
@@ -791,7 +708,7 @@ async function startServer() {
   });
 
     // Close single position on Binance & Bot
-  const handleClosePosition = async (req: AuthRequest, res: express.Response) => {
+  const handleClosePosition = async (req: express.Request, res: express.Response) => {
     try {
       const symbol = req.body?.symbol;
       if (!symbol) {
@@ -803,9 +720,10 @@ async function startServer() {
       res.status(500).json({ success: false, error: err.message });
     }
   };
-  app.post(['/api/positions/close', '/api/protected/positions/close'], requireAuth, handleClosePosition);
+  app.post('/api/positions/close', handleClosePosition);
+  app.post('/api/protected/positions/close', handleClosePosition);
 
-  app.post(['/api/trades/reset-and-realign', '/api/protected/trades/reset-and-realign'], requireAuth, async (req: AuthRequest, res) => {
+  app.post('/api/trades/reset-and-realign', async (req, res) => {
     try {
       await pipeline.liquidateAndResetForNewWallet();
       res.json({ success: true, message: 'All trades liquidated and realigned to 5 sub-wallet successfully' });
@@ -862,17 +780,6 @@ async function startServer() {
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }
-  });
-
-  // --- Direct Download for Full Bot Source Package ---
-  app.get('/api/download-bot', (req, res) => {
-    const zipPath = path.join(process.cwd(), 'quantum-bot-complete.zip');
-    if (fs.existsSync(zipPath)) {
-      res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', 'attachment; filename="quantum-bot-complete.zip"');
-      return res.sendFile(zipPath);
-    }
-    return res.status(404).json({ error: 'Package archive not found on server' });
   });
 
   // --- Core metrics endpoint for health and performance analysis ---
@@ -984,7 +891,7 @@ async function startServer() {
     }
   });
 
-  app.post(['/api/strategies/:id/toggle', '/api/protected/strategies/:id/toggle'], requireAuth, (req: AuthRequest, res) => {
+  app.post('/api/strategies/:id/toggle', (req, res) => {
     try {
       const { id } = req.params;
       const { active } = req.body;
@@ -998,7 +905,7 @@ async function startServer() {
     }
   });
 
-  app.post(['/api/strategies/:id/params', '/api/protected/strategies/:id/params'], requireAuth, (req: AuthRequest, res) => {
+  app.post('/api/strategies/:id/params', (req, res) => {
     try {
       const { id } = req.params;
       const params = req.body;
@@ -1012,7 +919,7 @@ async function startServer() {
     }
   });
 
-  app.post(['/api/strategies/reallocate', '/api/protected/strategies/reallocate'], requireAuth, (req: AuthRequest, res) => {
+  app.post('/api/strategies/reallocate', (req, res) => {
     try {
       const { allocations } = req.body; // e.g. { 'ou-mean-reversion': 40, 'quantum-qubo-alpha': 30, ... }
       if (!allocations || typeof allocations !== 'object') {
@@ -1035,7 +942,7 @@ async function startServer() {
     }
   });
 
-  app.post(['/api/board/hold-meeting', '/api/protected/board/hold-meeting'], requireAuth, (req: AuthRequest, res) => {
+  app.post('/api/board/hold-meeting', (req, res) => {
     try {
       const symbol = req.body?.symbol || 'BTC/USDT';
       const candles = pipeline.getMarketData().getCandles(symbol) || [];
@@ -1066,7 +973,7 @@ async function startServer() {
     }
   });
 
-  app.post(['/api/board/learn', '/api/protected/board/learn'], requireAuth, (req: AuthRequest, res) => {
+  app.post('/api/board/learn', (req, res) => {
     try {
       const pnl = Number(req.body?.pnl) || 0;
       const symbol = req.body?.symbol || 'BTC/USDT';
@@ -1131,6 +1038,7 @@ async function startServer() {
 
       res.json({
         isRunning: pipeline.getIsRunning(),
+        executionMode: pipeline.getOrderGateway().getExecutionMode(),
         balance: pipeline.getUserDataStream().getBalance(),
         positions: pipeline.getUserDataStream().getPositions(),
         orders: pipeline.getOrderGateway().getOrders(),
@@ -1160,77 +1068,13 @@ async function startServer() {
         strategyScreener: pipeline.getStrategyScreener(),
         boardOfDirectors: pipeline.getBoardOfDirectors().getStatusReport(),
         quantumTrainingWallet: quantumSimulator.getWalletState(),
-        executionMode: pipeline.getExecutionMode(),
-        isLiveConfirmed: isLiveTradingConfirmed(),
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to get live status' });
     }
   });
 
-  // Dedicated execution mode query and secure switching endpoints
-  app.get('/api/execution-mode', (req, res) => {
-    res.json({
-      success: true,
-      executionMode: pipeline.getExecutionMode(),
-      isLiveConfirmed: isLiveTradingConfirmed(),
-      hasApiKey: !!(process.env.EXCHANGE_API_KEY || process.env.BINANCE_API_KEY),
-    });
-  });
-
-  app.post(['/api/execution-mode', '/api/protected/execution-mode'], requireAuth, async (req: AuthRequest, res) => {
-    try {
-      const { mode, confirmLive } = req.body || {};
-      const targetMode = normalizeExecutionMode(mode);
-
-      if (targetMode === 'LIVE' && !confirmLive && !isLiveTradingConfirmed()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Switching to LIVE execution mode blocked: CONFIRM_LIVE_TRADING=true environment variable and explicit user confirmation are required.',
-          code: 'EXECUTION_MODE_LIVE_UNCONFIRMED',
-        });
-      }
-
-      pipeline.setExecutionMode(targetMode);
-      res.json({
-        success: true,
-        executionMode: pipeline.getExecutionMode(),
-        message: `Execution mode securely updated to ${targetMode}`,
-      });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
   // --- Dedicated Binance Real-Time Proxy Endpoints (CORS-free & Sandbox Safe) ---
-  const publicRateBuckets = new Map<string, { start: number; count: number }>();
-  app.use(['/api/binance/tickers', '/api/binance/klines', '/api/binance/depth'], (req, res, next) => {
-    if (req.method === 'GET') {
-      const q = req.query as Record<string, any>;
-      const lim = q.limit === undefined ? 0 : Number(q.limit);
-      const validInterval = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
-      if (
-        (q.symbol !== undefined && !/^[A-Za-z0-9]{3,20}$/.test(String(q.symbol))) ||
-        (q.interval !== undefined && !validInterval.includes(String(q.interval))) ||
-        !Number.isFinite(lim) || lim < 0 || lim > 1000
-      ) {
-        res.status(400).json({ success: false, error: 'Invalid market-data query' });
-        return;
-      }
-      const ip = String(req.ip || req.socket.remoteAddress || 'unknown');
-      const nowMs = Date.now();
-      const bucket = publicRateBuckets.get(ip);
-      if (!bucket || nowMs - bucket.start > 60_000) {
-        publicRateBuckets.set(ip, { start: nowMs, count: 1 });
-      } else if (++bucket.count > 120) {
-        res.status(429).json({ success: false, error: 'Too many requests' });
-        return;
-      }
-      if (publicRateBuckets.size > 5000) publicRateBuckets.clear();
-    }
-    next();
-  });
-
   let cachedTickers: any[] = [];
   let lastTickersFetchTime = 0;
 
@@ -1242,11 +1086,14 @@ async function startServer() {
         return res.json(cachedTickers);
       }
 
-      // Try fetching directly from Binance Futures REST API with timeout
+      // Try fetching directly from Binance REST API with timeout
+      const targetSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'PEPEUSDT', 'SUIUSDT', 'NEARUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'BNBUSDT', 'AVAXUSDT', 'QNTUSDT'];
+      const symParam = encodeURIComponent(JSON.stringify(targetSymbols));
+
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-        const binanceRes = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr`, {
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const binanceRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${symParam}`, {
           signal: controller.signal,
           headers: { 'Accept': 'application/json' }
         });
@@ -1311,11 +1158,11 @@ async function startServer() {
       const interval = (req.query.interval as string || '1m');
       const limit = parseInt(req.query.limit as string || '25', 10);
 
-      // Attempt Binance Futures fetch
+      // Attempt Binance fetch
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const binanceRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`, {
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const binanceRes = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`, {
           signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -1360,8 +1207,8 @@ async function startServer() {
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
-        const binanceRes = await fetch(`https://fapi.binance.com/fapi/v1/depth?symbol=${symbol}&limit=${limit}`, {
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const binanceRes = await fetch(`https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=${limit}`, {
           signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -1399,20 +1246,17 @@ async function startServer() {
   // 3. Setup WebSocket Server for Real-Time UI Telemetry on /brain-ws
   app.ws("/brain-ws", async (ws: any, req) => {
     const adminEmailsEnv = process.env.ADMIN_EMAILS || '';
-    const hasAdminList = adminEmailsEnv.trim().length > 0;
+    const allowedEmails = new Set(adminEmailsEnv.split(',').map((email) => email.trim().toLowerCase()).filter(Boolean));
 
     const verifyToken = async (tok: string): Promise<boolean> => {
+      if (!tok || allowedEmails.size === 0) return false;
       try {
         const { adminAuth } = await import("./src/lib/firebase-admin.ts");
-        const decodedToken = await adminAuth.verifyIdToken(tok);
-        if (hasAdminList) {
-          const allowedList = adminEmailsEnv.split(',').map((e) => e.trim().toLowerCase());
-          const userEmail = (decodedToken.email || '').toLowerCase();
-          return allowedList.includes(userEmail);
-        }
-        return true;
+        const decodedToken = await adminAuth.verifyIdToken(tok, true);
+        const userEmail = (decodedToken.email || '').trim().toLowerCase();
+        return decodedToken.email_verified === true && allowedEmails.has(userEmail);
       } catch (err: any) {
-        console.warn("⛔ Brain WebSocket auth check failed:", err.message);
+        console.warn("⛔ Brain WebSocket auth check failed:", err?.code || 'token-verification-failed');
         return false;
       }
     };
@@ -1471,8 +1315,6 @@ async function startServer() {
             qualifiedAssets: pipeline.getAssetScreener().getReport(),
             strategies: pipeline.getStrategies(),
             strategyScreener: pipeline.getStrategyScreener(),
-            executionMode: pipeline.getExecutionMode(),
-            isLiveConfirmed: isLiveTradingConfirmed(),
           },
         }));
       } catch (err) {
@@ -1480,34 +1322,27 @@ async function startServer() {
       }
     };
 
-    // Check optional URL query token
-    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    const queryToken = urlObj.searchParams.get("token");
-
+    // Authenticate over the WebSocket message channel; do not put bearer tokens in URLs.
     ws.isOperator = false;
-
-    if (queryToken) {
-      const valid = await verifyToken(queryToken);
-      if (valid) {
-        ws.isOperator = true;
-      }
-    }
+    const authTimeout = setTimeout(() => {
+      if (!ws.isOperator) ws.close(1008, 'Authentication required');
+    }, 10000);
 
     console.log("✅ Brain WebSocket Connected via express-ws");
-    sendInitialState();
 
     ws.on("message", async (msgStr: string) => {
       try {
         const msg = JSON.parse(msgStr.toString());
-        if (msg.type === "AUTH" && msg.token) {
-          const valid = await verifyToken(msg.token);
-          if (valid) {
-            ws.isOperator = true;
-            console.log("✅ Brain WebSocket Operator Authenticated");
-            ws.send(JSON.stringify({ type: "AUTH_SUCCESS", isOperator: true }));
-          } else {
-            ws.send(JSON.stringify({ type: "AUTH_FAILED", error: "Not an authorized admin" }));
+        if (!ws.isOperator) {
+          if (msg.type !== 'AUTH' || typeof msg.token !== 'string' || !(await verifyToken(msg.token))) {
+            ws.close(1008, 'Invalid authentication');
+            return;
           }
+          ws.isOperator = true;
+          clearTimeout(authTimeout);
+          console.log("✅ Brain WebSocket Operator Authenticated");
+          ws.send(JSON.stringify({ type: "AUTH_SUCCESS", isOperator: true }));
+          sendInitialState();
         }
       } catch (e) {
         // Non-JSON or ping
@@ -1515,6 +1350,7 @@ async function startServer() {
     });
 
     ws.on("close", () => {
+      clearTimeout(authTimeout);
       console.log("❌ Brain WebSocket Disconnected");
     });
   });
@@ -1576,8 +1412,6 @@ async function startServer() {
           strategies: pipeline.getStrategies(),
           strategyScreener: pipeline.getStrategyScreener(),
           boardOfDirectors: pipeline.getBoardOfDirectors().getStatusReport(),
-          executionMode: pipeline.getExecutionMode(),
-          isLiveConfirmed: isLiveTradingConfirmed(),
         },
       });
 
@@ -1590,7 +1424,7 @@ async function startServer() {
 
       const wss = expressWsInstance.getWss();
       wss.clients.forEach((client: any) => {
-        if (client.readyState === 1) { // OPEN
+        if (client.readyState === 1 && client.isOperator === true) { // OPEN and authenticated operator
           client.send(statePayload);
         }
       });

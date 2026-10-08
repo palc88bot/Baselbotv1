@@ -26,17 +26,6 @@
       "closedAt": 1791324821063,
       "exitPrice": 310.77
     },
-    "ADOPTED-muueiujb-ETCUSDT": {
-      "id": "ADOPTED-muueiujb-ETCUSDT",
-      "symbol": "ETC/USDT",
-      "side": "SELL",
-      "quantity": 0.61,
-      "price": 8.989,
-      "timestamp": 1791153459479,
-      "strategy": "Orphan-Adopted-Protective-Manager",
-      "status": "OPEN",
-      "pnl": 0
-    },
     "ADOPTED-muueiupi-LINKUSDT": {
       "id": "ADOPTED-muueiupi-LINKUSDT",
       "symbol": "LINK/USDT",
@@ -62,26 +51,6 @@
       "pnl": 0.17304000000000053,
       "closedAt": 1791211199871,
       "exitPrice": 0.21621
-    },
-    "ORD-mux61uc5-1-0d89de": {
-      "id": "ORD-mux61uc5-1-0d89de",
-      "timestamp": 1791320627670,
-      "symbol": "BAT/USDT",
-      "side": "BUY",
-      "quantity": 54.6611,
-      "price": 0.10062,
-      "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
-    },
-    "ORD-mux61uce-2-2db8ee": {
-      "id": "ORD-mux61uce-2-2db8ee",
-      "timestamp": 1791320627678,
-      "symbol": "LTC/USDT",
-      "side": "BUY",
-      "quantity": 0.0797,
-      "price": 69,
-      "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
     },
     "ORD-mux61udu-3-e29413": {
       "id": "ORD-mux61udu-3-e29413",
@@ -109,349 +78,60 @@
       "closedAt": 1791324821065,
       "exitPrice": 310.77
     },
-    "ORD-mux61uiw-5-642374": {
-      "id": "ORD-mux61uiw-5-642374",
-      "timestamp": 1791320627913,
-      "symbol": "XRP/USDT",
+    "ORD-muzfqsk8-1-29fca9": {
+      "id": "ORD-muzfqsk8-1-29fca9",
+      "timestamp": 1791457840665,
+      "symbol": "LINK/USDT",
       "side": "BUY",
-      "quantity": 3.6681,
-      "price": 1.4994,
+      "quantity": 0.422947,
+      "price": 13.004,
       "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
+      "status": "CLOSED",
+      "pnl": -0.0059,
+      "closedAt": 1791457841851,
+      "exitPrice": 13.003
     },
-    "ORD-mux61ung-6-2b4749": {
-      "id": "ORD-mux61ung-6-2b4749",
-      "timestamp": 1791320628076,
-      "symbol": "ONT/USDT",
+    "ORD-muzfqskq-3-512ace": {
+      "id": "ORD-muzfqskq-3-512ace",
+      "timestamp": 1791457840682,
+      "symbol": "ETC/USDT",
       "side": "BUY",
-      "quantity": 91.0445,
-      "price": 0.06041,
+      "quantity": 0.660185,
+      "price": 8.331,
       "strategy": "OU-DECISION-ENGINE",
-      "status": "OPEN"
+      "status": "CLOSED",
+      "pnl": -0.0035,
+      "closedAt": 1791457841904,
+      "exitPrice": 8.334
     },
-    "ADOPTED-mux66l1h-QTUMUSDT": {
-      "id": "ADOPTED-mux66l1h-QTUMUSDT",
-      "symbol": "QTUM/USDT",
+    "ORD-muzfqsks-4-16e695": {
+      "id": "ORD-muzfqsks-4-16e695",
+      "timestamp": 1791457840684,
+      "symbol": "LTC/USDT",
       "side": "BUY",
-      "quantity": 0.1,
-      "price": 0.9746,
-      "timestamp": 1791320848901,
-      "strategy": "Orphan-Adopted-Protective-Manager",
-      "status": "OPEN",
-      "pnl": 0
+      "quantity": 0.085897,
+      "price": 64.03,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "pnl": -0.0055,
+      "closedAt": 1791457841888,
+      "exitPrice": 64.03
     },
-    "ADOPTED-mux66l40-IOTAUSDT": {
-      "id": "ADOPTED-mux66l40-IOTAUSDT",
-      "symbol": "IOTA/USDT",
-      "side": "SELL",
-      "quantity": 95.6,
-      "price": 0.057569999999999996,
-      "timestamp": 1791320848992,
-      "strategy": "Orphan-Adopted-Protective-Manager",
-      "status": "OPEN",
-      "pnl": 0
-    },
-    "ADOPTED-mux66l64-NEOUSDT": {
-      "id": "ADOPTED-mux66l64-NEOUSDT",
-      "symbol": "NEO/USDT",
+    "ORD-muzfqsov-5-98054c": {
+      "id": "ORD-muzfqsov-5-98054c",
+      "timestamp": 1791457840832,
+      "symbol": "BCH/USDT",
       "side": "BUY",
-      "quantity": 2.16,
-      "price": 2.537,
-      "timestamp": 1791320849068,
-      "strategy": "Orphan-Adopted-Protective-Manager",
-      "status": "OPEN",
-      "pnl": 0
+      "quantity": 0.018716,
+      "price": 293.86,
+      "strategy": "OU-DECISION-ENGINE",
+      "status": "CLOSED",
+      "pnl": -0.0059,
+      "closedAt": 1791457842057,
+      "exitPrice": 293.84
     }
   },
   "signals": [
-    {
-      "id": "SIG-MULTI-muueiu0y-DOGEUSDT",
-      "timestamp": 1791153458818,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.952,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueiu0z-SUIUSDT",
-      "timestamp": 1791153458819,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.394,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueiu0z-NEARUSDT",
-      "timestamp": 1791153458819,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.523,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueiu0z-RENDERUSDT",
-      "timestamp": 1791153458819,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.011,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bt-ETHUSDT",
-      "timestamp": 1791153711929,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1313.435,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bt-SOLUSDT",
-      "timestamp": 1791153711929,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.905,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bt-XRPUSDT",
-      "timestamp": 1791153711929,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.241,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bt-AVAXUSDT",
-      "timestamp": 1791153711929,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.455,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bt-ADAUSDT",
-      "timestamp": 1791153711929,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.868,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bt-BNBUSDT",
-      "timestamp": 1791153711929,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 348.115,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bu-DOGEUSDT",
-      "timestamp": 1791153711930,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.952,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bu-SUIUSDT",
-      "timestamp": 1791153711930,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.393,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bv-NEARUSDT",
-      "timestamp": 1791153711931,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.519,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueo9bv-RENDERUSDT",
-      "timestamp": 1791153711931,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.013,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohpx-ETHUSDT",
-      "timestamp": 1791153722805,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1313.745,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohpy-SOLUSDT",
-      "timestamp": 1791153722806,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.91,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohpy-XRPUSDT",
-      "timestamp": 1791153722806,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.241,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohpy-AVAXUSDT",
-      "timestamp": 1791153722806,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.456,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohpy-ADAUSDT",
-      "timestamp": 1791153722806,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.868,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohpy-BNBUSDT",
-      "timestamp": 1791153722806,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 348.14,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohpz-DOGEUSDT",
-      "timestamp": 1791153722807,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.952,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohpz-SUIUSDT",
-      "timestamp": 1791153722807,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.393,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohq0-NEARUSDT",
-      "timestamp": 1791153722808,
-      "symbol": "NEAR/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -47.519,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muueohq0-RENDERUSDT",
-      "timestamp": 1791153722808,
-      "symbol": "RENDER/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.013,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muuew9fv-ETHUSDT",
-      "timestamp": 1791154085323,
-      "symbol": "ETH/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 1313.875,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muuew9fv-SOLUSDT",
-      "timestamp": 1791154085323,
-      "symbol": "SOL/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 10.925,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muuew9hf-XRPUSDT",
-      "timestamp": 1791154085379,
-      "symbol": "XRP/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.241,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muuew9hf-AVAXUSDT",
-      "timestamp": 1791154085379,
-      "symbol": "AVAX/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -44.45,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muuew9hf-ADAUSDT",
-      "timestamp": 1791154085379,
-      "symbol": "ADA/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.868,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muuew9hg-BNBUSDT",
-      "timestamp": 1791154085380,
-      "symbol": "BNB/USDT",
-      "type": "SELL",
-      "strength": 0.59,
-      "zScore": 347.935,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muuew9hg-DOGEUSDT",
-      "timestamp": 1791154085380,
-      "symbol": "DOGE/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.952,
-      "executed": false
-    },
-    {
-      "id": "SIG-MULTI-muuew9hh-SUIUSDT",
-      "timestamp": 1791154085381,
-      "symbol": "SUI/USDT",
-      "type": "BUY",
-      "strength": 0.59,
-      "zScore": -49.391,
-      "executed": false
-    },
     {
       "id": "SIG-MULTI-muuew9hh-NEARUSDT",
       "timestamp": 1791154085381,
@@ -4663,6 +4343,294 @@
       "strength": 0.59,
       "zScore": -48.917,
       "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq71-ETHUSDT",
+      "timestamp": 1791457837597,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1219.07,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq72-SOLUSDT",
+      "timestamp": 1791457837598,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 6.85,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq72-XRPUSDT",
+      "timestamp": 1791457837598,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.302,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq73-AVAXUSDT",
+      "timestamp": 1791457837599,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.642,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq73-ADAUSDT",
+      "timestamp": 1791457837599,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.875,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq74-DOGEUSDT",
+      "timestamp": 1791457837600,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.956,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq75-SUIUSDT",
+      "timestamp": 1791457837601,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.441,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq76-NEARUSDT",
+      "timestamp": 1791457837602,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.432,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqq76-RENDERUSDT",
+      "timestamp": 1791457837602,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.008,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzfqs67-BCHUSDT",
+      "timestamp": 1791457840159,
+      "symbol": "BCH/USDT",
+      "type": "BUY",
+      "strength": 0.67,
+      "zScore": -39.4,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muzfqs6h-LTCUSDT",
+      "timestamp": 1791457840169,
+      "symbol": "LTC/USDT",
+      "type": "BUY",
+      "strength": 0.67,
+      "zScore": -29.813,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muzfqs6u-ETCUSDT",
+      "timestamp": 1791457840182,
+      "symbol": "ETC/USDT",
+      "type": "BUY",
+      "strength": 0.67,
+      "zScore": -25.704,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muzfqs6x-LINKUSDT",
+      "timestamp": 1791457840185,
+      "symbol": "LINK/USDT",
+      "type": "BUY",
+      "strength": 0.67,
+      "zScore": -25.722,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muzfqs72-DASHUSDT",
+      "timestamp": 1791457840190,
+      "symbol": "DASH/USDT",
+      "type": "STRONG_BUY",
+      "strength": 0.72,
+      "zScore": -77.46,
+      "executed": true
+    },
+    {
+      "id": "SIG-MULTI-muznvjbl-ETHUSDT",
+      "timestamp": 1791471498897,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1215.64,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muznvjbl-SOLUSDT",
+      "timestamp": 1791471498897,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 6.24,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muznvjbm-XRPUSDT",
+      "timestamp": 1791471498898,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.298,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muznvjbm-AVAXUSDT",
+      "timestamp": 1791471498898,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.705,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muznvjbm-ADAUSDT",
+      "timestamp": 1791471498898,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.876,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muznvjbn-DOGEUSDT",
+      "timestamp": 1791471498899,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.956,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muznvjbo-SUIUSDT",
+      "timestamp": 1791471498900,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.45,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muznvjbo-NEARUSDT",
+      "timestamp": 1791471498900,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.495,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muznvjbo-RENDERUSDT",
+      "timestamp": 1791471498900,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.002,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49ii-ETHUSDT",
+      "timestamp": 1791471906090,
+      "symbol": "ETH/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 1212.14,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49ii-SOLUSDT",
+      "timestamp": 1791471906090,
+      "symbol": "SOL/USDT",
+      "type": "SELL",
+      "strength": 0.59,
+      "zScore": 6.01,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49ij-XRPUSDT",
+      "timestamp": 1791471906091,
+      "symbol": "XRP/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.302,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49ij-AVAXUSDT",
+      "timestamp": 1791471906091,
+      "symbol": "AVAX/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -44.742,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49ik-ADAUSDT",
+      "timestamp": 1791471906092,
+      "symbol": "ADA/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.877,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49ik-DOGEUSDT",
+      "timestamp": 1791471906092,
+      "symbol": "DOGE/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.957,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49il-SUIUSDT",
+      "timestamp": 1791471906093,
+      "symbol": "SUI/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.455,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49im-NEARUSDT",
+      "timestamp": 1791471906094,
+      "symbol": "NEAR/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -47.515,
+      "executed": false
+    },
+    {
+      "id": "SIG-MULTI-muzo49im-RENDERUSDT",
+      "timestamp": 1791471906094,
+      "symbol": "RENDER/USDT",
+      "type": "BUY",
+      "strength": 0.59,
+      "zScore": -49.014,
+      "executed": false
     }
   ],
   "balanceSnapshots": [
@@ -7389,13 +7357,601 @@
       "total_equity": 0,
       "free_margin": 0,
       "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791457837589,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791458137628,
+      "total_equity": 4589.81,
+      "free_margin": 4589.51,
+      "unrealized_pnl": 0.3
+    },
+    {
+      "timestamp": 1791458139888,
+      "total_equity": 4589.81,
+      "free_margin": 4589.51,
+      "unrealized_pnl": 0.3
+    },
+    {
+      "timestamp": 1791458437682,
+      "total_equity": 4589.82,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.3
+    },
+    {
+      "timestamp": 1791458439887,
+      "total_equity": 4589.82,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.3
+    },
+    {
+      "timestamp": 1791458737710,
+      "total_equity": 4589.78,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.27
+    },
+    {
+      "timestamp": 1791458739887,
+      "total_equity": 4589.78,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.27
+    },
+    {
+      "timestamp": 1791459037744,
+      "total_equity": 4589.83,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.31
+    },
+    {
+      "timestamp": 1791459039887,
+      "total_equity": 4589.83,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.31
+    },
+    {
+      "timestamp": 1791459337754,
+      "total_equity": 4589.83,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.32
+    },
+    {
+      "timestamp": 1791459339888,
+      "total_equity": 4589.83,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.32
+    },
+    {
+      "timestamp": 1791459637769,
+      "total_equity": 4589.83,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.32
+    },
+    {
+      "timestamp": 1791459639888,
+      "total_equity": 4589.83,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.32
+    },
+    {
+      "timestamp": 1791459937897,
+      "total_equity": 4589.84,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.32
+    },
+    {
+      "timestamp": 1791459939889,
+      "total_equity": 4589.84,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.32
+    },
+    {
+      "timestamp": 1791460237918,
+      "total_equity": 4589.86,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.35
+    },
+    {
+      "timestamp": 1791460239890,
+      "total_equity": 4589.86,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.35
+    },
+    {
+      "timestamp": 1791460537927,
+      "total_equity": 4589.88,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.37
+    },
+    {
+      "timestamp": 1791460539890,
+      "total_equity": 4589.88,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.37
+    },
+    {
+      "timestamp": 1791460837937,
+      "total_equity": 4589.89,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.37
+    },
+    {
+      "timestamp": 1791460839891,
+      "total_equity": 4589.89,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.37
+    },
+    {
+      "timestamp": 1791461137990,
+      "total_equity": 4589.89,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.37
+    },
+    {
+      "timestamp": 1791461139891,
+      "total_equity": 4589.89,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.37
+    },
+    {
+      "timestamp": 1791461438006,
+      "total_equity": 4589.89,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.38
+    },
+    {
+      "timestamp": 1791461439892,
+      "total_equity": 4589.89,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.38
+    },
+    {
+      "timestamp": 1791461738010,
+      "total_equity": 4589.84,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791461739893,
+      "total_equity": 4589.84,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791462038062,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791462039894,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791462338103,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791462339894,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791462638175,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.34
+    },
+    {
+      "timestamp": 1791462639896,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.34
+    },
+    {
+      "timestamp": 1791462938191,
+      "total_equity": 4589.84,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791462939897,
+      "total_equity": 4589.84,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791463238218,
+      "total_equity": 4589.78,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.27
+    },
+    {
+      "timestamp": 1791463239897,
+      "total_equity": 4589.78,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.27
+    },
+    {
+      "timestamp": 1791463538260,
+      "total_equity": 4589.77,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.26
+    },
+    {
+      "timestamp": 1791463539899,
+      "total_equity": 4589.77,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.26
+    },
+    {
+      "timestamp": 1791463838286,
+      "total_equity": 4589.73,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.22
+    },
+    {
+      "timestamp": 1791463839899,
+      "total_equity": 4589.73,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.22
+    },
+    {
+      "timestamp": 1791464138312,
+      "total_equity": 4589.71,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.19
+    },
+    {
+      "timestamp": 1791464139900,
+      "total_equity": 4589.71,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.19
+    },
+    {
+      "timestamp": 1791464438359,
+      "total_equity": 4589.74,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.23
+    },
+    {
+      "timestamp": 1791464439901,
+      "total_equity": 4589.74,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.23
+    },
+    {
+      "timestamp": 1791464738374,
+      "total_equity": 4589.75,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.23
+    },
+    {
+      "timestamp": 1791464739901,
+      "total_equity": 4589.75,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.23
+    },
+    {
+      "timestamp": 1791465038423,
+      "total_equity": 4589.78,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.26
+    },
+    {
+      "timestamp": 1791465039902,
+      "total_equity": 4589.78,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.26
+    },
+    {
+      "timestamp": 1791465338458,
+      "total_equity": 4589.81,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.29
+    },
+    {
+      "timestamp": 1791465339902,
+      "total_equity": 4589.81,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.29
+    },
+    {
+      "timestamp": 1791465638494,
+      "total_equity": 4589.82,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.3
+    },
+    {
+      "timestamp": 1791465639903,
+      "total_equity": 4589.82,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.3
+    },
+    {
+      "timestamp": 1791465938503,
+      "total_equity": 4589.82,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.3
+    },
+    {
+      "timestamp": 1791465939904,
+      "total_equity": 4589.82,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.3
+    },
+    {
+      "timestamp": 1791466238555,
+      "total_equity": 4589.81,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.29
+    },
+    {
+      "timestamp": 1791466239903,
+      "total_equity": 4589.81,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.29
+    },
+    {
+      "timestamp": 1791466538618,
+      "total_equity": 4589.79,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.28
+    },
+    {
+      "timestamp": 1791466539905,
+      "total_equity": 4589.79,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.28
+    },
+    {
+      "timestamp": 1791466838639,
+      "total_equity": 4589.75,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.24
+    },
+    {
+      "timestamp": 1791466839906,
+      "total_equity": 4589.75,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.24
+    },
+    {
+      "timestamp": 1791467138694,
+      "total_equity": 4589.71,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.2
+    },
+    {
+      "timestamp": 1791467139905,
+      "total_equity": 4589.71,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.2
+    },
+    {
+      "timestamp": 1791467438748,
+      "total_equity": 4589.68,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.16
+    },
+    {
+      "timestamp": 1791467439906,
+      "total_equity": 4589.68,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.16
+    },
+    {
+      "timestamp": 1791467738802,
+      "total_equity": 4589.73,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.21
+    },
+    {
+      "timestamp": 1791467739906,
+      "total_equity": 4589.73,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.21
+    },
+    {
+      "timestamp": 1791468038852,
+      "total_equity": 4589.76,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.25
+    },
+    {
+      "timestamp": 1791468039906,
+      "total_equity": 4589.76,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.25
+    },
+    {
+      "timestamp": 1791468338936,
+      "total_equity": 4589.77,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.25
+    },
+    {
+      "timestamp": 1791468339907,
+      "total_equity": 4589.77,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.25
+    },
+    {
+      "timestamp": 1791468638958,
+      "total_equity": 4589.75,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.24
+    },
+    {
+      "timestamp": 1791468639908,
+      "total_equity": 4589.75,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.24
+    },
+    {
+      "timestamp": 1791468939028,
+      "total_equity": 4589.76,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.25
+    },
+    {
+      "timestamp": 1791468939909,
+      "total_equity": 4589.76,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.25
+    },
+    {
+      "timestamp": 1791469239038,
+      "total_equity": 4589.81,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.29
+    },
+    {
+      "timestamp": 1791469239914,
+      "total_equity": 4589.81,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.29
+    },
+    {
+      "timestamp": 1791469539127,
+      "total_equity": 4589.82,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.31
+    },
+    {
+      "timestamp": 1791469539916,
+      "total_equity": 4589.82,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.31
+    },
+    {
+      "timestamp": 1791469839203,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791469839916,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791470139622,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791470139917,
+      "total_equity": 4589.85,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.33
+    },
+    {
+      "timestamp": 1791470439713,
+      "total_equity": 4589.86,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.35
+    },
+    {
+      "timestamp": 1791470439917,
+      "total_equity": 4589.86,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.35
+    },
+    {
+      "timestamp": 1791470739918,
+      "total_equity": 4589.78,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.27
+    },
+    {
+      "timestamp": 1791470739982,
+      "total_equity": 4589.78,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.27
+    },
+    {
+      "timestamp": 1791471039918,
+      "total_equity": 4589.77,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.25
+    },
+    {
+      "timestamp": 1791471040095,
+      "total_equity": 4589.77,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.25
+    },
+    {
+      "timestamp": 1791471339919,
+      "total_equity": 4589.75,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.24
+    },
+    {
+      "timestamp": 1791471340102,
+      "total_equity": 4589.75,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.24
+    },
+    {
+      "timestamp": 1791471498885,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791471798891,
+      "total_equity": 4589.73,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.22
+    },
+    {
+      "timestamp": 1791471801659,
+      "total_equity": 4589.73,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.22
+    },
+    {
+      "timestamp": 1791471906082,
+      "total_equity": 0,
+      "free_margin": 0,
+      "unrealized_pnl": 0
+    },
+    {
+      "timestamp": 1791472206100,
+      "total_equity": 4589.67,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.16
+    },
+    {
+      "timestamp": 1791472208315,
+      "total_equity": 4589.67,
+      "free_margin": 4586.01,
+      "unrealized_pnl": 0.16
     }
   ],
   "prices": {},
   "botState": {
     "last_balance": {
-      "equity": 4592.1894975,
-      "timestamp": 1791332314370
+      "equity": 4589.5138262,
+      "timestamp": 1791472209598
+    },
+    "killswitch_state": {
+      "level": "SOFT_HALT",
+      "active": true,
+      "reason": "Restored from persistent state: Restored from persistent state: Stop-loss placement failed for LINK/USDT",
+      "timestamp": 1791471906515
     }
   }
 }

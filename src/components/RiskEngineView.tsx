@@ -185,10 +185,14 @@ export const RiskEngineView: React.FC<RiskEngineViewProps> = ({
             <h4 className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">{isAr ? 'أداء المخاطر' : 'SHARPE_EFFICIENCY'}</h4>
             <Percent className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-3xl font-mono font-black text-emerald-400 mb-1">{metrics.sharpeRatio.toFixed(2)}</div>
+          <div className="text-3xl font-mono font-black text-emerald-400 mb-1">
+            {metrics.sharpeRatio !== null ? metrics.sharpeRatio.toFixed(2) : '--'}
+          </div>
           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pt-3 border-t border-white/5 mt-3 flex justify-between">
             <span>{isAr ? 'سورتينو:' : 'SORTINO:'}</span>
-            <span className="text-slate-300">{metrics.sortinoRatio.toFixed(2)}</span>
+            <span className="text-slate-300">
+              {metrics.sortinoRatio !== null ? metrics.sortinoRatio.toFixed(2) : '--'}
+            </span>
           </div>
         </div>
       </div>

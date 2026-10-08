@@ -84,6 +84,7 @@ export interface Order {
   executionTag?: string;
   errorMessage?: string;
   exchangeOrderId?: number | string;
+  reduceOnly?: boolean;
 }
 
 export interface Fill {
@@ -216,11 +217,13 @@ export interface RiskMetrics {
   var99: number;
   cvar95: number; // Conditional Value at Risk
   cvar99?: number;
+  varSource?: 'HISTORICAL' | 'ASSUMED';
+  returnsSampleSize?: number;
   maxDrawdownPeak?: number;
   portfolioBeta?: number;
   currentLeverage: number;
-  sharpeRatio: number;
-  sortinoRatio: number;
+  sharpeRatio: number | null;
+  sortinoRatio: number | null;
   killSwitchLevel: KillSwitchLevel;
   killSwitchActive: boolean;
   killSwitchReason?: string;

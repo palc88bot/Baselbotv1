@@ -23,7 +23,8 @@ export class RiskEngine {
   private returnsHistory: number[] = [];
 
   constructor(limits: Partial<RiskLimits> = {}) {
-    this.limits = { ...DEFAULT_RISK_LIMITS, ...limits };
+    this.limits = { ...DEFAULT_RISK_LIMITS };
+    this.updateLimits(limits);
   }
 
   public getLimits(): RiskLimits {
@@ -31,6 +32,23 @@ export class RiskEngine {
   }
 
   public updateLimits(newLimits: Partial<RiskLimits>) {
+    const candidate = { ...this.limits, ...newLimits };
+    const boundedPercentages: Array<keyof RiskLimits> = ['maxDrawdownPct', 'maxDailyLossPct', 'maxVaR95Pct', 'maxSpreadThresholdPct'];
+    for (const key of boundedPercentages) {
+      const value = candidate[key];
+      if (value !== undefined && (!Number.isFinite(value) || value <= 0 || value > 100)) {
+        throw new Error(`${key} must be a finite value between 0 and 100`);
+      }
+    }
+    for (const key of ['maxPositionSizeUsd', 'maxPortfolioLeverage', 'maxSlippageBps'] as const) {
+      const value = candidate[key];
+      if (value === undefined || !Number.isFinite(value) || value <= 0 || (key === 'maxPortfolioLeverage' && value > 125)) {
+        throw new Error(`${key} must be a finite positive value${key === 'maxPortfolioLeverage' ? ' no greater than 125' : ''}`);
+      }
+    }
+    if (candidate.cooldownPeriodMs === undefined || !Number.isFinite(candidate.cooldownPeriodMs) || candidate.cooldownPeriodMs < 0) {
+      throw new Error('cooldownPeriodMs must be a finite non-negative value');
+    }
     this.limits = { ...this.limits, ...newLimits };
   }
 
@@ -40,7 +58,15 @@ export class RiskEngine {
     if (equity > this.peakEquity) this.peakEquity = equity;
   }
 
+  /** Manual KillSwitch reset: restart the high-water mark, otherwise the old peak re-triggers HARD_HALT immediately. */
+  public resetPeakEquity(equity: number) {
+    if (equity <= 0) return;
+    this.peakEquity = equity;
+    this.dailyStartEquity = equity;
+  }
+
   public recordReturn(ret: number) {
+    if (!Number.isFinite(ret)) return;
     this.returnsHistory.push(ret);
     if (this.returnsHistory.length > 500) this.returnsHistory.shift();
   }
@@ -51,24 +77,6 @@ export class RiskEngine {
     currentKillSwitchLevel: KillSwitchLevel = 'NORMAL'
   ): { metrics: RiskMetrics; violation: boolean; violationReason?: string; recommendedKillLevel?: KillSwitchLevel } {
     const totalEquity = balance.totalEquity;
-
-    // 🛡️ Fail-safe: If balance is not yet loaded or 0 on boot, treat as NOT_READY (do not trigger false HARD_HALT) (البند 13)
-    if (totalEquity <= 0) {
-      const safeMetrics: RiskMetrics = {
-        currentDrawdownPct: 0,
-        dailyLossPct: 0,
-        var95: 0,
-        var99: 0,
-        cvar95: 0,
-        portfolioBeta: 1.0,
-        currentLeverage: 0,
-        sharpeRatio: 0,
-        sortinoRatio: 0,
-        killSwitchLevel: currentKillSwitchLevel,
-        killSwitchActive: currentKillSwitchLevel !== 'NORMAL',
-      };
-      return { metrics: safeMetrics, violation: false, recommendedKillLevel: 'NORMAL' };
-    }
     
     // Initialize peak/daily start on first positive equity
     if (totalEquity > 0) {
@@ -77,13 +85,15 @@ export class RiskEngine {
         if (totalEquity > this.peakEquity) this.peakEquity = totalEquity;
     }
 
-    // 1. Current Drawdown Calculation (only if we have a valid peak)
-    const currentDrawdownPct = this.peakEquity > 0 && totalEquity > 0 
+    const invalidEquity = !Number.isFinite(totalEquity) || totalEquity <= 0;
+
+    // Invalid or depleted equity is a hard risk breach, never a zero drawdown.
+    const currentDrawdownPct = invalidEquity ? 100 : this.peakEquity > 0
         ? ((this.peakEquity - totalEquity) / this.peakEquity) * 100 
         : 0;
 
     // 2. Daily Loss Calculation
-    const dailyLossPct = this.dailyStartEquity > 0 && totalEquity > 0
+    const dailyLossPct = invalidEquity ? 100 : this.dailyStartEquity > 0
         ? Math.max(0, ((this.dailyStartEquity - totalEquity) / this.dailyStartEquity) * 100) 
         : 0;
 
@@ -92,7 +102,8 @@ export class RiskEngine {
     const currentLeverage = totalEquity > 0 ? totalExposure / totalEquity : 0;
 
     // 4. Value at Risk (VaR) & CVaR
-    const { var95, var99, cvar95 } = this.calculateVaR(this.returnsHistory, totalEquity);
+    const safeEquity = Number.isFinite(totalEquity) && totalEquity > 0 ? totalEquity : 0;
+    const { var95, var99, cvar95 } = this.calculateVaR(this.returnsHistory, safeEquity);
 
     // 5. Sharpe & Sortino ratios from return series
     const { sharpe, sortino } = this.calculateRatios(this.returnsHistory);
@@ -103,10 +114,12 @@ export class RiskEngine {
       var95: Number(var95.toFixed(2)),
       var99: Number(var99.toFixed(2)),
       cvar95: Number(cvar95.toFixed(2)),
-      portfolioBeta: 1.05,
+      // portfolioBeta intentionally omitted: it was a hard-coded 1.05 and no beta is computed anywhere.
       currentLeverage: Number(currentLeverage.toFixed(2)),
-      sharpeRatio: Number(sharpe.toFixed(2)),
-      sortinoRatio: Number(sortino.toFixed(2)),
+      sharpeRatio: sharpe === null ? null : Number(sharpe.toFixed(2)),
+      sortinoRatio: sortino === null ? null : Number(sortino.toFixed(2)),
+      varSource: this.returnsHistory.length >= 10 ? 'HISTORICAL' : 'ASSUMED',
+      returnsSampleSize: this.returnsHistory.length,
       killSwitchLevel: currentKillSwitchLevel,
       killSwitchActive: currentKillSwitchLevel !== 'NORMAL',
     };
@@ -116,7 +129,11 @@ export class RiskEngine {
     let violationReason = '';
     let recommendedKillLevel: KillSwitchLevel = 'NORMAL';
 
-    if (currentDrawdownPct >= this.limits.maxDrawdownPct) {
+    if (invalidEquity) {
+      violation = true;
+      violationReason = 'Account equity is invalid or non-positive; trading must halt';
+      recommendedKillLevel = 'HARD_HALT';
+    } else if (currentDrawdownPct >= this.limits.maxDrawdownPct) {
       violation = true;
       violationReason = `Max Drawdown breached: ${currentDrawdownPct.toFixed(2)}% >= ${this.limits.maxDrawdownPct}%`;
       recommendedKillLevel = 'HARD_HALT';
@@ -149,9 +166,31 @@ export class RiskEngine {
     order: Partial<Order>,
     balance: AccountBalance,
     positions: Position[],
-    spreadPct: number = 0.05
+    spreadPct: number = 0.05,
+    pendingExposureUsd: number = 0,
   ): { allowed: boolean; reason?: string } {
-    const orderCost = (order.quantity || 0) * (order.price || 0);
+    const quantity = order.quantity;
+    const price = order.price;
+    if (!Number.isFinite(quantity) || (quantity as number) <= 0 || !Number.isFinite(price) || (price as number) <= 0) {
+      return { allowed: false, reason: 'Order quantity and price must be finite positive numbers' };
+    }
+    if (!Number.isFinite(balance.totalEquity) || balance.totalEquity <= 0) {
+      return { allowed: false, reason: 'Account equity is invalid or non-positive' };
+    }
+    if (!Number.isFinite(balance.freeMargin) || balance.freeMargin <= 0) {
+      return { allowed: false, reason: 'Free margin is invalid or insufficient' };
+    }
+    if (!Number.isFinite(spreadPct) || spreadPct < 0) {
+      return { allowed: false, reason: 'Spread data is invalid' };
+    }
+    if (!Number.isFinite(pendingExposureUsd) || pendingExposureUsd < 0) {
+      return { allowed: false, reason: 'Pending-order exposure is invalid' };
+    }
+
+    const orderCost = (quantity as number) * (price as number);
+    if (!Number.isFinite(orderCost) || orderCost <= 0) {
+      return { allowed: false, reason: 'Order notional is invalid' };
+    }
     const maxPos = this.limits.maxPositionSizeUsd ?? 50000;
     const maxSpread = this.limits.maxSpreadThresholdPct ?? 0.5;
 
@@ -161,11 +200,26 @@ export class RiskEngine {
     }
 
     // 2. Margin availability check
-    if (orderCost > balance.freeMargin * this.limits.maxPortfolioLeverage) {
-      return { allowed: false, reason: `Insufficient margin. Required: $${orderCost.toFixed(0)}, Free Margin: $${balance.freeMargin.toFixed(0)}` };
+    const pendingMargin = pendingExposureUsd / this.limits.maxPortfolioLeverage;
+    const usableFreeMargin = Math.max(0, balance.freeMargin - pendingMargin);
+    if (orderCost / this.limits.maxPortfolioLeverage > usableFreeMargin) {
+      return { allowed: false, reason: `Insufficient margin. Required: $${orderCost.toFixed(0)}, Free Margin after pending orders: $${usableFreeMargin.toFixed(0)}` };
     }
 
-    // 3. Spread explosion check
+    // 3. Aggregate existing exposure with this new entry before allowing it.
+    const currentExposure = positions.reduce((total, position) => {
+      const exposure = Math.abs(position.size * position.currentPrice);
+      return total + (Number.isFinite(exposure) ? exposure : Number.POSITIVE_INFINITY);
+    }, 0);
+    if (!Number.isFinite(currentExposure)) {
+      return { allowed: false, reason: 'Existing position exposure is invalid' };
+    }
+    const projectedLeverage = (currentExposure + pendingExposureUsd + orderCost) / balance.totalEquity;
+    if (projectedLeverage > this.limits.maxPortfolioLeverage) {
+      return { allowed: false, reason: `Projected portfolio leverage ${projectedLeverage.toFixed(2)}x exceeds ${this.limits.maxPortfolioLeverage}x` };
+    }
+
+    // 4. Spread explosion check
     if (spreadPct > maxSpread) {
       return { allowed: false, reason: `Spread too wide: ${spreadPct.toFixed(3)}% > ${maxSpread}% limit` };
     }
@@ -202,24 +256,29 @@ export class RiskEngine {
     };
   }
 
-  private calculateRatios(returns: number[]): { sharpe: number; sortino: number } {
-    if (returns.length < 5) return { sharpe: 1.85, sortino: 2.45 };
+  /**
+   * Per-trade (non-annualised) Sharpe/Sortino from recorded closed-trade returns.
+   * Returns null while there are fewer than 10 real observations instead of inventing numbers
+   * (the old code returned fixed 1.85 / 2.45 and annualised per-trade data with an hourly factor).
+   */
+  private calculateRatios(returns: number[]): { sharpe: number | null; sortino: number | null } {
+    if (returns.length < 10) return { sharpe: null, sortino: null };
 
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-    const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+    const n = returns.length;
+    const mean = returns.reduce((a, b) => a + b, 0) / n;
+    const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n - 1);
     const std = Math.sqrt(variance);
 
-    const downReturns = returns.filter((r) => r < 0);
-    const downVariance = downReturns.length > 0 ? downReturns.reduce((a, b) => a + Math.pow(b, 2), 0) / downReturns.length : 0.0001;
-    const downStd = Math.sqrt(downVariance);
+    // Downside deviation over ALL observations (target 0): sqrt(mean(min(0, r)^2))
+    const downVar = returns.reduce((a, b) => a + Math.pow(Math.min(0, b), 2), 0) / n;
+    const downStd = Math.sqrt(downVar);
 
-    const rf = 0.0001;
-    const sharpe = std > 0 ? ((mean - rf) / std) * Math.sqrt(365 * 24) : 0;
-    const sortino = downStd > 0 ? ((mean - rf) / downStd) * Math.sqrt(365 * 24) : 0;
+    const sharpe = std > 0 ? mean / std : 0;
+    const sortino = downStd > 0 ? mean / downStd : (mean > 0 ? 10 : 0);
 
     return {
-      sharpe: Math.max(-5, Math.min(10, sharpe)),
-      sortino: Math.max(-5, Math.min(15, sortino)),
+      sharpe: Math.max(-10, Math.min(10, sharpe)),
+      sortino: Math.max(-10, Math.min(15, sortino)),
     };
   }
 }

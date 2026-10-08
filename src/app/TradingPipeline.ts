@@ -20,8 +20,8 @@ import {
   Tick,
   TradingSignal,
   getBinanceBaseUrl,
-  normalizeExecutionMode,
   isLiveTradingConfirmed,
+  normalizeExecutionMode,
 } from '../domain/types';
 import crypto from 'crypto';
 import { OrderGateway } from '../execution/OrderGateway';
@@ -85,6 +85,7 @@ export class TradingPipeline {
   private lastSnapshotTime: number = 0;
   private inFlightSymbols: Set<string> = new Set();
   private peakEquityObserved: number = 0;
+  private lastRiskDay: string = '';
   private pendingProtection: Map<string, { ouSigma: number; ouMu: number; side: 'BUY' | 'SELL'; symbol: AssetSymbol }> = new Map();
   private lastAlertState: Map<string, { value: string; ts: number }> = new Map();
   private signalHistory: TradingSignal[] = [];
@@ -127,23 +128,14 @@ export class TradingPipeline {
   constructor(telegramService?: TelegramService) {
     this.config = { ...INITIAL_RUNTIME_CONFIG };
     
-    // Read environment configuration with dual key support (BINANCE_API_KEY / EXCHANGE_API_KEY)
-    const apiKey = (process.env.EXCHANGE_API_KEY || process.env.BINANCE_API_KEY || '').trim();
-    const apiSecret = (process.env.EXCHANGE_API_SECRET || process.env.BINANCE_API_SECRET || '').trim();
+    // Read environment configuration
     const rawMode = process.env.EXECUTION_MODE;
-    const hasKey = !!apiKey && !!apiSecret;
-    let executionMode: ExecutionMode = normalizeExecutionMode(rawMode, hasKey);
-
-    // 🛡️ Security Barrier: If LIVE mode is requested without explicit confirmation, safely demote to PAPER
-    if (executionMode === 'LIVE' && !isLiveTradingConfirmed()) {
-      console.warn('⛔ [SECURITY BARRIER] EXECUTION_MODE=LIVE requested, but CONFIRM_LIVE_TRADING=true is missing in environment. Falling back to PAPER mode for asset protection.');
-      executionMode = 'PAPER';
-    }
-
+    const hasKey = !!process.env.EXCHANGE_API_KEY;
+    const executionMode: ExecutionMode = normalizeExecutionMode(rawMode, hasKey);
     const apiBaseUrl = getBinanceBaseUrl(executionMode);
 
     if (executionMode === 'LIVE') {
-      this.config.executionMode = 'LIVE_EXCHANGE';
+      this.config.executionMode = 'LIVE_SIMULATION';
     } else if (executionMode === 'TESTNET') {
       this.config.executionMode = 'TESTNET_EXCHANGE';
     } else {
@@ -153,17 +145,56 @@ export class TradingPipeline {
     this.orderBookBuilder = new OrderBookBuilder(10);
     this.marketData = new ExchangeMarketData(this.orderBookBuilder);
     this.featureEngine = new FeatureEngine();
-    this.userDataStream = new UserDataStream(0); // Start with 0, will be updated by fetchInitialAccountData
+    const configuredPaperCapital = Number(process.env.PAPER_INITIAL_CAPITAL ?? 1000);
+    const paperInitialCapital = executionMode === 'PAPER' && Number.isFinite(configuredPaperCapital) && configuredPaperCapital > 0
+      ? configuredPaperCapital
+      : 0;
+    this.userDataStream = new UserDataStream(paperInitialCapital); // Exchange modes populate equity from Binance.
     
     this.orderGateway = new OrderGateway(this.userDataStream, this.orderBookBuilder, {
       executionMode,
-      apiKey: apiKey,
-      apiSecret: apiSecret,
+      apiKey: process.env.EXCHANGE_API_KEY,
+      apiSecret: process.env.EXCHANGE_API_SECRET,
       apiBaseUrl: apiBaseUrl,
     });
 
     this.riskEngine = new RiskEngine({ maxDrawdownPct: this.config.maxDrawdownCapPct, maxPortfolioLeverage: this.config.maxLeverage });
     this.killSwitch = new KillSwitch();
+    this.orderGateway.setPreTradeValidator((order) => {
+      if (order.reduceOnly) {
+        const position = this.userDataStream.getPositions().find((p) => p.symbol === order.symbol);
+        if (!position) return { allowed: false, reason: 'Reduce-only order rejected: no open position exists' };
+        const closingSide = position.size > 0 ? 'SELL' : 'BUY';
+        if (order.side !== closingSide || order.quantity > Math.abs(position.size) + 1e-10) {
+          return { allowed: false, reason: 'Reduce-only order would increase or reverse the position' };
+        }
+        return { allowed: true };
+      }
+
+      if (this.killSwitch.isActive()) {
+        return { allowed: false, reason: `New entry blocked by Kill Switch (${this.killSwitch.getLevel()})` };
+      }
+      const marketPrice = this.marketData.getPrice(order.symbol);
+      if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
+        return { allowed: false, reason: 'No valid market price available for pre-trade risk check' };
+      }
+      const book = this.orderBookBuilder.getBook(order.symbol);
+      if (!book || !Number.isFinite(book.midPrice) || book.midPrice <= 0 || !book.asks?.[0] || !book.bids?.[0]) {
+        return { allowed: false, reason: 'Order book unavailable; entry rejected' };
+      }
+      const spreadPct = ((book.asks[0].price - book.bids[0].price) / book.midPrice) * 100;
+      const riskPrice = Math.max(marketPrice, order.price);
+      const pendingExposureUsd = this.orderGateway.getActiveOrders()
+        .filter((pending) => !pending.reduceOnly)
+        .reduce((sum, pending) => sum + Math.max(0, pending.remainingQuantity) * pending.price, 0);
+      return this.riskEngine.validateOrder(
+        { quantity: order.quantity, price: riskPrice },
+        this.userDataStream.getBalance(),
+        this.userDataStream.getPositions(),
+        spreadPct,
+        pendingExposureUsd,
+      );
+    });
     this.eventJournal = new EventJournal(1000);
     this.healthMonitor = new HealthMonitor();
     this.db = new DatabaseService();
@@ -255,7 +286,7 @@ export class TradingPipeline {
       console.log('🔍 Screening qualified assets from exchange...');
       await this.assetScreener.refreshAllAssets();
       for (const asset of this.assetScreener.getAllAssets()) {
-        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity, asset.minNotional);
+        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity);
       }
 
       // Synchronize Sub-Wallet with all closed trades recorded in persistent DB
@@ -468,6 +499,9 @@ export class TradingPipeline {
   }
 
   public async startAutonomousTrading() {
+    if (this.orderGateway.getExecutionMode() === 'LIVE' && !isLiveTradingConfirmed()) {
+      throw new Error('LIVE mode is disarmed; set CONFIRM_LIVE_TRADING=true explicitly before starting.');
+    }
     await this.start();
   }
 
@@ -507,6 +541,7 @@ export class TradingPipeline {
         }
 
         this.subWalletManager.recordTradeResult(totalPnl);
+        this.recordTradeReturn(totalPnl);
         this.boardOfDirectors.learnFromOutcome(totalPnl, closedSymbol);
 
         await this.telegramService.sendMessage(`
@@ -550,27 +585,10 @@ export class TradingPipeline {
         timestamp: evt.timestamp,
       }).catch((e) => console.warn('Failed to save killswitch state to DB:', e));
 
-      // Auto cancel active orders on non-normal states across the entire exchange
+      // Auto cancel active orders on non-normal states
       if (evt.toLevel !== 'NORMAL') {
-        const activeSymbols = this.config.activeSymbols || [];
-        this.orderGateway.cancelAllOrders(`KillSwitch trigger: ${evt.toLevel}`, activeSymbols)
-          .then((cancelled: number) => {
-            this.eventJournal.record('WARN', 'ORDER_GATEWAY', `Cancelled ${cancelled} resting orders on exchange due to KillSwitch trigger`);
-          })
-          .catch((err: any) => {
-            console.error('Failed to cancel exchange orders on KillSwitch:', err);
-          });
-
-        if (evt.toLevel === 'HARD_HALT') {
-          console.warn('🚨 HARD_HALT triggered: Liquidating all open positions on exchange...');
-          this.orderGateway.liquidateAllExchangePositions()
-            .then((liquidated: number) => {
-              this.eventJournal.record('CRITICAL', 'ORDER_GATEWAY', `Emergency liquidated ${liquidated} positions on exchange`);
-            })
-            .catch((err: any) => {
-              console.error('Failed to liquidate positions on exchange:', err);
-            });
-        }
+        const cancelled = this.orderGateway.cancelAllOrders(`KillSwitch trigger: ${evt.toLevel}`);
+        this.eventJournal.record('WARN', 'ORDER_GATEWAY', `Cancelled ${cancelled} resting orders due to KillSwitch trigger`);
       }
     });
 
@@ -650,6 +668,12 @@ export class TradingPipeline {
     }
   }
 
+  /** Feeds the RiskEngine (VaR / Sharpe / Sortino) with the real return of a settled trade. */
+  private recordTradeReturn(netPnl: number): void {
+    const equity = this.subWalletManager.getCurrentEquity() - netPnl; // equity before this trade settled
+    if (equity > 0) this.riskEngine.recordReturn(netPnl / equity);
+  }
+
   public getRegimeDetector(symbol?: AssetSymbol): RegimeDetector {
     if (symbol) {
       let rd = this.regimeDetectors.get(symbol);
@@ -701,6 +725,12 @@ export class TradingPipeline {
     // 2. Risk Check on every tick
     const balance = this.userDataStream.getBalance();
     const positions = this.userDataStream.getPositions();
+    // UTC day rollover: "daily loss" must measure the current day, not the time since boot.
+    const utcDay = new Date().toISOString().slice(0, 10);
+    if (balance.totalEquity > 0 && utcDay !== this.lastRiskDay) {
+      this.lastRiskDay = utcDay;
+      this.riskEngine.setDailyStartEquity(balance.totalEquity);
+    }
     const riskEval = this.riskEngine.evaluateRisk(balance, positions, this.killSwitch.getLevel());
 
     if (riskEval.violation && this.config.enableKillSwitch) {
@@ -718,8 +748,8 @@ export class TradingPipeline {
     this.partialProfitManager.updatePosition(tick.symbol, tick.price);
 
     if (this.config.autoTradingEnabled && this.killSwitch.isEntryAllowed()) {
-      this.evaluateSignalAndExecute(tick.symbol, features, book, regime).catch((err) => {
-        console.error(`❌ Uncaught error during strategy evaluation for ${tick.symbol}:`, err);
+      void this.evaluateSignalAndExecute(tick.symbol, features, book, regime).catch((err) => {
+        console.error(`❌ evaluateSignalAndExecute failed for ${tick.symbol}:`, err);
       });
     }
 
@@ -733,13 +763,12 @@ export class TradingPipeline {
   }
 
   private async evaluateSignalAndExecute(symbol: AssetSymbol, features: any, book?: OrderBook, regime?: any) {
-    try {
-      // Strict Stale Market Data Check (منع التداول على بيانات قديمة أو ميتة)
-      const dataAge = Date.now() - this.marketData.getLastUpdateTime(symbol);
-      if (dataAge > 3000) {
-        console.warn(`⚠️ [${symbol}] Stale market data detected (${dataAge}ms). Execution aborted.`);
-        return;
-      }
+    // Strict Stale Market Data Check (منع التداول على بيانات قديمة أو ميتة)
+    const dataAge = Date.now() - this.marketData.getLastUpdateTime(symbol);
+    if (dataAge > 3000) {
+      console.warn(`⚠️ [${symbol}] Stale market data detected (${dataAge}ms). Execution aborted.`);
+      return;
+    }
 
     // 0. Dynamic Risk Check
     const lastDecision = this.dynamicRiskManager.getLastDecision();
@@ -817,7 +846,8 @@ export class TradingPipeline {
     this.inFlightSymbols.add(symbol);
     this.lastOrderTime.set(symbol, now);
 
-    // 2. Check if we can Scale-In to an existing position on this symbol
+    try {
+      // 2. Check if we can Scale-In to an existing position on this symbol
       const scaled = await this.checkScaleInOpportunity(
         symbol,
         signalType,
@@ -861,9 +891,7 @@ export class TradingPipeline {
       // Minimum-notional handling. The old code raised ANY undersized order to ~$5.5, which silently
       // cancelled every risk reduction applied above (dynamic risk, regime, warm-up, correlation).
       // Default: skip the trade. Opt-in bump (ALLOW_MIN_NOTIONAL_BUMP=true) is capped at 3x the risk-sized notional.
-      const symFilter = this.orderGateway.getSymbolFilter(symbol);
-      const minNotionalUsd = Number(symFilter.minNotional) || 5;
-      const minQty = symFilter.minQty || 0.0001;
+      const minNotionalUsd = Number(this.orderGateway.getSymbolFilter(symbol).minNotional) || 5;
       const riskSizedNotional = qty * features.currentPrice;
       if (features.currentPrice > 0 && riskSizedNotional < minNotionalUsd * 1.02) {
         const bumpAllowed = process.env.ALLOW_MIN_NOTIONAL_BUMP === 'true';
@@ -882,11 +910,11 @@ export class TradingPipeline {
       const requiredMargin = notionalVal / requiredLev;
 
       if (subAvailableMargin < requiredMargin) {
-        console.log(`⚠️ Insufficient sub-wallet margin for ${symbol}: needed $${requiredMargin.toFixed(2)}, available $${subAvailableMargin.toFixed(2)}`);
+        console.log(`⏭️ Skipping ${symbol}: sub-wallet margin $${subAvailableMargin.toFixed(2)} < required $${requiredMargin.toFixed(2)}`);
         return;
       }
 
-      if (qty >= minQty && qty > 0) {
+      if (qty > 0) {
         // Pre-trade risk validation
         const val = this.riskEngine.validateOrder(
           { quantity: qty, price: features.currentPrice, symbol },
@@ -919,6 +947,11 @@ export class TradingPipeline {
             price: features.currentPrice,
             strategyId: 'OU-DECISION-ENGINE',
           });
+
+          if (ord.status === 'REJECTED') {
+            console.warn(`⛔ Entry rejected by centralized risk validation for ${symbol}: ${ord.errorMessage}`);
+            return;
+          }
 
           this.pendingProtection.set(ord.id, {
             ouSigma: features.ouSigma || (features.currentPrice * 0.005),
@@ -1153,9 +1186,6 @@ export class TradingPipeline {
         return;
       }
 
-      // Synchronize UserDataStream positions and balance directly with Binance REST snapshot (البند 12)
-      this.userDataStream.syncAccountSnapshot(accountData);
-
       // Keep portfolio sizer synced with real exchange equity
       this.portfolioSizer.updateBalance(this.subWalletManager.getCurrentEquity());
 
@@ -1189,12 +1219,6 @@ export class TradingPipeline {
           if (posAmt === 0) continue;
 
           if (!knownDbSymbols.has(rawSymbol)) {
-            const shouldAdopt = process.env.ADOPT_ORPHANS === 'true';
-            if (!shouldAdopt) {
-              console.log(`ℹ️ [RECONCILE] Position on exchange for ${rawSymbol} (Amt: ${posAmt}) not generated by BaselBot. ADOPT_ORPHANS is false; leaving position unmanaged.`);
-              continue;
-            }
-
             const baseAsset = rawSymbol.replace('USDT', '');
             const formattedSymbol = `${baseAsset}/USDT` as AssetSymbol;
             const side = posAmt > 0 ? 'BUY' : 'SELL';
@@ -1202,7 +1226,7 @@ export class TradingPipeline {
             const entryPrice = parseFloat(p.entryPrice) || this.marketData.getPrice(formattedSymbol) || 1;
             const orphanOrderId = `ADOPTED-${Date.now().toString(36)}-${rawSymbol}`;
 
-            console.log(`🛡️ Orphan Position Detected for ${rawSymbol} (${side} ${qty} @ $${entryPrice}). Adopting under algorithmic management (ADOPT_ORPHANS=true)...`);
+            console.log(`🛡️ Orphan Position Detected for ${rawSymbol} (${side} ${qty} @ $${entryPrice}). Adopting under algorithmic management...`);
 
             // تسجيل الصفقة اليتيمة في قاعدة البيانات
             await this.db.saveTrade({
@@ -1226,7 +1250,7 @@ export class TradingPipeline {
               qty
             );
 
-            // تسجيلها في مدير التعزيز بالترتيب الصحيح: (orderId, symbol, side, entryPrice, quantity)
+            // تسجيلها في مدير التعزيز
             this.scaleInManager.registerOriginalPosition(
               orphanOrderId,
               formattedSymbol,
@@ -1443,16 +1467,19 @@ export class TradingPipeline {
   }
 
   public resetEmergencyKill(): { success: boolean; message: string } {
-    return this.killSwitch.reset();
+    const result = this.killSwitch.reset();
+    if (result?.success) {
+      // Without this the stale equity peak re-triggers HARD_HALT on the very next tick.
+      this.riskEngine.resetPeakEquity(this.userDataStream.getBalance().totalEquity);
+      this.peakEquityObserved = 0;
+    }
+    return result;
   }
 
   private async updateRiskMetrics() {
     if (this.assetScreener.shouldRefresh()) {
       console.log('🔄 Refreshing qualified assets screener...');
       await this.assetScreener.refreshAllAssets();
-      for (const asset of this.assetScreener.getAllAssets()) {
-        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity, asset.minNotional);
-      }
     }
 
     const balance = this.userDataStream.getBalance();
@@ -1595,6 +1622,7 @@ export class TradingPipeline {
 
       if (pos) {
         this.subWalletManager.recordTradeResult(totalPnl);
+        this.recordTradeReturn(totalPnl);
       }
       this.portfolioSizer.updateBalance(this.subWalletManager.getCurrentEquity());
 
@@ -1763,19 +1791,6 @@ export class TradingPipeline {
     return { success: false, closed, failed, message: `Closed ${closed}; FAILED to close: ${failed.join(', ')}` };
   }
 
-  public getExecutionMode(): ExecutionMode {
-    return this.orderGateway.getExecutionMode();
-  }
-
-  public setExecutionMode(mode: ExecutionMode): void {
-    if (mode === 'LIVE' && !isLiveTradingConfirmed()) {
-      throw new Error('Switching to LIVE mode blocked: CONFIRM_LIVE_TRADING=true environment confirmation is required.');
-    }
-    this.orderGateway.setExecutionMode(mode);
-    this.config.executionMode = mode === 'LIVE' ? 'LIVE_EXCHANGE' : (mode === 'TESTNET' ? 'TESTNET_EXCHANGE' : 'PAPER_TRADING');
-    console.log(`🔄 Pipeline execution mode switched to: ${mode} (${this.config.executionMode})`);
-  }
-
   public getStrategies(): BotStrategy[] {
     const totalEquity = this.userDataStream.getBalance().totalEquity || 10000;
     const strats = this.strategyManager.getStrategies();
@@ -1847,6 +1862,22 @@ export class TradingPipeline {
       regimeMap,
       qualifiedMap
     );
+  }
+
+  public getExecutionMode(): ExecutionMode {
+    return this.orderGateway.getExecutionMode();
+  }
+
+  public setExecutionMode(mode: ExecutionMode): void {
+    if (mode === 'LIVE') {
+      this.config.executionMode = 'LIVE_SIMULATION';
+    } else if (mode === 'TESTNET') {
+      this.config.executionMode = 'TESTNET_EXCHANGE';
+    } else {
+      this.config.executionMode = 'PAPER_TRADING';
+    }
+    this.orderGateway.setExecutionMode(mode);
+    this.userDataStream.setExecutionMode(mode);
   }
 
   private loadOptimizedParameters() {
