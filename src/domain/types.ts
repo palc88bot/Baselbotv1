@@ -365,9 +365,17 @@ export interface SystemHealth {
 export type ExecutionMode = 'LIVE' | 'TESTNET' | 'PAPER';
 
 export function normalizeExecutionMode(mode?: string, hasApiKey: boolean = false): ExecutionMode {
-  const m = (mode || '').trim().toUpperCase();
+  if (!mode || typeof mode !== 'string') {
+    return 'PAPER'; // Fail-safe default mode
+  }
+  const m = mode.trim().toUpperCase();
   if (m === 'LIVE' || m === 'PRODUCTION') return 'LIVE';
-  return 'TESTNET';
+  if (m === 'TESTNET') return 'TESTNET';
+  if (m === 'PAPER' || m === 'SIMULATION' || m === 'PAPER_TRADING') return 'PAPER';
+  
+  // Refuse unknown modes silently switching to TESTNET - fail-safe to PAPER
+  console.warn(`⚠️ Unknown EXECUTION_MODE '${mode}' specified. Falling back to fail-safe 'PAPER' mode.`);
+  return 'PAPER';
 }
 
 export function getBinanceBaseUrl(mode: ExecutionMode): string {
@@ -388,7 +396,8 @@ export function roundToStep(value: number, step: number): number {
 }
 
 export function isLiveTradingConfirmed(): boolean {
-  return process.env.CONFIRM_LIVE_TRADING === 'yes' || process.env.CONFIRM_LIVE_TRADING === 'true';
+  const val = (process.env.CONFIRM_LIVE_TRADING || '').trim().toLowerCase();
+  return val === 'yes' || val === 'true' || val === '1';
 }
 
 // --- Strategy Domain Contracts ---

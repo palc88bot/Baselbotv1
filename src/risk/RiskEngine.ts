@@ -51,6 +51,24 @@ export class RiskEngine {
     currentKillSwitchLevel: KillSwitchLevel = 'NORMAL'
   ): { metrics: RiskMetrics; violation: boolean; violationReason?: string; recommendedKillLevel?: KillSwitchLevel } {
     const totalEquity = balance.totalEquity;
+
+    // 🛡️ Fail-safe: If balance is not yet loaded or 0 on boot, treat as NOT_READY (do not trigger false HARD_HALT) (البند 13)
+    if (totalEquity <= 0) {
+      const safeMetrics: RiskMetrics = {
+        currentDrawdownPct: 0,
+        dailyLossPct: 0,
+        var95: 0,
+        var99: 0,
+        cvar95: 0,
+        portfolioBeta: 1.0,
+        currentLeverage: 0,
+        sharpeRatio: 0,
+        sortinoRatio: 0,
+        killSwitchLevel: currentKillSwitchLevel,
+        killSwitchActive: currentKillSwitchLevel !== 'NORMAL',
+      };
+      return { metrics: safeMetrics, violation: false, recommendedKillLevel: 'NORMAL' };
+    }
     
     // Initialize peak/daily start on first positive equity
     if (totalEquity > 0) {

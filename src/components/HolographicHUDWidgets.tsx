@@ -46,7 +46,7 @@ interface HolographicHUDWidgetsProps {
   openPositionsCount: number;
   subWallet?: SubWalletState | null;
   onOpenSubWalletModal?: () => void;
-  executionMode: 'TESTNET' | 'LIVE';
+  executionMode: 'TESTNET' | 'LIVE' | 'PAPER';
   isRunning: boolean;
   onToggleBot: () => void;
   onExecuteTrade: (side: 'BUY' | 'SELL') => void;

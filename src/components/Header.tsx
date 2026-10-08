@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Layers,
   Terminal,
+  Download,
 } from 'lucide-react';
 import { AssetSymbol } from '../domain/types';
 import { RuntimeConfigState } from '../app/RuntimeConfig';
@@ -202,6 +203,17 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               ))}
             </select>
           </div>
+
+          {/* Download Server Deployment Zip Button */}
+          <a
+            href="/api/download-zip"
+            download="quantum-bot-deploy.zip"
+            className="px-3 py-1.5 rounded-xl bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/20 hover:text-white transition-all font-mono font-bold text-[10px] flex items-center gap-1.5 shadow-sm"
+            title={isAr ? 'تحميل حزمة البوت الجاهزة للسيرفر' : 'Download Server Deployment Package'}
+          >
+            <Download className="w-3.5 h-3.5 text-cyan-400 animate-bounce" />
+            <span className="hidden sm:inline">{isAr ? 'تحميل البوت (ZIP)' : 'Download Zip'}</span>
+          </a>
 
           {/* Bilingual Switcher Button */}
           <button

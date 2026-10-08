@@ -151,6 +151,14 @@ export class UserDataStream {
     
     for (const l of this.fillListeners) l(fill);
 
+    // TESTNET/LIVE: positions and balances are authoritative from ACCOUNT_UPDATE.
+    // Applying the fill here as well would double count size/cash, so only record + notify.
+    if (this.executionMode !== 'PAPER') {
+      const existing = this.positions.get(fill.symbol);
+      if (existing) existing.currentPrice = currentPrice;
+      return;
+    }
+
     let pos = this.positions.get(fill.symbol);
     if (!pos) {
       pos = {
@@ -273,6 +281,69 @@ export class UserDataStream {
     }
   }
 
+  public syncAccountSnapshot(accountInfo: any) {
+    if (!accountInfo) return;
+    try {
+      const wb = parseFloat(accountInfo.totalWalletBalance || '0') || 0;
+      const up = parseFloat(accountInfo.totalUnrealizedProfit || '0') || 0;
+      const available = parseFloat(accountInfo.availableBalance || '0') || 0;
+      const usedMargin = parseFloat(accountInfo.totalInitialMargin || '0') || 0;
+      const maintMargin = parseFloat(accountInfo.totalMaintMargin || '0') || 0;
+
+      this.balance = {
+        totalEquity: Number((wb + up).toFixed(2)),
+        availableCash: Number(available.toFixed(2)),
+        usedMargin: Number(usedMargin.toFixed(2)),
+        marginLevel: maintMargin > 0 ? Number(((wb + up) / maintMargin).toFixed(2)) : 999.0,
+        freeMargin: Number(available.toFixed(2)),
+        unrealizedPnl: Number(up.toFixed(2)),
+        realizedPnl: this.balance.realizedPnl || 0,
+        dailyPnl: this.balance.dailyPnl || 0,
+        dailyPnlPct: this.balance.dailyPnlPct || 0,
+        currency: 'USDT',
+      };
+
+      if (Array.isArray(accountInfo.positions)) {
+        const activeExchangeSyms = new Set<string>();
+        accountInfo.positions.forEach((pos: any) => {
+          const amount = parseFloat(pos.positionAmt);
+          if (amount !== 0) {
+            const rawSym = pos.symbol;
+            const symbol = (rawSym.endsWith('USDT') 
+              ? `${rawSym.slice(0, -4)}/USDT` 
+              : rawSym) as AssetSymbol;
+
+            activeExchangeSyms.add(symbol);
+            this.positions.set(symbol, {
+              symbol,
+              size: amount,
+              entryPrice: parseFloat(pos.entryPrice),
+              currentPrice: parseFloat(pos.entryPrice),
+              unrealizedPnl: parseFloat(pos.unrealizedProfit),
+              unrealizedPnlPct: 0,
+              realizedPnl: 0,
+              marginUsed: Math.abs(amount * parseFloat(pos.entryPrice)) / (parseFloat(pos.leverage) || 20),
+              liquidationPrice: parseFloat(pos.liquidationPrice || '0'),
+              leverage: parseFloat(pos.leverage) || 20,
+              updatedAt: Date.now(),
+            });
+          }
+        });
+
+        // Delete positions that were closed on exchange while stream was reconnecting
+        for (const s of Array.from(this.positions.keys())) {
+          if (!activeExchangeSyms.has(s)) {
+            this.positions.delete(s);
+          }
+        }
+      }
+
+      for (const l of this.balanceListeners) l(this.getBalance());
+    } catch (err) {
+      console.warn('⚠️ Could not sync account snapshot in UserDataStream:', err);
+    }
+  }
+
   private async getListenKey() {
     if (!this.apiKey) throw new Error('API Key missing for UserDataStream');
     const response = await fetch(`${this.apiBaseUrl}/fapi/v1/listenKey`, {
@@ -315,6 +386,12 @@ export class UserDataStream {
   }
 
   private handleMessage(msg: any) {
+    if (msg.e === 'listenKeyExpired') {
+      console.warn('🔑 UserDataStream: ListenKey expired on Binance. Refreshing stream...');
+      void this.getListenKey().then(() => this.connectWebSocket()).catch((e) => console.error('Failed to refresh listenKey:', e));
+      return;
+    }
+
     if (msg.e === 'ACCOUNT_UPDATE') {
       const balances = msg.a?.B;
       const positions = msg.a?.P;

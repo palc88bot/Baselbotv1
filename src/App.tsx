@@ -50,6 +50,7 @@ import { KeepAliveGuideModal } from './components/KeepAliveGuideModal';
 import { QuantumTrainingModal } from './components/QuantumTrainingModal';
 import { BoardOfDirectorsTab } from './components/BoardOfDirectorsTab';
 import { SubWalletState } from './risk/SubWalletManager';
+import { useAuth } from './contexts/AuthContext';
 
 const INITIAL_MARKETS: HolographicAsset[] = [
   { symbol: 'BTC/USDT', binanceSymbol: 'btcusdt', nameEn: 'Bitcoin', nameAr: 'بتكوين', price: 0, change24h: 0, volume: '0', rsi: 50, high24h: 0, low24h: 0, status: 'ACCUMULATION' },
@@ -87,9 +88,11 @@ export default function CyberPulseNexusApp() {
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const isAr = lang === 'ar';
 
+  const { getToken, user } = useAuth();
   const [activeTab, setActiveTab] = useState<'matrix' | 'terminal' | 'board' | 'history' | 'strategies' | 'risk'>('matrix');
   const [isRunning, setIsRunning] = useState<boolean>(true);
-  const [executionMode, setExecutionMode] = useState<'TESTNET' | 'LIVE'>('TESTNET');
+  const [executionMode, setExecutionMode] = useState<'TESTNET' | 'LIVE' | 'PAPER'>('PAPER');
+  const [isLiveConfirmed, setIsLiveConfirmed] = useState<boolean>(false);
   const [markets, setMarkets] = useState<HolographicAsset[]>(INITIAL_MARKETS);
   const [selectedAsset, setSelectedAsset] = useState<HolographicAsset>(INITIAL_MARKETS[0]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -195,6 +198,12 @@ export default function CyberPulseNexusApp() {
         }
         if (typeof data.isRunning === 'boolean') {
           setIsRunning(data.isRunning);
+        }
+        if (data.executionMode) {
+          setExecutionMode(data.executionMode);
+        }
+        if (typeof data.isLiveConfirmed === 'boolean') {
+          setIsLiveConfirmed(data.isLiveConfirmed);
         }
         if (data.prices) {
           setMarkets((prev) =>
@@ -358,10 +367,10 @@ export default function CyberPulseNexusApp() {
           // Proceed to next fallback
         }
 
-        // Stage 2: Direct Binance fetch if proxy didn't deliver data
+        // Stage 2: Direct Binance Futures fetch if proxy didn't deliver data
         if (!data || !Array.isArray(data) || data.length === 0) {
           try {
-            const res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+            const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
             if (res.ok) {
               data = await res.json();
             }
@@ -521,13 +530,65 @@ export default function CyberPulseNexusApp() {
   // Execute Real Trade through Backend Order Gateway
   const [closingSymbols, setClosingSymbols] = useState<Record<string, boolean>>({});
 
+  const handleToggleExecutionMode = async () => {
+    playHoloTone(950, 0.08);
+    let nextMode: 'PAPER' | 'TESTNET' | 'LIVE';
+    if (executionMode === 'PAPER') nextMode = 'TESTNET';
+    else if (executionMode === 'TESTNET') nextMode = 'LIVE';
+    else nextMode = 'PAPER';
+
+    if (nextMode === 'LIVE' && !isLiveConfirmed) {
+      const confirmed = window.confirm(
+        isAr
+          ? 'تحذير أمني: الانتقال إلى وضع التداول الحقيقي (LIVE) يرسل أوامر حقيقية بأموال حقيقية! يتطلب هذا ضبط CONFIRM_LIVE_TRADING=true على السيرفر ومفاتيح بايننس حقيقية. هل تود المتابعة؟'
+          : 'Security Warning: Switching to LIVE mode routes real orders with real funds! Requires CONFIRM_LIVE_TRADING=true and real API keys. Do you want to proceed?'
+      );
+      if (!confirmed) return;
+    }
+
+    try {
+      const token = await getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/execution-mode', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ mode: nextMode, confirmLive: true })
+      });
+      const data = await res.json();
+      if (data.success && data.executionMode) {
+        setExecutionMode(data.executionMode);
+        setLogs((prev) => [
+          {
+            id: `l-${Date.now()}`,
+            time: new Date().toLocaleTimeString(),
+            textEn: `Execution mode changed to: ${data.executionMode}`,
+            textAr: `تم تحديث وضع تنفيذ الأوامر إلى: ${data.executionMode}`,
+            type: 'info'
+          },
+          ...prev
+        ]);
+        await fetchLiveServerStatus();
+      } else {
+        alert(data.error || 'Failed to switch execution mode on server');
+      }
+    } catch (e: any) {
+      console.error('Failed to update execution mode:', e);
+    }
+  };
+
   const handleClosePosition = async (symbol: string) => {
     setClosingSymbols(prev => ({ ...prev, [symbol]: true }));
     playHoloTone(440, 0.1);
     try {
-      const res = await fetch('/api/positions/close', {
+      const token = await getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/protected/positions/close', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ symbol, reason: 'Manual operator click in dashboard' })
       });
       const data = await res.json();
@@ -547,10 +608,14 @@ export default function CyberPulseNexusApp() {
     playHoloTone(side === 'BUY' ? 1200 : 750, 0.12);
 
     try {
+      const token = await getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       // Send real order request to backend API
       const res = await fetch('/api/protected/manual-order', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           symbol: selectedAsset.symbol,
           side: side,
@@ -690,15 +755,15 @@ export default function CyberPulseNexusApp() {
           {/* Mode Switcher */}
           <button
             type="button"
-            onClick={() => {
-              playHoloTone(950, 0.08);
-              setExecutionMode(executionMode === 'TESTNET' ? 'LIVE' : 'TESTNET');
-            }}
+            onClick={handleToggleExecutionMode}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-mono text-xs font-bold border transition cursor-pointer flex items-center gap-1 ${
-              executionMode === 'TESTNET'
+              executionMode === 'PAPER'
+                ? 'bg-blue-500/15 border-blue-500/40 text-blue-300'
+                : executionMode === 'TESTNET'
                 ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                 : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
             }`}
+            title={isAr ? `وضع التنفيذ الفعلي للسيرفر: ${executionMode}` : `Server Execution Mode: ${executionMode}`}
           >
             <Radio className="w-3 h-3 animate-pulse shrink-0" />
             <span>{executionMode}</span>
@@ -870,16 +935,28 @@ export default function CyberPulseNexusApp() {
             const nextState = !isRunning;
             setIsRunning(nextState);
             try {
+              const token = await getToken();
+              const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+              if (token) headers['Authorization'] = `Bearer ${token}`;
+
+              await fetch('/api/protected/toggle-trading', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ running: nextState })
+              });
               if (!nextState) {
                 await fetch('/api/protected/killswitch/trigger', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers,
                   body: JSON.stringify({ reason: 'Manual pause by user', level: 'PAUSE_NEW_ORDERS' })
                 });
               } else {
-                await fetch('/api/protected/killswitch/reset', { method: 'POST' });
+                await fetch('/api/protected/killswitch/reset', { method: 'POST', headers });
               }
-            } catch {}
+              await fetchLiveServerStatus();
+            } catch (err) {
+              console.error('Failed to toggle bot running state:', err);
+            }
           }}
           onExecuteTrade={handleExecuteTrade}
           isExecuting={isExecuting}
@@ -1253,19 +1330,40 @@ export default function CyberPulseNexusApp() {
                   type="button"
                   onClick={async () => {
                     playHoloTone(440, 0.3);
+                    if (!window.confirm(isAr ? 'سيتم إغلاق جميع المراكز المفتوحة فوراً بأسعار السوق. متابعة؟' : 'This will close ALL open positions at market immediately. Continue?')) return;
                     try {
-                      await fetch('/api/protected/close-all', { method: 'POST' });
-                      setIsRunning(false);
+                      const token = await getToken();
+                      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                      const res = await fetch('/api/protected/close-all', { method: 'POST', headers });
+                      const data = await res.json().catch(() => ({}));
+                      const ok = !!data?.success && res.ok;
+                      const failedList: string[] = Array.isArray(data?.failed) ? data.failed : [];
+                      if (ok) setIsRunning(false);
                       const newLog = {
                         id: `l-${Date.now()}`,
                         time: new Date().toLocaleTimeString(),
-                        textEn: 'KILL SWITCH TRIGGERED: All exchange positions closed.',
-                        textAr: 'تم تفعيل مفتاح الطوارئ: تم إغلاق كافة الصفقات المفتوحة على المنصة.',
+                        textEn: ok
+                          ? `Emergency close confirmed by the exchange: ${data.closed ?? 0} position(s) closed.`
+                          : `EMERGENCY CLOSE INCOMPLETE — still open / failed: ${failedList.join(', ') || data?.message || 'unknown'}. Check Binance manually.`,
+                        textAr: ok
+                          ? `تم تأكيد الإغلاق الطارئ من المنصة: أُغلق ${data.closed ?? 0} مركز.`
+                          : `الإغلاق الطارئ غير مكتمل — لم تُغلق: ${failedList.join('، ') || data?.message || 'غير معروف'}. تحقق من بايننس يدوياً.`,
                         type: 'alert' as const
                       };
                       setLogs((prev) => [newLog, ...prev]);
                       await fetchLiveServerStatus();
-                    } catch {}
+                    } catch (err) {
+                      const failLog = {
+                        id: `l-${Date.now()}`,
+                        time: new Date().toLocaleTimeString(),
+                        textEn: 'EMERGENCY CLOSE REQUEST FAILED — positions may still be open. Check Binance manually.',
+                        textAr: 'فشل طلب الإغلاق الطارئ — قد تكون المراكز ما زالت مفتوحة. تحقق من بايننس يدوياً.',
+                        type: 'alert' as const
+                      };
+                      setLogs((prev) => [failLog, ...prev]);
+                    }
                   }}
                   className="w-full py-2 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold hover:bg-rose-500/25 transition cursor-pointer min-h-[40px]"
                 >

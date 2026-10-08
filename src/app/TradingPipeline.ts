@@ -21,6 +21,7 @@ import {
   TradingSignal,
   getBinanceBaseUrl,
   normalizeExecutionMode,
+  isLiveTradingConfirmed,
 } from '../domain/types';
 import crypto from 'crypto';
 import { OrderGateway } from '../execution/OrderGateway';
@@ -83,6 +84,7 @@ export class TradingPipeline {
   private scaleInManager: ScaleInManager;
   private lastSnapshotTime: number = 0;
   private inFlightSymbols: Set<string> = new Set();
+  private peakEquityObserved: number = 0;
   private pendingProtection: Map<string, { ouSigma: number; ouMu: number; side: 'BUY' | 'SELL'; symbol: AssetSymbol }> = new Map();
   private lastAlertState: Map<string, { value: string; ts: number }> = new Map();
   private signalHistory: TradingSignal[] = [];
@@ -125,14 +127,23 @@ export class TradingPipeline {
   constructor(telegramService?: TelegramService) {
     this.config = { ...INITIAL_RUNTIME_CONFIG };
     
-    // Read environment configuration
+    // Read environment configuration with dual key support (BINANCE_API_KEY / EXCHANGE_API_KEY)
+    const apiKey = (process.env.EXCHANGE_API_KEY || process.env.BINANCE_API_KEY || '').trim();
+    const apiSecret = (process.env.EXCHANGE_API_SECRET || process.env.BINANCE_API_SECRET || '').trim();
     const rawMode = process.env.EXECUTION_MODE;
-    const hasKey = !!process.env.EXCHANGE_API_KEY;
-    const executionMode: ExecutionMode = normalizeExecutionMode(rawMode, hasKey);
+    const hasKey = !!apiKey && !!apiSecret;
+    let executionMode: ExecutionMode = normalizeExecutionMode(rawMode, hasKey);
+
+    // 🛡️ Security Barrier: If LIVE mode is requested without explicit confirmation, safely demote to PAPER
+    if (executionMode === 'LIVE' && !isLiveTradingConfirmed()) {
+      console.warn('⛔ [SECURITY BARRIER] EXECUTION_MODE=LIVE requested, but CONFIRM_LIVE_TRADING=true is missing in environment. Falling back to PAPER mode for asset protection.');
+      executionMode = 'PAPER';
+    }
+
     const apiBaseUrl = getBinanceBaseUrl(executionMode);
 
     if (executionMode === 'LIVE') {
-      this.config.executionMode = 'LIVE_SIMULATION';
+      this.config.executionMode = 'LIVE_EXCHANGE';
     } else if (executionMode === 'TESTNET') {
       this.config.executionMode = 'TESTNET_EXCHANGE';
     } else {
@@ -146,8 +157,8 @@ export class TradingPipeline {
     
     this.orderGateway = new OrderGateway(this.userDataStream, this.orderBookBuilder, {
       executionMode,
-      apiKey: process.env.EXCHANGE_API_KEY,
-      apiSecret: process.env.EXCHANGE_API_SECRET,
+      apiKey: apiKey,
+      apiSecret: apiSecret,
       apiBaseUrl: apiBaseUrl,
     });
 
@@ -199,7 +210,7 @@ export class TradingPipeline {
           const last = this.lastOrderTime.get(sym) || 0;
           if (now - last > 20000) {
             this.inFlightSymbols.delete(sym);
-            console.log();
+            console.log(`🔓 Cleared stale in-flight lock for ${sym}`);
           }
         }
       },
@@ -244,7 +255,7 @@ export class TradingPipeline {
       console.log('🔍 Screening qualified assets from exchange...');
       await this.assetScreener.refreshAllAssets();
       for (const asset of this.assetScreener.getAllAssets()) {
-        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity);
+        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity, asset.minNotional);
       }
 
       // Synchronize Sub-Wallet with all closed trades recorded in persistent DB
@@ -480,6 +491,7 @@ export class TradingPipeline {
       // Close open trade in db
       try {
         const openTrades = await this.db.getOpenTrades(closedSymbol);
+        if (openTrades.length === 0) return; // already settled by closeSinglePositionOnExchange: do not record/learn a phantom 0-PnL trade
         const lastCandle = this.marketData.getCandles(closedSymbol).slice(-1)[0];
         const exitPrice = lastCandle ? lastCandle.close : undefined;
         let totalPnl = 0;
@@ -538,10 +550,27 @@ export class TradingPipeline {
         timestamp: evt.timestamp,
       }).catch((e) => console.warn('Failed to save killswitch state to DB:', e));
 
-      // Auto cancel active orders on non-normal states
+      // Auto cancel active orders on non-normal states across the entire exchange
       if (evt.toLevel !== 'NORMAL') {
-        const cancelled = this.orderGateway.cancelAllOrders(`KillSwitch trigger: ${evt.toLevel}`);
-        this.eventJournal.record('WARN', 'ORDER_GATEWAY', `Cancelled ${cancelled} resting orders due to KillSwitch trigger`);
+        const activeSymbols = this.config.activeSymbols || [];
+        this.orderGateway.cancelAllOrders(`KillSwitch trigger: ${evt.toLevel}`, activeSymbols)
+          .then((cancelled: number) => {
+            this.eventJournal.record('WARN', 'ORDER_GATEWAY', `Cancelled ${cancelled} resting orders on exchange due to KillSwitch trigger`);
+          })
+          .catch((err: any) => {
+            console.error('Failed to cancel exchange orders on KillSwitch:', err);
+          });
+
+        if (evt.toLevel === 'HARD_HALT') {
+          console.warn('🚨 HARD_HALT triggered: Liquidating all open positions on exchange...');
+          this.orderGateway.liquidateAllExchangePositions()
+            .then((liquidated: number) => {
+              this.eventJournal.record('CRITICAL', 'ORDER_GATEWAY', `Emergency liquidated ${liquidated} positions on exchange`);
+            })
+            .catch((err: any) => {
+              console.error('Failed to liquidate positions on exchange:', err);
+            });
+        }
       }
     });
 
@@ -564,7 +593,7 @@ export class TradingPipeline {
 💵 متوسط سعر التنفيذ: <b>$${fillPrice}</b>
 🏷️ الاستراتيجية: <b>${ord.strategyId || 'تداول خوارزمي متكيف'}</b>
 ━━━━━━━━━━━━━━━━
-🛡️ تم تثبيت أوامر الحماية ووقف الخسارة تلقائياً في دفتر الأوامر.
+🛡️ جارٍ تثبيت أوامر الحماية — سيصلك تأكيد منفصل بنتيجة التثبيت.
           `).catch(() => {});
         }
 
@@ -572,25 +601,53 @@ export class TradingPipeline {
         if (ord.status === 'FILLED' && !ord.strategyId?.startsWith('PROTECT')) {
           const pending = this.pendingProtection.get(ord.id);
           if (pending) {
-            const fill = ord.avgFillPrice || ord.price;
-            const sl = pending.side === 'BUY' ? fill - 2 * pending.ouSigma : fill + 2 * pending.ouSigma;
-            await this.orderGateway.sendProtectiveOrders(
-              ord.symbol,
-              pending.side,
-              ord.filledQuantity,
-              fill,
-              sl,
-              pending.ouMu,
-              ord.id
-            );
-            this.pendingProtection.delete(ord.id);
+            this.pendingProtection.delete(ord.id); // delete first: protection must run exactly once
+            await this.applyProtection(ord, pending);
           }
         }
       } else if (ord.status === 'REJECTED' || ord.status === 'CANCELLED') {
         this.eventJournal.record('WARN', 'ORDER_GATEWAY', `Order ${ord.id} ${ord.status}: ${ord.errorMessage || 'No reason provided'}`);
+        const pending = this.pendingProtection.get(ord.id);
         this.pendingProtection.delete(ord.id);
+        // A partially filled order that is then cancelled still left an open position: protect the filled part.
+        if (pending && ord.filledQuantity > 0) {
+          await this.applyProtection(ord, pending);
+        }
       }
     });
+  }
+
+  /**
+   * Places SL/TP for a filled entry and VERIFIES the stop. If the stop cannot be placed the position
+   * is closed immediately and the KillSwitch is raised: a leveraged position must never stay naked.
+   */
+  private async applyProtection(ord: any, pending: { side: 'BUY' | 'SELL'; ouSigma: number; ouMu: number }): Promise<void> {
+    const fill = ord.avgFillPrice || ord.price;
+    // Stop distance: 2 sigma, clamped to a sane band (0.4%..3% of price) so a degenerate sigma cannot produce a nonsense stop
+    const rawDist = 2 * Number(pending.ouSigma);
+    const dist = Math.min(Math.max(Number.isFinite(rawDist) ? rawDist : 0, fill * 0.004), fill * 0.03);
+    const sl = pending.side === 'BUY' ? fill - dist : fill + dist;
+
+    const prot = await this.orderGateway.sendProtectiveOrders(
+      ord.symbol, pending.side, ord.filledQuantity, fill, sl, pending.ouMu, ord.id
+    );
+
+    if (prot.slOk) {
+      this.telegramService.sendMessage(`🛡️ <b>تم تثبيت وقف الخسارة</b> على ${ord.symbol} عند $${Number(sl).toFixed(4)}${prot.tpId ? ' + هدف الربح' : ' (بدون هدف ربح)'}`).catch(() => {});
+      return;
+    }
+
+    this.eventJournal.record('CRITICAL', 'ORDER_GATEWAY', `Stop-loss placement FAILED for ${ord.symbol}; closing position immediately`);
+    this.telegramService.sendMessage(`🚨 <b>فشل تثبيت وقف الخسارة</b> على ${ord.symbol} — يتم إغلاق المركز فوراً لتفادي بقائه بلا حماية.`).catch(() => {});
+    const res = await this.closeSinglePositionOnExchange(ord.symbol, 'Protective stop could not be placed');
+    if (!res.success) {
+      this.telegramService.sendMessage(`🆘 <b>تنبيه حرج:</b> تعذّر إغلاق ${ord.symbol} بعد فشل الوقف. تدخّل يدوي مطلوب فوراً.`).catch(() => {});
+    }
+    try {
+      this.killSwitch.trigger('SOFT_HALT', `Stop-loss placement failed for ${ord.symbol}`);
+    } catch (e) {
+      console.warn('KillSwitch trigger after protection failure failed:', e);
+    }
   }
 
   public getRegimeDetector(symbol?: AssetSymbol): RegimeDetector {
@@ -661,7 +718,9 @@ export class TradingPipeline {
     this.partialProfitManager.updatePosition(tick.symbol, tick.price);
 
     if (this.config.autoTradingEnabled && this.killSwitch.isEntryAllowed()) {
-      this.evaluateSignalAndExecute(tick.symbol, features, book, regime);
+      this.evaluateSignalAndExecute(tick.symbol, features, book, regime).catch((err) => {
+        console.error(`❌ Uncaught error during strategy evaluation for ${tick.symbol}:`, err);
+      });
     }
 
     // Update telemetry latencies
@@ -674,12 +733,13 @@ export class TradingPipeline {
   }
 
   private async evaluateSignalAndExecute(symbol: AssetSymbol, features: any, book?: OrderBook, regime?: any) {
-    // Strict Stale Market Data Check (منع التداول على بيانات قديمة أو ميتة)
-    const dataAge = Date.now() - this.marketData.getLastUpdateTime(symbol);
-    if (dataAge > 3000) {
-      console.warn(`⚠️ [${symbol}] Stale market data detected (${dataAge}ms). Execution aborted.`);
-      return;
-    }
+    try {
+      // Strict Stale Market Data Check (منع التداول على بيانات قديمة أو ميتة)
+      const dataAge = Date.now() - this.marketData.getLastUpdateTime(symbol);
+      if (dataAge > 3000) {
+        console.warn(`⚠️ [${symbol}] Stale market data detected (${dataAge}ms). Execution aborted.`);
+        return;
+      }
 
     // 0. Dynamic Risk Check
     const lastDecision = this.dynamicRiskManager.getLastDecision();
@@ -757,8 +817,7 @@ export class TradingPipeline {
     this.inFlightSymbols.add(symbol);
     this.lastOrderTime.set(symbol, now);
 
-    try {
-      // 2. Check if we can Scale-In to an existing position on this symbol
+    // 2. Check if we can Scale-In to an existing position on this symbol
       const scaled = await this.checkScaleInOpportunity(
         symbol,
         signalType,
@@ -799,11 +858,21 @@ export class TradingPipeline {
       const regimeMul = regime?.sizeMultiplier ?? 1;
       qty = Number((qty * multipliers.positionSize * warmupMul * regimeMul).toFixed(4));
 
-      // التوافق مع الأرصدة الصغيرة (< 50$): ضمان عدم النزول عن 5.2$ لتفادي رفض بايننس (MIN_NOTIONAL)
-      if (features.currentPrice > 0 && qty * features.currentPrice < 5.2) {
-        qty = Number((5.5 / features.currentPrice).toFixed(4));
-        if (qty === 0) {
-          qty = Number((5.5 / features.currentPrice).toFixed(6));
+      // Minimum-notional handling. The old code raised ANY undersized order to ~$5.5, which silently
+      // cancelled every risk reduction applied above (dynamic risk, regime, warm-up, correlation).
+      // Default: skip the trade. Opt-in bump (ALLOW_MIN_NOTIONAL_BUMP=true) is capped at 3x the risk-sized notional.
+      const symFilter = this.orderGateway.getSymbolFilter(symbol);
+      const minNotionalUsd = Number(symFilter.minNotional) || 5;
+      const minQty = symFilter.minQty || 0.0001;
+      const riskSizedNotional = qty * features.currentPrice;
+      if (features.currentPrice > 0 && riskSizedNotional < minNotionalUsd * 1.02) {
+        const bumpAllowed = process.env.ALLOW_MIN_NOTIONAL_BUMP === 'true';
+        const bumpedNotional = minNotionalUsd * 1.1;
+        if (bumpAllowed && riskSizedNotional > 0 && bumpedNotional <= riskSizedNotional * 3) {
+          qty = Number((bumpedNotional / features.currentPrice).toFixed(6));
+        } else {
+          console.log(`⏭️ Skipping ${symbol}: risk-sized notional $${riskSizedNotional.toFixed(2)} is below exchange minimum $${minNotionalUsd}`);
+          return;
         }
       }
 
@@ -813,11 +882,11 @@ export class TradingPipeline {
       const requiredMargin = notionalVal / requiredLev;
 
       if (subAvailableMargin < requiredMargin) {
-        console.log();
+        console.log(`⚠️ Insufficient sub-wallet margin for ${symbol}: needed $${requiredMargin.toFixed(2)}, available $${subAvailableMargin.toFixed(2)}`);
         return;
       }
 
-      if (qty > 0.0001) {
+      if (qty >= minQty && qty > 0) {
         // Pre-trade risk validation
         const val = this.riskEngine.validateOrder(
           { quantity: qty, price: features.currentPrice, symbol },
@@ -1084,6 +1153,9 @@ export class TradingPipeline {
         return;
       }
 
+      // Synchronize UserDataStream positions and balance directly with Binance REST snapshot (البند 12)
+      this.userDataStream.syncAccountSnapshot(accountData);
+
       // Keep portfolio sizer synced with real exchange equity
       this.portfolioSizer.updateBalance(this.subWalletManager.getCurrentEquity());
 
@@ -1117,6 +1189,12 @@ export class TradingPipeline {
           if (posAmt === 0) continue;
 
           if (!knownDbSymbols.has(rawSymbol)) {
+            const shouldAdopt = process.env.ADOPT_ORPHANS === 'true';
+            if (!shouldAdopt) {
+              console.log(`ℹ️ [RECONCILE] Position on exchange for ${rawSymbol} (Amt: ${posAmt}) not generated by BaselBot. ADOPT_ORPHANS is false; leaving position unmanaged.`);
+              continue;
+            }
+
             const baseAsset = rawSymbol.replace('USDT', '');
             const formattedSymbol = `${baseAsset}/USDT` as AssetSymbol;
             const side = posAmt > 0 ? 'BUY' : 'SELL';
@@ -1124,7 +1202,7 @@ export class TradingPipeline {
             const entryPrice = parseFloat(p.entryPrice) || this.marketData.getPrice(formattedSymbol) || 1;
             const orphanOrderId = `ADOPTED-${Date.now().toString(36)}-${rawSymbol}`;
 
-            console.log(`🛡️ Orphan Position Detected for ${rawSymbol} (${side} ${qty} @ $${entryPrice}). Adopting under algorithmic management...`);
+            console.log(`🛡️ Orphan Position Detected for ${rawSymbol} (${side} ${qty} @ $${entryPrice}). Adopting under algorithmic management (ADOPT_ORPHANS=true)...`);
 
             // تسجيل الصفقة اليتيمة في قاعدة البيانات
             await this.db.saveTrade({
@@ -1148,13 +1226,13 @@ export class TradingPipeline {
               qty
             );
 
-            // تسجيلها في مدير التعزيز
+            // تسجيلها في مدير التعزيز بالترتيب الصحيح: (orderId, symbol, side, entryPrice, quantity)
             this.scaleInManager.registerOriginalPosition(
               orphanOrderId,
               formattedSymbol,
               side,
-              qty,
-              entryPrice
+              entryPrice,
+              qty
             );
 
             // إرسال تنبيه بالعربية عبر تليجرام لإبلاغ المتداول
@@ -1372,6 +1450,9 @@ export class TradingPipeline {
     if (this.assetScreener.shouldRefresh()) {
       console.log('🔄 Refreshing qualified assets screener...');
       await this.assetScreener.refreshAllAssets();
+      for (const asset of this.assetScreener.getAllAssets()) {
+        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity, asset.minNotional);
+      }
     }
 
     const balance = this.userDataStream.getBalance();
@@ -1396,7 +1477,10 @@ export class TradingPipeline {
       }
     }
     
-    const drawdown = balance.totalEquity > 0 ? (10000 - balance.totalEquity) / 10000 : 0;
+    this.peakEquityObserved = Math.max(this.peakEquityObserved, balance.totalEquity);
+    const drawdown = this.peakEquityObserved > 0
+      ? Math.max(0, (this.peakEquityObserved - balance.totalEquity) / this.peakEquityObserved)
+      : 0;
 
     const symbol = this.config.activeSymbols[0] || 'BTC/USDT';
     const candles = this.marketData.getCandles(symbol);
@@ -1480,12 +1564,22 @@ export class TradingPipeline {
     try {
       const pos = this.userDataStream.getPosition(symbol);
       const closeRes = await this.orderGateway.closePositionDirectlyOnBinance(symbol, pos?.size);
+      if (!closeRes.success) {
+        // Do NOT touch local state: the position (and its stop) still exists on the exchange.
+        this.eventJournal.record('CRITICAL', 'ORDER_GATEWAY', `Exchange close FAILED for ${symbol}: ${closeRes.error || 'unknown'}`);
+        this.telegramService.sendMessage(`🆘 <b>فشل إغلاق ${symbol} على بايننس</b>\nالسبب: ${String(closeRes.error || 'غير معروف').replace(/[<>&]/g, '')}\nالمركز ما زال مفتوحاً — تحقق يدوياً.`).catch(() => {});
+        return { success: false, message: `Exchange close failed for ${symbol}: ${closeRes.error || 'unknown'}. Position left untouched.` };
+      }
 
       this.partialProfitManager.removeBySymbol(symbol);
       this.scaleInManager.removeBySymbol(symbol);
-      this.userDataStream.removePosition(symbol);
+      const isPaperMode = this.orderGateway.getExecutionMode() === 'PAPER';
 
       const openTrades = await this.db.getOpenTrades(symbol);
+      if (openTrades.length === 0) {
+        if (isPaperMode) this.userDataStream.removePosition(symbol);
+        return { success: true, message: `${symbol} already closed; nothing left to settle`, symbol };
+      }
       const lastCandle = this.marketData.getCandles(symbol).slice(-1)[0];
       const exitPrice = lastCandle ? lastCandle.close : (pos?.currentPrice || pos?.entryPrice);
       let totalPnl = 0;
@@ -1503,6 +1597,9 @@ export class TradingPipeline {
         this.subWalletManager.recordTradeResult(totalPnl);
       }
       this.portfolioSizer.updateBalance(this.subWalletManager.getCurrentEquity());
+
+      // Live/testnet: the position disappears via ACCOUNT_UPDATE (confirmed by the exchange). Paper: remove it here, after settlement.
+      if (isPaperMode) this.userDataStream.removePosition(symbol);
 
       // 🏛️ Real trade feedback into Board of Directors Self-Learning Engine
       const learnEvent = this.boardOfDirectors.learnFromOutcome(totalPnl, symbol);
@@ -1623,7 +1720,10 @@ export class TradingPipeline {
   public async liquidateAndResetForNewWallet(): Promise<void> {
     console.log('🔄 [REALIGNMENT] Closing and resetting all trades to match new 5 Sub-Wallet...');
     const currentPositions = this.userDataStream.getPositions();
-    await this.orderGateway.closeAllPositionsOnExchange(currentPositions);
+    const liq = await this.orderGateway.closeAllPositionsOnExchange(currentPositions);
+    if (liq.failed.length > 0) {
+      throw new Error(`Realignment aborted before any data was deleted: could not close ${liq.failed.join(', ')}`);
+    }
     this.orderGateway.cancelAllOrders('Full realignment for 5 micro-wallet');
     this.userDataStream.closeAllPositions();
     await this.db.resetAllTrades();
@@ -1632,10 +1732,48 @@ export class TradingPipeline {
     this.eventJournal.record('INFO', 'ORDER_GATEWAY', 'Liquidated all legacy positions on exchange and strictly enforced 1 concurrent position max for 5 Sub-Wallet');
   }
 
-  public closeAllPositions() {
-    this.orderGateway.cancelAllOrders('Manual operator liquidation');
-    this.userDataStream.closeAllPositions();
-    this.eventJournal.record('WARN', 'ORDER_GATEWAY', 'Liquidated all active portfolio positions and cancelled pending orders');
+  public async closeAllPositions(): Promise<{ success: boolean; closed: number; failed: string[]; message: string }> {
+    const isPaperMode = this.orderGateway.getExecutionMode() === 'PAPER';
+    let closed = 0;
+    let failed: string[] = [];
+
+    if (!isPaperMode) {
+      const r = await this.orderGateway.closeAllPositionsOnExchange(this.userDataStream.getPositions());
+      closed = r.closed;
+      failed = r.failed;
+    } else {
+      closed = this.userDataStream.getPositions().length;
+    }
+
+    for (const p of this.userDataStream.getPositions()) {
+      if (!failed.includes(p.symbol.replace('/', ''))) {
+        this.partialProfitManager.removeBySymbol(p.symbol);
+        this.scaleInManager.removeBySymbol(p.symbol);
+      }
+    }
+    this.orderGateway.cancelAllOrders('Manual operator liquidation'); // resting entry orders (local + exchange); SL/TP of survivors are kept
+
+    if (failed.length === 0) {
+      this.userDataStream.closeAllPositions(); // only after the exchange confirmed flat (or paper mode)
+      this.eventJournal.record('WARN', 'ORDER_GATEWAY', `Liquidated ${closed} position(s) and cancelled pending orders`);
+      return { success: true, closed, failed, message: `Closed ${closed} position(s)` };
+    }
+
+    this.eventJournal.record('CRITICAL', 'ORDER_GATEWAY', `Liquidation INCOMPLETE. Closed ${closed}, FAILED: ${failed.join(', ')}`);
+    return { success: false, closed, failed, message: `Closed ${closed}; FAILED to close: ${failed.join(', ')}` };
+  }
+
+  public getExecutionMode(): ExecutionMode {
+    return this.orderGateway.getExecutionMode();
+  }
+
+  public setExecutionMode(mode: ExecutionMode): void {
+    if (mode === 'LIVE' && !isLiveTradingConfirmed()) {
+      throw new Error('Switching to LIVE mode blocked: CONFIRM_LIVE_TRADING=true environment confirmation is required.');
+    }
+    this.orderGateway.setExecutionMode(mode);
+    this.config.executionMode = mode === 'LIVE' ? 'LIVE_EXCHANGE' : (mode === 'TESTNET' ? 'TESTNET_EXCHANGE' : 'PAPER_TRADING');
+    console.log(`🔄 Pipeline execution mode switched to: ${mode} (${this.config.executionMode})`);
   }
 
   public getStrategies(): BotStrategy[] {

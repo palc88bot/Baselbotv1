@@ -76,6 +76,13 @@ export const SubWalletModal: React.FC<SubWalletModalProps> = ({
   };
 
   const handleReset = async () => {
+    const confirmed = window.confirm(
+      isAr
+        ? 'تحذير: هل أنت متأكد من رغبتك في إعادة ضبط وتعيين المحفظة الفرعية إلى $25.00 USDT؟'
+        : 'Warning: Are you sure you want to reset the Sub-Wallet slice back to $25.00 USDT?'
+    );
+    if (!confirmed) return;
+
     try {
       setIsResetting(true);
       await onResetSubWallet();
@@ -90,6 +97,13 @@ export const SubWalletModal: React.FC<SubWalletModalProps> = ({
 
   const handleRealign = async () => {
     if (!onRealignAllTrades) return;
+    const confirmed = window.confirm(
+      isAr
+        ? '⚠️ تحذير تدميري: هذا الإجراء سيقوم بإغلاق وتصفية كافة الصفقات المفتوحة على بايننس وإعادة مواءمة المحفظة لحصة 25$. هل تود المتابعة؟'
+        : '⚠️ Destructive Warning: This action will liquidate all open positions on Binance and realign to the $25 Sub-Wallet slice. Proceed?'
+    );
+    if (!confirmed) return;
+
     try {
       setIsRealigning(true);
       await onRealignAllTrades();

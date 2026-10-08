@@ -62,7 +62,7 @@ export class PortfolioSizer {
       maxConcurrentPositions: 3, // حتى 3 صفقات متوازنة
       minLeverage: 3,            // رافعة 3x
       maxLeverage: 5,            // رافعة 5x
-      minTradeValue: 18.0,       // قيمة اسمية تتناسب مع المحفظة (هامش ~6.0$ لكل صفقة)
+      minTradeValue: 20.0,       // قيمة اسمية تتناسب مع الحد الأدنى للعقود (20 USDT)
       maxTradePercentage: 0.85,
       maxQualifiedAssets: 15,
       allowedSymbols: ['SOL/USDT', 'BTC/USDT', 'ETH/USDT', 'NEAR/USDT', 'SUI/USDT', 'DOGE/USDT', 'TAO/USDT', '1000PEPE/USDT', 'FET/USDT', 'AVAX/USDT', 'RENDER/USDT', 'WIF/USDT'],
@@ -75,7 +75,7 @@ export class PortfolioSizer {
       maxConcurrentPositions: 2,
       minLeverage: 3,
       maxLeverage: 3,
-      minTradeValue: 10,
+      minTradeValue: 20.0,
       maxTradePercentage: 0.40,
       maxQualifiedAssets: 25,
       allowedSymbols: ['SOL/USDT', 'ETH/USDT', 'BTC/USDT', 'NEAR/USDT', 'SUI/USDT', 'DOGE/USDT', 'TAO/USDT', '1000PEPE/USDT', 'FET/USDT', 'AVAX/USDT', 'INJ/USDT', 'APT/USDT', 'TIA/USDT', 'RENDER/USDT', 'WIF/USDT', 'BNB/USDT', 'XRP/USDT', 'LINK/USDT', 'ADA/USDT'],

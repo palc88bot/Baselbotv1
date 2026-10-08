@@ -237,14 +237,20 @@ export class AssetScreener {
     const takerFee = 0.0004; // 0.04%
     
     const filters = symbolInfo.filters || [];
-    const minNotionalFilter = filters.find((f: any) => f.filterType === 'MIN_NOTIONAL');
+    const minNotionalFilter = filters.find((f: any) => f.filterType === 'MIN_NOTIONAL' || f.filterType === 'NOTIONAL');
     const lotSizeFilter = filters.find((f: any) => f.filterType === 'LOT_SIZE');
     const priceFilter = filters.find((f: any) => f.filterType === 'PRICE_FILTER');
     
-    const minNotional = minNotionalFilter ? parseFloat(minNotionalFilter.notional) : 5;
-    const minQuantity = lotSizeFilter ? parseFloat(lotSizeFilter.minQty) : 0.001;
-    const stepSize = lotSizeFilter ? parseFloat(lotSizeFilter.stepSize) : 0.001;
-    const tickSize = priceFilter ? parseFloat(priceFilter.tickSize) : 0.01;
+    let minNotional = 5;
+    if (minNotionalFilter) {
+      const parsedNotional = parseFloat(minNotionalFilter.notional || minNotionalFilter.minNotional || '5');
+      if (!isNaN(parsedNotional) && parsedNotional > 0) {
+        minNotional = parsedNotional;
+      }
+    }
+    const minQuantity = lotSizeFilter ? (parseFloat(lotSizeFilter.minQty) || 0.001) : 0.001;
+    const stepSize = lotSizeFilter ? (parseFloat(lotSizeFilter.stepSize) || 0.001) : 0.001;
+    const tickSize = priceFilter ? (parseFloat(priceFilter.tickSize) || 0.01) : 0.01;
     const maxLeverage = parseInt(symbolInfo.maxLeverage) || 50;
     const minLeverage = 5;
     

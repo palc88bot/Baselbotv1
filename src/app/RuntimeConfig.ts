@@ -6,7 +6,7 @@
 import { AssetSymbol, SolverType } from '../domain/types';
 
 export interface RuntimeConfigState {
-  executionMode: 'LIVE_SIMULATION' | 'PAPER_TRADING' | 'TESTNET_EXCHANGE' | 'STRESS_TEST';
+  executionMode: 'LIVE_EXCHANGE' | 'LIVE_SIMULATION' | 'PAPER_TRADING' | 'TESTNET_EXCHANGE' | 'STRESS_TEST';
   activeSymbols: AssetSymbol[];
   activeSolver: SolverType;
   rebalanceIntervalMs: number;

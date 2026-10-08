@@ -3,7 +3,7 @@
  * Smart Order Router (SOR) & Execution Order Gateway
  */
 
-import { AssetSymbol, ExecutionMode, Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce, getBinanceBaseUrl, normalizeExecutionMode, roundToStep } from '../domain/types';
+import { AssetSymbol, ExecutionMode, Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce, getBinanceBaseUrl, normalizeExecutionMode, roundToStep, isLiveTradingConfirmed } from '../domain/types';
 import { OrderBookBuilder } from '../market-data/OrderBookBuilder';
 import { OrderStateMachine } from './OrderStateMachine';
 import { UserDataStream } from './UserDataStream';
@@ -23,19 +23,23 @@ export interface GatewayConfig {
   executionMode?: 'LIVE' | 'TESTNET' | 'PAPER' | string;
 }
 
-export const ERROR_POLICY: Record<number, 'RETRY' | 'SHRINK' | 'DISABLE_SYMBOL' | 'HALT'> = {
-  [-1003]: 'RETRY',          // rate limit
-  [-1021]: 'RETRY',          // timestamp offset, syncTime first
-  [-2019]: 'SHRINK',         // margin is insufficient
-  [-4164]: 'DISABLE_SYMBOL', // less than min notional
-  [-1111]: 'DISABLE_SYMBOL', // bad precision
-  [-2015]: 'HALT',           // API key invalid / rejected
+export const ERROR_POLICY: Record<number, 'RETRY' | 'SHRINK' | 'ADJUST_NOTIONAL' | 'DISABLE_SYMBOL' | 'HALT'> = {
+  [-1003]: 'RETRY',           // rate limit
+  [-1021]: 'RETRY',           // timestamp offset, syncTime first
+  [-2019]: 'SHRINK',          // margin is insufficient
+  [-4164]: 'ADJUST_NOTIONAL', // less than min notional -> auto-calibrate threshold
+  [-1111]: 'DISABLE_SYMBOL',  // bad precision
+  [-2015]: 'HALT',            // API key invalid / rejected
 };
 
 export class OrderGateway {
   private orders: Map<string, Order> = new Map();
   private exchangeIdMap: Map<string, string> = new Map(); // exchangeOrderId -> localOrderId
   private protectiveOrders: Map<string, { slId?: string; tpId?: string }> = new Map(); // localOrderId -> protective IDs
+  // Fill bookkeeping for real-exchange modes (prevents double processing & keeps true commissions)
+  private fillRecorded: Set<string> = new Set();
+  private seenTrades: Set<string> = new Set();
+  private orderCommission: Map<string, number> = new Map();
   private fsm: OrderStateMachine;
   private userDataStream: UserDataStream;
   private orderBookBuilder: OrderBookBuilder;
@@ -108,6 +112,8 @@ export class OrderGateway {
     return Date.now() + this.timeOffset;
   }
 
+  private isHedgeMode: boolean = false;
+
   public async checkDualSidePosition(): Promise<boolean> {
     if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return true;
     try {
@@ -120,8 +126,34 @@ export class OrderGateway {
       if (res.ok) {
         const data = await res.json();
         if (data && data.dualSidePosition === true) {
-          console.warn('⚠️ Account is in Hedge mode. For One-way trading, One-way mode is recommended.');
-          return false;
+          console.warn('⚠️ Account is in Hedge mode. Attempting to automatically switch to One-Way Mode...');
+          // Attempt auto-switch to One-Way Mode (dualSidePosition=false)
+          try {
+            const setTs = this.ts();
+            const setQ = `dualSidePosition=false&timestamp=${setTs}`;
+            const setSig = crypto.createHmac('sha256', this.apiSecret).update(setQ).digest('hex');
+            const setRes = await fetch(`${this.apiBaseUrl}/fapi/v1/positionSide/dual?${setQ}&signature=${setSig}`, {
+              method: 'POST',
+              headers: { 'X-MBX-APIKEY': this.apiKey },
+            });
+            if (setRes.ok) {
+              console.log('✅ Successfully switched Binance Futures account to One-Way position mode.');
+              this.isHedgeMode = false;
+              return true;
+            } else {
+              const errJson = await setRes.json().catch(() => ({}));
+              console.error('🚨 Failed to auto-switch to One-Way Mode (existing hedge positions may be open):', errJson);
+              this.isHedgeMode = true;
+              return false;
+            }
+          } catch (switchErr) {
+            console.error('🚨 Error switching position side mode:', switchErr);
+            this.isHedgeMode = true;
+            return false;
+          }
+        } else {
+          this.isHedgeMode = false;
+          return true;
         }
       }
     } catch (err) {
@@ -130,29 +162,80 @@ export class OrderGateway {
     return true;
   }
 
-  public async signedGet(endpoint: string, params: Record<string, any> = {}): Promise<any> {
-    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return [];
-    try {
-      const timestamp = this.ts();
-      const queryParts = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`);
-      queryParts.push(`timestamp=${timestamp}`);
-      queryParts.push(`recvWindow=5000`);
-      const queryStr = queryParts.join('&');
-      const sig = crypto.createHmac('sha256', this.apiSecret).update(queryStr).digest('hex');
-      const res = await fetch(`${this.apiBaseUrl}${endpoint}?${queryStr}&signature=${sig}`, {
-        headers: { 'X-MBX-APIKEY': this.apiKey },
-      });
-      const used = Number(res.headers.get('x-mbx-used-weight-1m') || 0);
-      this.rateLimiter.syncUsed(used);
-      if (res.status === 429 || res.status === 418) {
-        const retryAfter = Number(res.headers.get('retry-after') || 60) * 1000;
-        await this.rateLimiter.backoff(retryAfter);
-      }
-      return await res.json();
-    } catch (e) {
-      console.error(`❌ signedGet failed for ${endpoint}:`, e);
-      return [];
+  public getIsHedgeMode(): boolean {
+    return this.isHedgeMode;
+  }
+
+  public async signedRequest(
+    endpointOrMethod: string,
+    methodOrEndpoint: string = 'GET',
+    params: Record<string, any> = {},
+    timeoutMs: number = 8000
+  ): Promise<{ ok: boolean; status: number; data: any }> {
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) {
+      return { ok: true, status: 200, data: {} };
     }
+
+    let method: 'GET' | 'POST' | 'DELETE' = 'GET';
+    let endpoint: string = '';
+    if (['GET', 'POST', 'DELETE'].includes(endpointOrMethod.toUpperCase())) {
+      method = endpointOrMethod.toUpperCase() as any;
+      endpoint = methodOrEndpoint;
+    } else {
+      endpoint = endpointOrMethod;
+      method = methodOrEndpoint.toUpperCase() as any;
+    }
+
+    const execute = async (retryOnTime: boolean = true): Promise<{ ok: boolean; status: number; data: any }> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const timestamp = this.ts();
+        const fullParams = { ...params, recvWindow: 5000, timestamp };
+        const query = Object.entries(fullParams)
+          .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+          .join('&');
+        const signature = crypto.createHmac('sha256', this.apiSecret).update(query).digest('hex');
+        const url = `${this.apiBaseUrl}${endpoint}?${query}&signature=${signature}`;
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'X-MBX-APIKEY': this.apiKey },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+        const data = await res.json().catch(() => ({}));
+
+        // Rate limit headers
+        const used = Number(res.headers.get('x-mbx-used-weight-1m') || 0);
+        if (used > 0) this.rateLimiter.syncUsed(used);
+        if (res.status === 429 || res.status === 418) {
+          const retryAfter = Number(res.headers.get('retry-after') || 60) * 1000;
+          await this.rateLimiter.backoff(retryAfter);
+        }
+
+        // Auto clock re-sync on -1021
+        if (data && (data.code === -1021 || data.code === -1002) && retryOnTime) {
+          console.warn('⏱️ Binance timestamp offset error (-1021). Re-synchronizing system clock...');
+          await this.syncTime();
+          return execute(false);
+        }
+
+        return { ok: res.ok, status: res.status, data };
+      } catch (err: any) {
+        clearTimeout(timeout);
+        return { ok: false, status: 0, data: { error: err.message || 'Network error' } };
+      }
+    };
+
+    return execute(true);
+  }
+
+  public async signedGet(endpoint: string, params: Record<string, any> = {}): Promise<any> {
+    const res = await this.signedRequest(endpoint, 'GET', params);
+    return res.data;
   }
 
   public setSymbolFilter(symbol: string, stepSize: number, tickSize: number, minQty: number = 0.001, minNotional: number = 5.0) {
@@ -173,6 +256,10 @@ export class OrderGateway {
   public getApiSecret(): string { return this.apiSecret; }
   public getApiBaseUrl(): string { return this.apiBaseUrl; }
   public getExecutionMode(): 'LIVE' | 'TESTNET' | 'PAPER' { return this.executionMode; }
+  public setExecutionMode(mode: 'LIVE' | 'TESTNET' | 'PAPER') {
+    this.executionMode = mode;
+    this.apiBaseUrl = getBinanceBaseUrl(mode);
+  }
 
   /**
    * ضبط الرافعة المالية ونوع الهامش (ISOLATED أو CROSSED) للرمز على Binance Futures
@@ -230,7 +317,7 @@ export class OrderGateway {
   }
 
   /**
-   * إرسال أوامر الحماية (Stop Loss & Take Profit) بدقة مع reduceOnly وتتبع معرفاتها
+   * إرسال أوامر الحماية (Stop Loss & Take Profit) بدقة مع reduceOnly وتتبع معرفاتها والتحقق من جانب الوقف
    */
   public async sendProtectiveOrders(
     symbol: string,
@@ -240,68 +327,78 @@ export class OrderGateway {
     slPrice: number,
     tpPrice: number,
     localOrderId?: string
-  ): Promise<{ slId?: string; tpId?: string }> {
-    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return {};
+  ): Promise<{ slId?: string; tpId?: string; slOk: boolean }> {
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return { slOk: true };
 
-    try {
-      const cleanSymbol = symbol.replace('/', '');
-      const filter = this.getSymbolFilter(symbol);
-      const endpoint = '/fapi/v1/order';
-      const timestamp = Date.now();
+    const cleanSymbol = symbol.replace('/', '');
+    const filter = this.getSymbolFilter(symbol);
+    const exitSide = side === 'BUY' ? 'SELL' : 'BUY';
+    const formattedSl = formatPriceToTick(slPrice, filter.tickSize);
+    const formattedTp = formatPriceToTick(tpPrice, filter.tickSize);
+    const formattedQty = formatQuantityToStep(quantity, filter.stepSize);
 
-      const slSide = side === 'BUY' ? 'SELL' : 'BUY';
-      const formattedSl = formatPriceToTick(slPrice, filter.tickSize);
-      const formattedTp = formatPriceToTick(tpPrice, filter.tickSize);
-      const formattedQty = formatQuantityToStep(quantity, filter.stepSize);
-
-      if (formattedQty < filter.minQty) {
-        console.warn(`⚠️ Protective order quantity ${formattedQty} below minQty ${filter.minQty} for ${symbol}`);
-        return {};
-      }
-
-      // 1. Stop Loss Order (reduceOnly, MARK_PRICE, priceProtect)
-      const slClientOrderId = localOrderId ? `BASEL_PROT_SL_${localOrderId}`.substring(0, 32) : `BASEL_SL_${timestamp}`;
-      const slParams = `symbol=${cleanSymbol}&side=${slSide}&type=STOP_MARKET&stopPrice=${formattedSl}&quantity=${formattedQty}&reduceOnly=true&workingType=MARK_PRICE&priceProtect=true&newClientOrderId=${slClientOrderId}&timestamp=${timestamp}`;
-      const slSig = crypto.createHmac('sha256', this.apiSecret).update(slParams).digest('hex');
-      
-      // 2. Take Profit Order (reduceOnly, MARK_PRICE, priceProtect)
-      const tpClientOrderId = localOrderId ? `BASEL_PROT_TP_${localOrderId}`.substring(0, 32) : `BASEL_TP_${timestamp + 100}`;
-      const tpParams = `symbol=${cleanSymbol}&side=${slSide}&type=TAKE_PROFIT_MARKET&stopPrice=${formattedTp}&quantity=${formattedQty}&reduceOnly=true&workingType=MARK_PRICE&priceProtect=true&newClientOrderId=${tpClientOrderId}&timestamp=${timestamp + 100}`;
-      const tpSig = crypto.createHmac('sha256', this.apiSecret).update(tpParams).digest('hex');
-
-      const headers = { 'X-MBX-APIKEY': this.apiKey };
-      
-      const [slRes, tpRes] = await Promise.all([
-        fetch(`${this.apiBaseUrl}${endpoint}?${slParams}&signature=${slSig}`, { method: 'POST', headers }),
-        fetch(`${this.apiBaseUrl}${endpoint}?${tpParams}&signature=${tpSig}`, { method: 'POST', headers })
-      ]);
-
-      const slData = await slRes.json();
-      const tpData = await tpRes.json();
-
-      const result: { slId?: string; tpId?: string } = {};
-
-      if (!slRes.ok) {
-        console.warn('⚠️ SL order rejected on Binance:', slData);
-      } else if (slData.orderId) {
-        result.slId = String(slData.orderId);
-      }
-
-      if (!tpRes.ok) {
-        console.warn('⚠️ TP order rejected on Binance:', tpData);
-      } else if (tpData.orderId) {
-        result.tpId = String(tpData.orderId);
-      }
-
-      const trackKey = localOrderId || cleanSymbol;
-      this.protectiveOrders.set(trackKey, result);
-
-      console.log(`🛡️ Protective Orders Submitted [${cleanSymbol}] | SL: $${formattedSl} (ID: ${result.slId || 'N/A'}) | TP: $${formattedTp} (ID: ${result.tpId || 'N/A'}) | Qty: ${formattedQty}`);
-      return result;
-    } catch (err) {
-      console.error('❌ Failed to set protective orders on Binance:', err);
-      return {};
+    if (!Number.isFinite(formattedQty) || formattedQty < filter.minQty) {
+      console.warn(`⚠️ Protective order quantity ${formattedQty} below minQty ${filter.minQty} for ${symbol}`);
+      return { slOk: false };
     }
+
+    // Sanity: the stop must sit on the losing side of the entry, the target on the winning side.
+    const slNum = Number(formattedSl);
+    const tpNum = Number(formattedTp);
+    const slValid = Number.isFinite(slNum) && slNum > 0 &&
+      (side === 'BUY' ? slNum < entryPrice : slNum > entryPrice);
+    const tpValid = Number.isFinite(tpNum) && tpNum > 0 &&
+      (side === 'BUY' ? tpNum > entryPrice : tpNum < entryPrice);
+
+    const idTail = (localOrderId || String(Date.now())).slice(-24); // Binance max clientOrderId = 36 chars
+    const result: { slId?: string; tpId?: string; slOk: boolean } = { slOk: false };
+
+    if (!slValid) {
+      console.error(`❌ Invalid stop-loss price ${formattedSl} for ${side} entry @ ${entryPrice} (${symbol}); stop NOT placed.`);
+    } else {
+      const sl = await this.signedRequest('/fapi/v1/order', 'POST', {
+        symbol: cleanSymbol,
+        side: exitSide,
+        type: 'STOP_MARKET',
+        stopPrice: formattedSl,
+        quantity: formattedQty,
+        reduceOnly: true,
+        workingType: 'MARK_PRICE',
+        priceProtect: true,
+        newClientOrderId: `BASEL_SL_${idTail}`,
+      });
+      if (sl.ok && sl.data?.orderId) {
+        result.slId = String(sl.data.orderId);
+        result.slOk = true;
+      } else {
+        console.error('❌ SL order rejected on Binance:', sl.data);
+      }
+    }
+
+    if (!tpValid) {
+      console.warn(`⚠️ Invalid take-profit price ${formattedTp} for ${side} entry @ ${entryPrice} (${symbol}); TP NOT placed.`);
+    } else {
+      const tp = await this.signedRequest('/fapi/v1/order', 'POST', {
+        symbol: cleanSymbol,
+        side: exitSide,
+        type: 'TAKE_PROFIT_MARKET',
+        stopPrice: formattedTp,
+        quantity: formattedQty,
+        reduceOnly: true,
+        workingType: 'MARK_PRICE',
+        priceProtect: true,
+        newClientOrderId: `BASEL_TP_${idTail}`,
+      });
+      if (tp.ok && tp.data?.orderId) {
+        result.tpId = String(tp.data.orderId);
+      } else {
+        console.warn('⚠️ TP order rejected on Binance:', tp.data);
+      }
+    }
+
+    this.protectiveOrders.set(localOrderId || cleanSymbol, { slId: result.slId, tpId: result.tpId });
+    console.log(`🛡️ Protective Orders [${cleanSymbol}] | SL: $${formattedSl} (ID: ${result.slId || 'FAILED'}) | TP: $${formattedTp} (ID: ${result.tpId || 'N/A'}) | Qty: ${formattedQty}`);
+    return result;
   }
 
   /**
@@ -318,21 +415,23 @@ export class OrderGateway {
     try {
       const cleanSymbol = symbol.replace('/', '');
       const filter = this.getSymbolFilter(symbol);
-      const endpoint = '/fapi/v1/order';
-      const timestamp = Date.now();
       const formattedSl = formatPriceToTick(stopPrice, filter.tickSize);
       const formattedQty = formatQuantityToStep(quantity, filter.stepSize);
 
       if (formattedQty < filter.minQty) return undefined;
 
-      const slParams = `symbol=${cleanSymbol}&side=${side}&type=STOP_MARKET&stopPrice=${formattedSl}&quantity=${formattedQty}&reduceOnly=true&workingType=MARK_PRICE&timestamp=${timestamp}`;
-      const slSig = crypto.createHmac('sha256', this.apiSecret).update(slParams).digest('hex');
-      const headers = { 'X-MBX-APIKEY': this.apiKey };
+      const res = await this.signedRequest('/fapi/v1/order', 'POST', {
+        symbol: cleanSymbol,
+        side,
+        type: 'STOP_MARKET',
+        stopPrice: formattedSl,
+        quantity: formattedQty,
+        reduceOnly: true,
+        workingType: 'MARK_PRICE',
+      });
 
-      const res = await fetch(`${this.apiBaseUrl}${endpoint}?${slParams}&signature=${slSig}`, { method: 'POST', headers });
-      const data = await res.json();
-      if (res.ok && data.orderId) {
-        const slId = String(data.orderId);
+      if (res.ok && res.data?.orderId) {
+        const slId = String(res.data.orderId);
         const trackKey = localOrderId || cleanSymbol;
         const current = this.protectiveOrders.get(trackKey) || {};
         this.protectiveOrders.set(trackKey, { ...current, slId });
@@ -488,6 +587,18 @@ export class OrderGateway {
         const policy = ERROR_POLICY[code] || 'HALT';
         console.warn(`⚠️ Applied Error Policy for Binance code ${code}: ${policy}`);
 
+        if (code === -4164) {
+          const match = String(data.msg || '').match(/no smaller than\s+([0-9.]+)/i);
+          if (match && match[1]) {
+            const actualMinNotional = parseFloat(match[1]);
+            if (!isNaN(actualMinNotional) && actualMinNotional > 0) {
+              const currentFilter = this.getSymbolFilter(params.symbol);
+              this.setSymbolFilter(params.symbol, currentFilter.stepSize, currentFilter.tickSize, currentFilter.minQty, actualMinNotional);
+              console.log(`🔧 [AUTO-RECOVERY] Calibrated minNotional filter for ${params.symbol} to $${actualMinNotional} based on Binance response.`);
+            }
+          }
+        }
+
         order.status = 'REJECTED';
         order.errorMessage = data.msg || 'Binance REST API Rejected';
         this.notifyOrder(order);
@@ -515,7 +626,14 @@ export class OrderGateway {
         }
 
         if (data.status === 'FILLED') {
-          this.executeFill(order, order.filledQuantity, true);
+          if (this.executionMode === 'PAPER') {
+            this.executeFill(order, order.filledQuantity, true);
+          } else {
+            // Real exchange fills are recorded from ORDER_TRADE_UPDATE (true price / commission).
+            // Safety net: if the stream has not delivered the fill within 3s, record it once from the REST result.
+            const filledOrder = order;
+            setTimeout(() => this.recordFallbackFill(filledOrder), 3000);
+          }
         }
         this.notifyOrder(order);
       }
@@ -552,21 +670,41 @@ export class OrderGateway {
     if (cumQty > 0) order.filledQuantity = cumQty;
     order.remainingQuantity = Math.max(0, order.quantity - order.filledQuantity);
 
+    // Accumulate commission across every TRADE event (each event carries only its own fee).
+    if (eventOrder.x === 'TRADE' && eventOrder.t !== undefined) {
+      const tradeKey = `${exchangeOrderId}:${eventOrder.t}`;
+      if (!this.seenTrades.has(tradeKey)) {
+        if (this.seenTrades.size > 5000) this.seenTrades.clear();
+        this.seenTrades.add(tradeKey);
+        const feeAsset = String(eventOrder.N || 'USDT');
+        const fee = (feeAsset === 'USDT' || feeAsset === 'USDC') ? (parseFloat(eventOrder.n) || 0) : 0;
+        this.orderCommission.set(order.id, (this.orderCommission.get(order.id) || 0) + fee);
+      }
+    }
+
     let targetStatus: OrderStatus = order.status;
     if (binanceStatus === 'FILLED') {
       targetStatus = 'FILLED';
-      this.userDataStream.processFill({
-        fillId: `EX_FILL-${exchangeOrderId}-${Date.now()}`,
-        orderId: order.id,
-        symbol: order.symbol,
-        side: order.side,
-        price: order.avgFillPrice || order.price,
-        quantity: order.filledQuantity,
-        commission: parseFloat(eventOrder.n) || 0,
-        commissionAsset: eventOrder.N || 'USDT',
-        timestamp: eventOrder.T || Date.now(),
-        isMaker: eventOrder.m || false,
-      }, order.avgFillPrice || order.price);
+      if (!this.fillRecorded.has(order.id)) {
+        if (this.fillRecorded.size > 5000) this.fillRecorded.clear();
+        this.fillRecorded.add(order.id);
+        const px = order.avgFillPrice || order.price;
+        let commission = this.orderCommission.get(order.id) || 0;
+        if (commission === 0) commission = Number(((order.filledQuantity * px * this.config.takerFeeBps) / 10000).toFixed(6));
+        this.userDataStream.processFill({
+          fillId: `EX_FILL-${exchangeOrderId}`,
+          orderId: order.id,
+          symbol: order.symbol,
+          side: order.side,
+          price: px,
+          quantity: order.filledQuantity,
+          commission,
+          commissionAsset: 'USDT',
+          timestamp: eventOrder.T || Date.now(),
+          isMaker: eventOrder.m || false,
+        }, px);
+        this.orderCommission.delete(order.id);
+      }
     } else if (binanceStatus === 'PARTIALLY_FILLED') {
       targetStatus = 'PARTIALLY_FILLED';
     } else if (binanceStatus === 'CANCELED' || binanceStatus === 'EXPIRED') {
@@ -685,6 +823,35 @@ export class OrderGateway {
       }
     }
 
+    // 🛡️ Hard Safety Barrier for LIVE Real Execution
+    if (this.executionMode === 'LIVE') {
+      if (!isLiveTradingConfirmed()) {
+        const order: Order = {
+          id: orderId,
+          clientOrderId,
+          symbol: params.symbol,
+          side: params.side,
+          type: params.type,
+          price: formatPriceToTick(limitPrice, filter.tickSize),
+          quantity: formattedQty,
+          filledQuantity: 0,
+          remainingQuantity: formattedQty,
+          avgFillPrice: 0,
+          status: 'REJECTED',
+          timeInForce: params.timeInForce || 'GTC',
+          timestamp: Date.now(),
+          updatedAt: Date.now(),
+          strategyId: params.strategyId || 'Ornstein-Uhlenbeck-QUBO',
+          executionTag: params.executionTag || 'LIVE-UNCONFIRMED',
+          errorMessage: 'LIVE trading execution blocked: Confirmation barrier active (CONFIRM_LIVE_TRADING=true is required in server environment).',
+        };
+        console.error(`⛔ LIVE ORDER REJECTED: Order ${orderId} on ${params.symbol} rejected because CONFIRM_LIVE_TRADING is missing or false!`);
+        this.orders.set(orderId, order);
+        this.notifyOrder(order);
+        return order;
+      }
+    }
+
     const order: Order = {
       id: orderId,
       clientOrderId,
@@ -786,6 +953,40 @@ export class OrderGateway {
     this.notifyOrder(order);
   }
 
+  /** REST-based safety net for a FILLED order whose stream event never arrived (real modes only). */
+  private recordFallbackFill(order: Order): void {
+    if (this.executionMode === 'PAPER' || this.fillRecorded.has(order.id)) return;
+    this.fillRecorded.add(order.id);
+    const px = order.avgFillPrice || order.price;
+    const commission = Number(((order.filledQuantity * px * this.config.takerFeeBps) / 10000).toFixed(6));
+    console.warn(`⚠️ Stream fill missing for ${order.id}; recording from REST result (estimated fee).`);
+    this.userDataStream.processFill({
+      fillId: `REST_FILL-${order.exchangeOrderId || order.id}`,
+      orderId: order.id,
+      symbol: order.symbol,
+      side: order.side,
+      price: px,
+      quantity: order.filledQuantity,
+      commission,
+      commissionAsset: 'USDT',
+      timestamp: Date.now(),
+      isMaker: false,
+    }, px);
+  }
+
+  /** Cancels a resting order on the exchange (real modes). Protective SL/TP are tracked separately and untouched. */
+  private async cancelOnExchange(order: Order): Promise<void> {
+    if (this.executionMode === 'PAPER' || !order.exchangeOrderId) return;
+    const r = await this.signedRequest('/fapi/v1/order', 'DELETE', {
+      symbol: order.symbol.replace('/', ''),
+      orderId: order.exchangeOrderId,
+    });
+    // -2011 = unknown/already closed order: not an error for our purposes
+    if (!r.ok && Number(r.data?.code) !== -2011) {
+      console.warn(`⚠️ Exchange cancel failed for ${order.id}:`, r.data);
+    }
+  }
+
   public cancelOrder(orderId: string, reason: string = 'User requested cancellation'): boolean {
     const order = this.orders.get(orderId);
     if (!order) return false;
@@ -793,147 +994,136 @@ export class OrderGateway {
     if (this.fsm.canTransition(order.status, 'CANCELLED')) {
       this.fsm.transition(order, 'CANCELLED', reason);
       this.notifyOrder(order);
+      void this.cancelOnExchange(order);
       return true;
     }
     return false;
   }
 
-    public async cancelAllOpenOrdersForSymbol(symbol: string): Promise<boolean> {
-    if (this.executionMode === "PAPER" || !this.apiKey || !this.apiSecret) return true;
-    try {
-      const cleanSymbol = symbol.replace("/", "");
-      const timestamp = Date.now();
-      const query = "symbol=" + cleanSymbol + "&timestamp=" + timestamp;
-      const signature = crypto.createHmac("sha256", this.apiSecret).update(query).digest("hex");
-      const res = await fetch(this.apiBaseUrl + "/fapi/v1/allOpenOrders?" + query + "&signature=" + signature, {
-        method: "DELETE",
-        headers: { "X-MBX-APIKEY": this.apiKey }
-      });
-      return res.ok;
-    } catch (e) {
-      console.error("❌ Failed to cancel open orders on Binance for " + symbol, e);
-      return false;
-    }
+  public async cancelAllOpenOrdersForSymbol(symbol: string): Promise<boolean> {
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) return true;
+    const r = await this.signedRequest('/fapi/v1/allOpenOrders', 'DELETE', { symbol: symbol.replace('/', '') });
+    if (!r.ok) console.error(`❌ Failed to cancel open orders on Binance for ${symbol}`, r.data);
+    return r.ok;
   }
 
-  public async closePositionDirectlyOnBinance(symbol: AssetSymbol, size?: number): Promise<{ success: boolean; qty: number }> {
-    if (this.executionMode === "PAPER" || !this.apiKey || !this.apiSecret) {
+  /**
+   * Closes a position on the exchange.
+   * Order of operations matters: the reduce-only MARKET close is sent FIRST and the protective
+   * SL/TP are removed only after the close is confirmed, so a failed close never leaves a naked position.
+   */
+  public async closePositionDirectlyOnBinance(symbol: AssetSymbol, size?: number): Promise<{ success: boolean; qty: number; error?: string }> {
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) {
       return { success: true, qty: size || 0 };
     }
+    const cleanSymbol = symbol.replace('/', '');
     try {
-      const cleanSymbol = symbol.replace("/", "");
-      let currentAmt = size;
-      if (currentAmt === undefined || currentAmt === 0) {
-        const ts = Date.now();
-        const query = "timestamp=" + ts;
-        const sig = crypto.createHmac("sha256", this.apiSecret).update(query).digest("hex");
-        const res = await fetch(this.apiBaseUrl + "/fapi/v2/account?" + query + "&signature=" + sig, {
-          headers: { "X-MBX-APIKEY": this.apiKey }
-        });
-        const data = await res.json();
-        const pos = (data.positions || []).find((p: any) => p.symbol === cleanSymbol);
-        if (pos) {
-          currentAmt = parseFloat(pos.positionAmt);
-        }
+      // Authoritative amount from the exchange (local size may be stale)
+      const pr = await this.signedRequest('/fapi/v2/positionRisk', 'GET', { symbol: cleanSymbol });
+      let amtStr = '';
+      if (pr.ok && Array.isArray(pr.data)) {
+        const p = pr.data.find((x: any) => x.symbol === cleanSymbol);
+        amtStr = p ? String(p.positionAmt) : '0';
+      } else if (size !== undefined && size !== 0) {
+        amtStr = String(formatQuantityToStep(Math.abs(size), this.getSymbolFilter(symbol).stepSize) * (size < 0 ? -1 : 1));
+      } else {
+        return { success: false, qty: 0, error: 'Could not read exchange position' };
       }
 
-      if (!currentAmt || Math.abs(currentAmt) < 0.00001) {
-        console.log("ℹ️ [EXCHANGE CLOSE] No active position on Binance for " + symbol);
+      const currentAmt = parseFloat(amtStr);
+      if (!Number.isFinite(currentAmt) || Math.abs(currentAmt) < 1e-9) {
+        console.log(`ℹ️ [EXCHANGE CLOSE] No active position on Binance for ${symbol}`);
         return { success: true, qty: 0 };
       }
 
-      const closeSide: OrderSide = currentAmt > 0 ? "SELL" : "BUY";
-      const qty = Math.abs(currentAmt);
+      const closeSide: OrderSide = currentAmt > 0 ? 'SELL' : 'BUY';
+      const qtyStr = amtStr.replace('-', ''); // exchange-provided string: already step-aligned
 
-      // 1. Cancel open orders for symbol
-      await this.cancelAllOpenOrdersForSymbol(symbol);
-      await this.cancelProtectiveOrders(symbol);
-
-      // 2. Send MARKET order with reduceOnly=true
-      const orderTs = Date.now();
-      const orderQuery = "symbol=" + cleanSymbol + "&side=" + closeSide + "&type=MARKET&quantity=" + qty + "&reduceOnly=true&timestamp=" + orderTs;
-      const orderSig = crypto.createHmac("sha256", this.apiSecret).update(orderQuery).digest("hex");
-      const orderRes = await fetch(this.apiBaseUrl + "/fapi/v1/order?" + orderQuery + "&signature=" + orderSig, {
-        method: "POST",
-        headers: { "X-MBX-APIKEY": this.apiKey }
+      const order = await this.signedRequest('/fapi/v1/order', 'POST', {
+        symbol: cleanSymbol,
+        side: closeSide,
+        type: 'MARKET',
+        quantity: qtyStr,
+        reduceOnly: true,
+        newOrderRespType: 'RESULT',
       });
-      const orderData = await orderRes.json();
-      if (orderRes.ok) {
-        console.log("✅ [EXCHANGE CLOSE SUCCESS] Closed " + symbol + " on Binance (" + closeSide + " " + qty + ")");
-        return { success: true, qty };
-      } else {
-        console.warn("⚠️ [EXCHANGE CLOSE REJECTED] for " + symbol, orderData);
-        return { success: false, qty: 0 };
+      if (!order.ok) {
+        console.warn(`⚠️ [EXCHANGE CLOSE REJECTED] ${symbol}`, order.data);
+        return { success: false, qty: 0, error: order.data?.msg || 'Close rejected' };
       }
-    } catch (e) {
-      console.error("❌ [EXCHANGE CLOSE ERROR] " + symbol, e);
-      return { success: false, qty: 0 };
-    }
-  }
 
-  public async closeAllPositionsOnExchange(positions?: { symbol: AssetSymbol; size: number }[]): Promise<number> {
-    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) {
-      return 0;
-    }
-    let closedCount = 0;
-    try {
-      const ts = Date.now();
-      const query = 'timestamp=' + ts;
-      const sig = crypto.createHmac('sha256', this.apiSecret).update(query).digest('hex');
-      const res = await fetch(this.apiBaseUrl + '/fapi/v2/account?' + query + '&signature=' + sig, {
-        headers: { 'X-MBX-APIKEY': this.apiKey }
-      });
-      const data = await res.json();
-      const openPos = (data.positions || []).filter((p: any) => parseFloat(p.positionAmt) !== 0);
-      console.log("⚡ [EXCHANGE LIQUIDATION] Liquidating " + openPos.length + " positions on Binance...");
-
-      for (const pos of openPos) {
-        const sym = pos.symbol;
-        const amt = parseFloat(pos.positionAmt);
-        const closeSide = amt > 0 ? 'SELL' : 'BUY';
-        const qty = Math.abs(amt);
-
-        // 1. Cancel open orders for symbol
-        try {
-          const cancelTs = Date.now();
-          const cancelQuery = 'symbol=' + sym + '&timestamp=' + cancelTs;
-          const cancelSig = crypto.createHmac('sha256', this.apiSecret).update(cancelQuery).digest('hex');
-          await fetch(this.apiBaseUrl + '/fapi/v1/allOpenOrders?' + cancelQuery + '&signature=' + cancelSig, {
-            method: 'DELETE',
-            headers: { 'X-MBX-APIKEY': this.apiKey }
-          });
-        } catch {}
-
-        // 2. Submit Market order with reduceOnly=true
-        try {
-          const orderTs = Date.now();
-          const orderQuery = 'symbol=' + sym + '&side=' + closeSide + '&type=MARKET&quantity=' + qty + '&reduceOnly=true&timestamp=' + orderTs;
-          const orderSig = crypto.createHmac('sha256', this.apiSecret).update(orderQuery).digest('hex');
-          const orderRes = await fetch(this.apiBaseUrl + '/fapi/v1/order?' + orderQuery + '&signature=' + orderSig, {
-            method: 'POST',
-            headers: { 'X-MBX-APIKEY': this.apiKey }
-          });
-          const orderData = await orderRes.json();
-          if (orderRes.ok) {
-            closedCount++;
-            console.log("Closed " + sym + " " + closeSide + " " + qty);
-          } else {
-            console.warn("Rejection for " + sym, orderData);
-          }
-        } catch (e) {
-          console.error("Error closing " + sym, e);
+      // MARKET + RESULT is normally FILLED; otherwise verify against the exchange before claiming success
+      if (order.data?.status !== 'FILLED') {
+        await new Promise((r) => setTimeout(r, 700));
+        const chk = await this.signedRequest('/fapi/v2/positionRisk', 'GET', { symbol: cleanSymbol });
+        const p2 = chk.ok && Array.isArray(chk.data) ? chk.data.find((x: any) => x.symbol === cleanSymbol) : null;
+        if (!p2 || Math.abs(parseFloat(p2.positionAmt)) > 1e-9) {
+          return { success: false, qty: 0, error: 'Close order accepted but position still open' };
         }
       }
-    } catch (err) {
-      console.error('❌ Failed during full exchange liquidation:', err);
+
+      // Position is flat: now it is safe to remove the leftover SL/TP orders
+      await this.cancelAllOpenOrdersForSymbol(symbol);
+      await this.cancelProtectiveOrders(symbol);
+      console.log(`✅ [EXCHANGE CLOSE SUCCESS] Closed ${symbol} on Binance (${closeSide} ${qtyStr})`);
+      return { success: true, qty: Math.abs(currentAmt) };
+    } catch (e) {
+      console.error(`❌ [EXCHANGE CLOSE ERROR] ${symbol}`, e);
+      return { success: false, qty: 0, error: String(e) };
     }
-    return closedCount;
   }
 
-  public cancelAllOrders(reason: string = 'Emergency KillSwitch activated'): number {
+  /** Closes every open position on the exchange and reports exactly which ones failed. */
+  public async closeAllPositionsOnExchange(_positions?: { symbol: AssetSymbol; size: number }[]): Promise<{ closed: number; failed: string[] }> {
+    if (this.executionMode === 'PAPER' || !this.apiKey || !this.apiSecret) {
+      return { closed: 0, failed: [] };
+    }
+    const pr = await this.signedRequest('/fapi/v2/positionRisk', 'GET');
+    if (!pr.ok || !Array.isArray(pr.data)) {
+      console.error('❌ Full liquidation aborted: could not read positions from exchange', pr.data);
+      return { closed: 0, failed: ['ACCOUNT_READ_FAILED'] };
+    }
+    const open = pr.data.filter((p: any) => Math.abs(parseFloat(p.positionAmt)) > 1e-9);
+    console.log(`⚡ [EXCHANGE LIQUIDATION] Liquidating ${open.length} positions on Binance...`);
+    let closed = 0;
+    const failed: string[] = [];
+    for (const p of open) {
+      const raw: string = p.symbol;
+      const asset = (raw.endsWith('USDT') ? `${raw.slice(0, -4)}/USDT` : raw) as AssetSymbol;
+      const r = await this.closePositionDirectlyOnBinance(asset);
+      if (r.success) closed++; else failed.push(raw);
+    }
+    return { closed, failed };
+  }
+
+  public async liquidateAllExchangePositions(): Promise<number> {
+    const res = await this.closeAllPositionsOnExchange();
+    return res.closed;
+  }
+
+  public async cancelAllOrders(reason: string = 'Emergency KillSwitch activated', activeSymbols: string[] = []): Promise<number> {
     let cancelled = 0;
+
+    // 1. If executing on exchange, send DELETE /fapi/v1/allOpenOrders across all active symbols
+    if (this.executionMode !== 'PAPER' && this.apiKey && this.apiSecret) {
+      const symbolsToCancel = new Set<string>(activeSymbols);
+      for (const order of this.getActiveOrders()) {
+        symbolsToCancel.add(order.symbol);
+      }
+      for (const sym of symbolsToCancel) {
+        try {
+          await this.cancelAllOpenOrdersForSymbol(sym);
+        } catch (e) {
+          console.error(`❌ Failed to cancel exchange orders for ${sym}:`, e);
+        }
+      }
+    }
+
+    // 2. Cancel all tracked active orders in FSM
     for (const order of this.getActiveOrders()) {
-      if (this.cancelOrder(order.id, reason)) {
+      if (this.fsm.canTransition(order.status, 'CANCELLED')) {
+        this.fsm.transition(order, 'CANCELLED', reason);
+        this.notifyOrder(order);
         cancelled++;
       }
     }
