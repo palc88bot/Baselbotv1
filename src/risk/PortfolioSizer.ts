@@ -59,7 +59,7 @@ export class PortfolioSizer {
   private tierConfigs: Record<PortfolioTier, TierConfig> = {
     MICRO: {
       tier: 'MICRO',
-      maxConcurrentPositions: 3, // حتى 3 صفقات متوازنة
+      maxConcurrentPositions: 4, // حتى 4 صفقات متوازنة
       minLeverage: 3,            // رافعة 3x
       maxLeverage: 5,            // رافعة 5x
       minTradeValue: 20.0,       // قيمة اسمية تتناسب مع الحد الأدنى للعقود (20 USDT)
@@ -72,7 +72,7 @@ export class PortfolioSizer {
     },
     SMALL: {
       tier: 'SMALL',
-      maxConcurrentPositions: 2,
+      maxConcurrentPositions: 5,
       minLeverage: 3,
       maxLeverage: 3,
       minTradeValue: 20.0,
@@ -85,7 +85,7 @@ export class PortfolioSizer {
     },
     MEDIUM: {
       tier: 'MEDIUM',
-      maxConcurrentPositions: 3,
+      maxConcurrentPositions: 6,
       minLeverage: 4,
       maxLeverage: 4,
       minTradeValue: 20,
@@ -98,7 +98,7 @@ export class PortfolioSizer {
     },
     LARGE: {
       tier: 'LARGE',
-      maxConcurrentPositions: 5,
+      maxConcurrentPositions: 8,
       minLeverage: 5,
       maxLeverage: 5,
       minTradeValue: 50,

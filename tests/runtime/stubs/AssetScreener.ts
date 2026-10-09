@@ -372,6 +372,14 @@ export class AssetScreener {
   }
 
   /**
+   * الحصول على الحد الأدنى لقيمة الصفقة (minNotional) بالدولار المجلب من Binance exchangeInfo
+   */
+  public getMinNotional(symbol: AssetSymbol): number {
+    const metrics = this.allAssets.get(symbol);
+    return metrics?.minNotional ?? 5.0;
+  }
+
+  /**
    * هل يحين وقت تحديث البيانات؟
    */
   public shouldRefresh(): boolean {

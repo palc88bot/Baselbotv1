@@ -78,10 +78,11 @@ export const HolographicHUDWidgets: React.FC<HolographicHUDWidgetsProps> = ({
   const isAr = lang === 'ar';
 
   // Sub-Wallet values
-  const subEquity = subWallet?.currentEquity ?? 25.0;
+  const subBase = subWallet?.initialAllocation ?? 25.0;
+  const subEquity = subWallet?.currentEquity ?? subBase;
   const subRealizedPnl = subWallet?.realizedProfit ?? realizedPnl ?? 0.0;
   const subUnrealizedPnl = subWallet?.unrealizedPnl ?? unrealizedPnl ?? 0.0;
-  const subGrowthPct = subWallet?.growthPct ?? (subEquity > 0 ? ((subEquity - 25.0) / 25.0) * 100 : 0);
+  const subGrowthPct = subWallet?.growthPct ?? (subEquity > 0 && subBase > 0 ? ((subEquity - subBase) / subBase) * 100 : 0);
   const totalTrades = subWallet?.totalTrades ?? 0;
   const winningTrades = subWallet?.winningTrades ?? 0;
   const losingTrades = subWallet?.losingTrades ?? 0;
@@ -107,7 +108,7 @@ export const HolographicHUDWidgets: React.FC<HolographicHUDWidgetsProps> = ({
                 {isAr ? 'الأرباح المحققة' : 'Realized Profit'}
               </span>
               <span className="text-[9px] text-slate-400 block tabular-nums">
-                {isAr ? 'المحفظة الثانوية ($25)' : 'Sub-Wallet ($25)'}
+                {isAr ? `المحفظة الثانوية ($${subBase.toFixed(0)})` : `Sub-Wallet ($${subBase.toFixed(0)})`}
               </span>
             </div>
           </div>
@@ -158,7 +159,7 @@ export const HolographicHUDWidgets: React.FC<HolographicHUDWidgetsProps> = ({
         <div className="w-full h-1 bg-white/5 rounded-full mt-2.5 overflow-hidden">
           <div
             className="h-full bg-cyan-400 transition-all duration-300"
-            style={{ width: `${Math.min(100, Math.max(10, (subEquity / 25.0) * 50))}%` }}
+            style={{ width: `${Math.min(100, Math.max(10, (subEquity / subBase) * 50))}%` }}
           />
         </div>
       </div>

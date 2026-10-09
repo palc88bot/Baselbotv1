@@ -139,7 +139,7 @@ export const SubWalletModal: React.FC<SubWalletModalProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-black text-white tracking-tight">
-                    {isAr ? 'المحفظة الثانوية المعزولة ($25)' : 'Isolated Sub-Wallet ($25)'}
+                    {isAr ? `المحفظة الثانوية المعزولة ($${initialAllocation.toFixed(0)})` : `Isolated Sub-Wallet ($${initialAllocation.toFixed(0)})`}
                   </h2>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 uppercase">
                     {isAr ? 'حماية رأس المال' : 'SAFE QUARANTINE'}
@@ -147,8 +147,8 @@ export const SubWalletModal: React.FC<SubWalletModalProps> = ({
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {isAr
-                    ? 'تخصيص 25$ فقط من محفظة Testnet مع تجميد باقي الرصيد المركزي'
-                    : 'Quarantining $25 from Master Testnet with master funds locked'}
+                    ? `تخصيص ${initialAllocation.toFixed(0)}$ فقط من محفظة التداول مع حماية باقي الرصيد المركزي`
+                    : `Quarantining $${initialAllocation.toFixed(0)} for active trading with master balance locked`}
                 </p>
               </div>
             </div>

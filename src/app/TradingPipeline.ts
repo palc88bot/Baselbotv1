@@ -286,7 +286,7 @@ export class TradingPipeline {
       console.log('🔍 Screening qualified assets from exchange...');
       await this.assetScreener.refreshAllAssets();
       for (const asset of this.assetScreener.getAllAssets()) {
-        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity);
+        this.orderGateway.setSymbolFilter(asset.symbol, asset.stepSize, asset.tickSize, asset.minQuantity, asset.minNotional);
       }
 
       // Synchronize Sub-Wallet with all closed trades recorded in persistent DB
@@ -725,6 +725,12 @@ export class TradingPipeline {
     // 2. Risk Check on every tick
     const balance = this.userDataStream.getBalance();
     const positions = this.userDataStream.getPositions();
+
+    // Prevent cold-boot race condition: do not trip killswitch before balance is populated
+    if (!Number.isFinite(balance.totalEquity) || balance.totalEquity <= 0) {
+      return;
+    }
+
     // UTC day rollover: "daily loss" must measure the current day, not the time since boot.
     const utcDay = new Date().toISOString().slice(0, 10);
     if (balance.totalEquity > 0 && utcDay !== this.lastRiskDay) {
@@ -891,7 +897,7 @@ export class TradingPipeline {
       // Minimum-notional handling. The old code raised ANY undersized order to ~$5.5, which silently
       // cancelled every risk reduction applied above (dynamic risk, regime, warm-up, correlation).
       // Default: skip the trade. Opt-in bump (ALLOW_MIN_NOTIONAL_BUMP=true) is capped at 3x the risk-sized notional.
-      const minNotionalUsd = Number(this.orderGateway.getSymbolFilter(symbol).minNotional) || 5;
+      const minNotionalUsd = this.assetScreener?.getMinNotional(symbol) ?? Number(this.orderGateway.getSymbolFilter(symbol).minNotional) ?? 5;
       const riskSizedNotional = qty * features.currentPrice;
       if (features.currentPrice > 0 && riskSizedNotional < minNotionalUsd * 1.02) {
         const bumpAllowed = process.env.ALLOW_MIN_NOTIONAL_BUMP === 'true';
@@ -1143,8 +1149,12 @@ export class TradingPipeline {
       // Restore persistent KillSwitch state if previously triggered
       const savedKs = await this.db.getState<{ level: KillSwitchLevel; active: boolean; reason: string }>('killswitch_state');
       if (savedKs && savedKs.active && savedKs.level !== 'NORMAL') {
-        console.warn(`🚨 Restoring persisted KillSwitch state: [${savedKs.level}] - ${savedKs.reason}`);
-        this.killSwitch.trigger(savedKs.level, `Restored from persistent state: ${savedKs.reason}`, 'AUTO_RISK_ENGINE');
+        if (savedKs.reason.includes('Account equity is invalid')) {
+          console.log(`ℹ️ Persistent KillSwitch was previously set to [${savedKs.level}] due to startup zero-equity. Will verify with live exchange equity.`);
+        } else {
+          console.warn(`🚨 Restoring persisted KillSwitch state: [${savedKs.level}] - ${savedKs.reason}`);
+          this.killSwitch.trigger(savedKs.level, `Restored from persistent state: ${savedKs.reason}`, 'AUTO_RISK_ENGINE');
+        }
       }
 
       const apiKey = this.orderGateway.getApiKey();
@@ -1184,6 +1194,16 @@ export class TradingPipeline {
       if (isNaN(realEquity)) {
         console.warn('⚠️ Reconciliation skipped: Invalid account data received.');
         return;
+      }
+
+      // If KillSwitch was previously tripped by startup zero-equity and real equity is positive, auto-reset it
+      if (this.killSwitch.isActive() && realEquity > 0) {
+        const history = this.killSwitch.getHistory();
+        const latestEvent = history[0];
+        if (!latestEvent || latestEvent.reason.includes('Account equity is invalid') || latestEvent.reason.includes('Restored from persistent state')) {
+          console.log(`✅ Verified positive exchange equity ($${realEquity.toFixed(2)}). Auto-clearing startup KillSwitch.`);
+          this.resetEmergencyKill();
+        }
       }
 
       // Keep portfolio sizer synced with real exchange equity

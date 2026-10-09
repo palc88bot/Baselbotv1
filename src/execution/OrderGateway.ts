@@ -328,13 +328,25 @@ export class OrderGateway {
     if (!slValid) {
       console.error(`❌ Invalid stop-loss price ${formattedSl} for ${side} entry @ ${entryPrice} (${symbol}); stop NOT placed.`);
     } else {
-      const sl = await this.signedRequest('POST', '/fapi/v1/order', {
-        symbol: cleanSymbol, side: exitSide, type: 'STOP_MARKET', stopPrice: formattedSl,
-        quantity: formattedQty, reduceOnly: true, workingType: 'MARK_PRICE', priceProtect: true,
-        newClientOrderId: `BASEL_SL_${idTail}`,
+      let sl = await this.signedRequest('POST', '/fapi/v1/algoOrder', {
+        algoType: 'CONDITIONAL',
+        symbol: cleanSymbol,
+        side: exitSide,
+        type: 'STOP_MARKET',
+        triggerPrice: formattedSl,
+        quantity: formattedQty,
+        reduceOnly: true,
+        workingType: 'MARK_PRICE',
       });
-      if (sl.ok && sl.data?.orderId) {
-        result.slId = String(sl.data.orderId);
+      if (!sl.ok) {
+        sl = await this.signedRequest('POST', '/fapi/v1/order', {
+          symbol: cleanSymbol, side: exitSide, type: 'STOP_MARKET', stopPrice: formattedSl,
+          quantity: formattedQty, reduceOnly: true, workingType: 'MARK_PRICE', priceProtect: true,
+          newClientOrderId: `BASEL_SL_${idTail}`,
+        });
+      }
+      if (sl.ok && (sl.data?.algoId || sl.data?.orderId)) {
+        result.slId = String(sl.data.algoId || sl.data.orderId);
         result.slOk = true;
       } else {
         console.error('❌ SL order rejected on Binance:', sl.data);
@@ -344,13 +356,25 @@ export class OrderGateway {
     if (!tpValid) {
       console.warn(`⚠️ Invalid take-profit price ${formattedTp} for ${side} entry @ ${entryPrice} (${symbol}); TP NOT placed.`);
     } else {
-      const tp = await this.signedRequest('POST', '/fapi/v1/order', {
-        symbol: cleanSymbol, side: exitSide, type: 'TAKE_PROFIT_MARKET', stopPrice: formattedTp,
-        quantity: formattedQty, reduceOnly: true, workingType: 'MARK_PRICE', priceProtect: true,
-        newClientOrderId: `BASEL_TP_${idTail}`,
+      let tp = await this.signedRequest('POST', '/fapi/v1/algoOrder', {
+        algoType: 'CONDITIONAL',
+        symbol: cleanSymbol,
+        side: exitSide,
+        type: 'TAKE_PROFIT_MARKET',
+        triggerPrice: formattedTp,
+        quantity: formattedQty,
+        reduceOnly: true,
+        workingType: 'MARK_PRICE',
       });
-      if (tp.ok && tp.data?.orderId) {
-        result.tpId = String(tp.data.orderId);
+      if (!tp.ok) {
+        tp = await this.signedRequest('POST', '/fapi/v1/order', {
+          symbol: cleanSymbol, side: exitSide, type: 'TAKE_PROFIT_MARKET', stopPrice: formattedTp,
+          quantity: formattedQty, reduceOnly: true, workingType: 'MARK_PRICE', priceProtect: true,
+          newClientOrderId: `BASEL_TP_${idTail}`,
+        });
+      }
+      if (tp.ok && (tp.data?.algoId || tp.data?.orderId)) {
+        result.tpId = String(tp.data.algoId || tp.data.orderId);
       } else {
         console.warn('⚠️ TP order rejected on Binance:', tp.data);
       }
@@ -375,21 +399,36 @@ export class OrderGateway {
     try {
       const cleanSymbol = symbol.replace('/', '');
       const filter = this.getSymbolFilter(symbol);
-      const endpoint = '/fapi/v1/order';
-      const timestamp = Date.now();
       const formattedSl = formatPriceToTick(stopPrice, filter.tickSize);
       const formattedQty = formatQuantityToStep(quantity, filter.stepSize);
 
       if (formattedQty < filter.minQty) return undefined;
 
-      const slParams = `symbol=${cleanSymbol}&side=${side}&type=STOP_MARKET&stopPrice=${formattedSl}&quantity=${formattedQty}&reduceOnly=true&workingType=MARK_PRICE&timestamp=${timestamp}`;
-      const slSig = crypto.createHmac('sha256', this.apiSecret).update(slParams).digest('hex');
-      const headers = { 'X-MBX-APIKEY': this.apiKey };
+      let sl = await this.signedRequest('POST', '/fapi/v1/algoOrder', {
+        algoType: 'CONDITIONAL',
+        symbol: cleanSymbol,
+        side: side,
+        type: 'STOP_MARKET',
+        triggerPrice: formattedSl,
+        quantity: formattedQty,
+        reduceOnly: true,
+        workingType: 'MARK_PRICE',
+      });
 
-      const res = await fetch(`${this.apiBaseUrl}${endpoint}?${slParams}&signature=${slSig}`, { method: 'POST', headers });
-      const data = await res.json();
-      if (res.ok && data.orderId) {
-        const slId = String(data.orderId);
+      if (!sl.ok) {
+        sl = await this.signedRequest('POST', '/fapi/v1/order', {
+          symbol: cleanSymbol,
+          side: side,
+          type: 'STOP_MARKET',
+          stopPrice: formattedSl,
+          quantity: formattedQty,
+          reduceOnly: true,
+          workingType: 'MARK_PRICE',
+        });
+      }
+
+      if (sl.ok && (sl.data?.algoId || sl.data?.orderId)) {
+        const slId = String(sl.data.algoId || sl.data.orderId);
         const trackKey = localOrderId || cleanSymbol;
         const current = this.protectiveOrders.get(trackKey) || {};
         this.protectiveOrders.set(trackKey, { ...current, slId });
@@ -420,14 +459,24 @@ export class OrderGateway {
         const cancelPromises = [];
         
         if (tracked.slId) {
-          const q = `symbol=${clean}&orderId=${tracked.slId}&timestamp=${Date.now()}`;
+          // Cancel via algoOrder endpoint
+          const qAlgo = `algoId=${tracked.slId}&timestamp=${Date.now()}`;
+          const sigAlgo = crypto.createHmac('sha256', this.apiSecret).update(qAlgo).digest('hex');
+          cancelPromises.push(fetch(`${this.apiBaseUrl}/fapi/v1/algoOrder?${qAlgo}&signature=${sigAlgo}`, { method: 'DELETE', headers }).catch(() => null));
+
+          // Also attempt legacy order endpoint
+          const q = `symbol=${clean}&orderId=${tracked.slId}&timestamp=${Date.now() + 20}`;
           const sig = crypto.createHmac('sha256', this.apiSecret).update(q).digest('hex');
-          cancelPromises.push(fetch(`${this.apiBaseUrl}/fapi/v1/order?${q}&signature=${sig}`, { method: 'DELETE', headers }));
+          cancelPromises.push(fetch(`${this.apiBaseUrl}/fapi/v1/order?${q}&signature=${sig}`, { method: 'DELETE', headers }).catch(() => null));
         }
         if (tracked.tpId) {
-          const q = `symbol=${clean}&orderId=${tracked.tpId}&timestamp=${Date.now() + 50}`;
+          const qAlgo = `algoId=${tracked.tpId}&timestamp=${Date.now() + 50}`;
+          const sigAlgo = crypto.createHmac('sha256', this.apiSecret).update(qAlgo).digest('hex');
+          cancelPromises.push(fetch(`${this.apiBaseUrl}/fapi/v1/algoOrder?${qAlgo}&signature=${sigAlgo}`, { method: 'DELETE', headers }).catch(() => null));
+
+          const q = `symbol=${clean}&orderId=${tracked.tpId}&timestamp=${Date.now() + 70}`;
           const sig = crypto.createHmac('sha256', this.apiSecret).update(q).digest('hex');
-          cancelPromises.push(fetch(`${this.apiBaseUrl}/fapi/v1/order?${q}&signature=${sig}`, { method: 'DELETE', headers }));
+          cancelPromises.push(fetch(`${this.apiBaseUrl}/fapi/v1/order?${q}&signature=${sig}`, { method: 'DELETE', headers }).catch(() => null));
         }
 
         await Promise.allSettled(cancelPromises);
@@ -457,13 +506,33 @@ export class OrderGateway {
       const res = await fetch(`${this.apiBaseUrl}${endpoint}?${query}&signature=${signature}`, {
         method: 'DELETE',
         headers: { 'X-MBX-APIKEY': this.apiKey },
-      });
+      }).catch(() => null);
 
-      const data = await res.json();
-      if (res.ok) {
+      // Cancel any open algo orders for symbol
+      const algoQuery = `symbol=${cleanSymbol}&timestamp=${Date.now()}`;
+      const algoSig = crypto.createHmac('sha256', this.apiSecret).update(algoQuery).digest('hex');
+      const openAlgoRes = await fetch(`${this.apiBaseUrl}/fapi/v1/openAlgoOrders?${algoQuery}&signature=${algoSig}`, {
+        headers: { 'X-MBX-APIKEY': this.apiKey },
+      }).catch(() => null);
+
+      if (openAlgoRes && openAlgoRes.ok) {
+        const openAlgos = await openAlgoRes.json().catch(() => []);
+        if (Array.isArray(openAlgos)) {
+          for (const ao of openAlgos) {
+            if (ao.algoId) {
+              const cQ = `algoId=${ao.algoId}&timestamp=${Date.now()}`;
+              const cSig = crypto.createHmac('sha256', this.apiSecret).update(cQ).digest('hex');
+              await fetch(`${this.apiBaseUrl}/fapi/v1/algoOrder?${cQ}&signature=${cSig}`, {
+                method: 'DELETE',
+                headers: { 'X-MBX-APIKEY': this.apiKey },
+              }).catch(() => null);
+            }
+          }
+        }
+      }
+
+      if (res && res.ok) {
         console.log(`🗑️ Cancelled all open protective orders for ${cleanSymbol}`);
-      } else {
-        console.warn(`⚠️ Could not cancel open orders for ${cleanSymbol}:`, data);
       }
     } catch (err) {
       console.error(`❌ Error cancelling all open orders for ${symbol}:`, err);
