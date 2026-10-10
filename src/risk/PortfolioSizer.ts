@@ -60,8 +60,8 @@ export class PortfolioSizer {
     MICRO: {
       tier: 'MICRO',
       maxConcurrentPositions: 4, // حتى 4 صفقات متوازنة
-      minLeverage: 3,            // رافعة 3x
-      maxLeverage: 5,            // رافعة 5x
+      minLeverage: 10,           // رافعة 10x
+      maxLeverage: 20,           // رافعة 20x
       minTradeValue: 20.0,       // قيمة اسمية تتناسب مع الحد الأدنى للعقود (20 USDT)
       maxTradePercentage: 0.85,
       maxQualifiedAssets: 15,
@@ -73,8 +73,8 @@ export class PortfolioSizer {
     SMALL: {
       tier: 'SMALL',
       maxConcurrentPositions: 5,
-      minLeverage: 3,
-      maxLeverage: 3,
+      minLeverage: 10,
+      maxLeverage: 20,
       minTradeValue: 20.0,
       maxTradePercentage: 0.40,
       maxQualifiedAssets: 25,
@@ -86,8 +86,8 @@ export class PortfolioSizer {
     MEDIUM: {
       tier: 'MEDIUM',
       maxConcurrentPositions: 6,
-      minLeverage: 4,
-      maxLeverage: 4,
+      minLeverage: 10,
+      maxLeverage: 20,
       minTradeValue: 20,
       maxTradePercentage: 0.25,
       maxQualifiedAssets: 40,
@@ -99,8 +99,8 @@ export class PortfolioSizer {
     LARGE: {
       tier: 'LARGE',
       maxConcurrentPositions: 8,
-      minLeverage: 5,
-      maxLeverage: 5,
+      minLeverage: 10,
+      maxLeverage: 20,
       minTradeValue: 50,
       maxTradePercentage: 0.15,
       maxQualifiedAssets: 100,
@@ -211,8 +211,8 @@ export class PortfolioSizer {
    */
   public calculateDynamicLeverage(signalStrength: number): number {
     const config = this.getConfig();
-    const minLeverage = config.minLeverage || 5;
-    const maxLeverage = config.maxLeverage || 5;
+    const minLeverage = config.minLeverage || 10;
+    const maxLeverage = config.maxLeverage || 20;
 
     if (minLeverage >= maxLeverage) {
       return minLeverage;
@@ -361,15 +361,15 @@ export class PortfolioSizer {
 
     // تخصيص هامش متناسب مع المحفظة (حوالي 25% من رأس المال = ~6$ إلى 8$ هامش، أي 18$ إلى 25$ قيمة اسمية)
     const proportionalTargetMargin = Math.max(6.0, safeEquity * 0.25);
-    const targetNotional = Math.max(config.minTradeValue || 18.0, proportionalTargetMargin * (config.minLeverage || 3));
+    const targetNotional = Math.max(config.minTradeValue || 18.0, proportionalTargetMargin * (config.minLeverage || 10));
     if (notional < targetNotional && entry > 0) {
       notional = targetNotional;
       rawQty = notional / entry;
     }
 
     // حساب الرافعة المطلوبة لتغطية الهامش، مع الالتزام بالنطاق الآمن للفئة
-    const calculatedLev = Math.max(config.minLeverage || 3, Math.ceil(notional / safeEquity));
-    const leverage = Math.min(config.maxLeverage || 5, Math.max(config.minLeverage || 3, calculatedLev));
+    const calculatedLev = Math.max(config.minLeverage || 10, Math.ceil(notional / safeEquity));
+    const leverage = Math.min(config.maxLeverage || 20, Math.max(config.minLeverage || 10, calculatedLev));
 
     return {
       quantity: Number(rawQty.toFixed(4)),

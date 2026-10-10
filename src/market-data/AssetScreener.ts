@@ -251,8 +251,8 @@ export class AssetScreener {
     const minQuantity = lotSizeFilter ? (parseFloat(lotSizeFilter.minQty) || 0.001) : 0.001;
     const stepSize = lotSizeFilter ? (parseFloat(lotSizeFilter.stepSize) || 0.001) : 0.001;
     const tickSize = priceFilter ? (parseFloat(priceFilter.tickSize) || 0.01) : 0.01;
-    const maxLeverage = parseInt(symbolInfo.maxLeverage) || 50;
-    const minLeverage = 5;
+    const maxLeverage = 20;
+    const minLeverage = 10;
     
     const liquidityScore = this.calculateLiquidityScore(spreadPercent, bidAskDepth, volume24h);
     
@@ -456,8 +456,8 @@ export class AssetScreener {
         minQuantity: d.stepSize,
         stepSize: d.stepSize,
         tickSize: d.tickSize,
-        maxLeverage: 50,
-        minLeverage: 5,
+        maxLeverage: 20,
+        minLeverage: 10,
         liquidityScore: d.score,
         isQualified: true,
         disqualificationReasons: [],

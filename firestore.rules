@@ -33,6 +33,10 @@ service cloud.firestore {
         && (!data.keys().contains('activeSymbols') || (data.activeSymbols is list && data.activeSymbols.size() <= 20));
     }
 
+    match /test/{testId} {
+      allow get: if isValidId(testId);
+    }
+
     // Match blocks
     match /users/{userId} {
       allow get: if isOwner(userId);

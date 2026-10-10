@@ -9,7 +9,7 @@ export const DEFAULT_RISK_LIMITS: RiskLimits = {
   maxDrawdownPct: 6.0, // 6% max drawdown
   maxDailyLossPct: 3.5, // 3.5% daily loss limit
   maxPositionSizeUsd: 50000,
-  maxPortfolioLeverage: 3.0,
+  maxPortfolioLeverage: 20.0,
   maxVaR95Pct: 4.0, // 4% 1-day 95% VaR cap
   maxSlippageBps: 25,
   maxSpreadThresholdPct: 0.5,
